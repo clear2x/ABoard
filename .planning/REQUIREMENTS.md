@@ -94,13 +94,50 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (Populated during roadmap creation) | | |
+| CLIP-01 | Phase 1 | Pending |
+| CLIP-07 | Phase 1 | Pending |
+| CLIP-08 | Phase 1 | Pending |
+| CLIP-02 | Phase 2 | Pending |
+| CLIP-03 | Phase 2 | Pending |
+| CLIP-04 | Phase 2 | Pending |
+| CLIP-05 | Phase 2 | Pending |
+| CLIP-06 | Phase 2 | Pending |
+| UIUX-01 | Phase 3 | Pending |
+| UIUX-02 | Phase 3 | Pending |
+| UIUX-03 | Phase 3 | Pending |
+| UIUX-04 | Phase 3 | Pending |
+| UIUX-06 | Phase 3 | Pending |
+| UIUX-07 | Phase 3 | Pending |
+| CLIP-09 | Phase 3 | Pending |
+| AIEN-01 | Phase 4 | Pending |
+| AIEN-02 | Phase 4 | Pending |
+| AIEN-03 | Phase 4 | Pending |
+| AIEN-04 | Phase 4 | Pending |
+| AIEN-05 | Phase 4 | Pending |
+| AIEN-06 | Phase 4 | Pending |
+| AINT-01 | Phase 5 | Pending |
+| AINT-02 | Phase 5 | Pending |
+| AINT-03 | Phase 5 | Pending |
+| AINT-04 | Phase 5 | Pending |
+| AINT-05 | Phase 5 | Pending |
+| AINT-06 | Phase 5 | Pending |
+| AINT-07 | Phase 5 | Pending |
+| AINT-08 | Phase 5 | Pending |
+| AINT-09 | Phase 5 | Pending |
+| AINT-10 | Phase 5 | Pending |
+| AINT-11 | Phase 6 | Pending |
+| CLIP-10 | Phase 6 | Pending |
+| CLIP-11 | Phase 6 | Pending |
+| PLAT-01 | Phase 7 | Pending |
+| PLAT-02 | Phase 7 | Pending |
+| PLAT-03 | Phase 7 | Pending |
+| UIUX-05 | Phase 7 | Pending |
 
 **Coverage:**
-- v1 requirements: 31 total
-- Mapped to phases: 0
-- Unmapped: 31 ⚠️
+- v1 requirements: 38 total
+- Mapped to phases: 38
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-15*
-*Last updated: 2026-04-15 after initial definition*
+*Last updated: 2026-04-15 after roadmap creation*
