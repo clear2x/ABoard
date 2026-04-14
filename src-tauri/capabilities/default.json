@@ -8,6 +8,14 @@
     "clipboard-manager:allow-write-text",
     "clipboard-manager:allow-read-image",
     "global-shortcut:allow-register",
-    "global-shortcut:allow-is-registered"
+    "global-shortcut:allow-is-registered",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:window:allow-inner-size",
+    "core:window:allow-set-position",
+    "core:window:allow-close",
+    "core:window:allow-is-visible",
+    "core:window:allow-cursor-position"
   ]
 }
