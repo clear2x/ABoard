@@ -33,9 +33,9 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. 关闭窗口后应用继续在托盘运行，不退出
 **Plans**: 3 plans
 Plans:
-- [ ] 01-01-PLAN.md — Scaffold Tauri v2 project + Rust clipboard monitoring core with SHA256 dedup
-- [ ] 01-02-PLAN.md — System tray, global shortcut Cmd+Shift+V, window close-to-tray behavior
-- [ ] 01-03-PLAN.md — Solid.js frontend with clipboard list + end-to-end integration verification
+- [x] 01-01-PLAN.md — Scaffold Tauri v2 project + Rust clipboard monitoring core with SHA256 dedup
+- [x] 01-02-PLAN.md — System tray, global shortcut Cmd+Shift+V, window close-to-tray behavior
+- [x] 01-03-PLAN.md — Solid.js frontend with clipboard list + end-to-end integration verification
 **UI hint**: yes
 
 ### Phase 2: Storage & History Management
