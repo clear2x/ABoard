@@ -31,7 +31,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. 应用在系统托盘常驻显示图标，不占据 Dock 栏位置
   3. 用户按下全局快捷键可唤起一个窗口（即使其他应用在前台）
   4. 关闭窗口后应用继续在托盘运行，不退出
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 01-01-PLAN.md — Scaffold Tauri v2 project + Rust clipboard monitoring core with SHA256 dedup
+- [ ] 01-02-PLAN.md — System tray, global shortcut Cmd+Shift+V, window close-to-tray behavior
+- [ ] 01-03-PLAN.md — Solid.js frontend with clipboard list + end-to-end integration verification
 **UI hint**: yes
 
 ### Phase 2: Storage & History Management
@@ -121,7 +125,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Clipboard Core & Tray | 0/? | Not started | - |
+| 1. Clipboard Core & Tray | 0/3 | Ready to execute | - |
 | 2. Storage & History Management | 0/? | Not started | - |
 | 3. UI Foundation & Design System | 0/? | Not started | - |
 | 4. AI Engine Integration | 0/? | Not started | - |
