@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod clipboard;
+mod tray;
 
 pub fn run() {
     tauri::Builder::default()
@@ -10,6 +11,7 @@ pub fn run() {
             app.handle().plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
 
             clipboard::start_monitoring(app.handle().clone());
+            tray::setup_tray(&app.handle())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![clipboard::toggle_monitoring])
