@@ -11,6 +11,9 @@ export interface ClipboardItem {
   metadata: Record<string, unknown>;
   pinned: boolean;
   pinned_at?: number | null;
+  ai_type?: string | null;
+  ai_tags?: string[] | null;
+  ai_summary?: string | null;
 }
 
 // Reactive signals
@@ -129,6 +132,7 @@ export function addItem(item: ClipboardItem) {
 }
 
 let unlistenFn: (() => void) | null = null;
+let unlistenAiFn: (() => void) | null = null;
 
 /// Start listening to Tauri clipboard events.
 /// Call once from App's onMount. Safe to call multiple times (idempotent).
@@ -137,11 +141,24 @@ export async function startClipboardListener() {
   unlistenFn = await listen<ClipboardItem>("clipboard-update", (event) => {
     addItem(event.payload);
   });
+
+  // Listen for AI processing results and update items in-place
+  unlistenAiFn = await listen<{ item_id: string; ai_type: string; ai_tags: string[] }>("ai-processed", (event) => {
+    setItems(prev => prev.map(item =>
+      item.id === event.payload.item_id
+        ? { ...item, ai_type: event.payload.ai_type, ai_tags: event.payload.ai_tags }
+        : item
+    ));
+  });
 }
 
 export function stopClipboardListener() {
   if (unlistenFn) {
     unlistenFn();
     unlistenFn = null;
+  }
+  if (unlistenAiFn) {
+    unlistenAiFn();
+    unlistenAiFn = null;
   }
 }
