@@ -118,6 +118,7 @@ pub fn run() {
             ai::ai_delete_model,
             ai::ai_get_config,
             ai::ai_set_config,
+            ai::ai_detect_local_provider,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

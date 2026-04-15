@@ -297,6 +297,11 @@ impl LocalProvider {
             _ => vec![],
         }
     }
+
+    /// Check llama.cpp server availability as a standalone public method.
+    pub async fn check_llamacpp_standalone(&self) -> bool {
+        self.check_llamacpp().await
+    }
 }
 
 #[async_trait::async_trait]

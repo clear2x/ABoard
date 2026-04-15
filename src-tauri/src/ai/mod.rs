@@ -55,6 +55,15 @@ pub struct InferenceResponse {
     pub duration_ms: u64,
 }
 
+/// Status of local inference services (Ollama / llama.cpp server).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalProviderStatus {
+    pub ollama_available: bool,
+    pub llamacpp_available: bool,
+    pub detected_models: Vec<String>,
+}
+
 /// Tauri-managed state holding the active inference provider and configuration.
 pub struct AiState {
     pub provider: Arc<Mutex<Box<dyn InferenceProvider>>>,
@@ -442,4 +451,38 @@ pub async fn ai_set_config(
     *provider = new_provider;
 
     Ok(())
+}
+
+/// Detect local inference services (Ollama / llama.cpp server) availability.
+/// Returns status of each service and any models detected from Ollama.
+#[tauri::command]
+pub async fn ai_detect_local_provider(
+    state: tauri::State<'_, AiState>,
+) -> Result<LocalProviderStatus, String> {
+    // Get model_path from config for creating a detection provider.
+    let model_path = {
+        let config = state.config.lock().await;
+        config.model_path.clone().unwrap_or_default()
+    };
+
+    // Create a temporary LocalProvider for detection.
+    let detector = local::LocalProvider::new(model_path);
+
+    // Check Ollama first
+    let ollama_available = detector.detect_availability().await;
+
+    let (ollama_available, llamacpp_available, detected_models) = if ollama_available {
+        let models = detector.detect_ollama_models().await;
+        (true, false, models)
+    } else {
+        // Check llama.cpp server separately
+        let llamacpp_ok = detector.check_llamacpp_standalone().await;
+        (false, llamacpp_ok, vec![])
+    };
+
+    Ok(LocalProviderStatus {
+        ollama_available,
+        llamacpp_available,
+        detected_models,
+    })
 }

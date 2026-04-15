@@ -1,4 +1,4 @@
-import { createSignal, onMount, Show } from "solid-js";
+import { createSignal, onMount, Show, For } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 
 interface AiConfig {
@@ -14,6 +14,12 @@ interface AiConfig {
   top_p?: number;
 }
 
+interface LocalProviderStatus {
+  ollamaAvailable: boolean;
+  llamacppAvailable: boolean;
+  detectedModels: string[];
+}
+
 export default function AiSettings() {
   const [provider, setProvider] = createSignal("Local");
   const [openaiKey, setOpenaiKey] = createSignal("");
@@ -23,6 +29,10 @@ export default function AiSettings() {
   const [anthropicModel, setAnthropicModel] = createSignal("claude-sonnet-4-20250514");
   const [saving, setSaving] = createSignal(false);
   const [message, setMessage] = createSignal("");
+
+  // Local provider detection state
+  const [detecting, setDetecting] = createSignal(false);
+  const [localStatus, setLocalStatus] = createSignal<LocalProviderStatus | null>(null);
 
   onMount(async () => {
     try {
@@ -61,6 +71,19 @@ export default function AiSettings() {
     }
   };
 
+  const handleDetectLocal = async () => {
+    setDetecting(true);
+    setLocalStatus(null);
+    try {
+      const status = await invoke<LocalProviderStatus>("ai_detect_local_provider");
+      setLocalStatus(status);
+    } catch (err) {
+      setMessage(`Detection failed: ${err}`);
+    } finally {
+      setDetecting(false);
+    }
+  };
+
   const labelStyle = {
     "font-size": "var(--font-label)",
     color: "var(--color-text-muted)",
@@ -87,11 +110,71 @@ export default function AiSettings() {
           class="w-full border rounded-[var(--radius-sm)] px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
           style={inputStyle}
         >
-          <option value="Local">Local (llama.cpp)</option>
+          <option value="Local">Local (Ollama / llama.cpp)</option>
           <option value="OpenAi">OpenAI Compatible</option>
           <option value="Anthropic">Anthropic</option>
         </select>
       </div>
+
+      <Show when={provider() === "Local"}>
+        <div class="space-y-2 mb-3">
+          <button
+            onClick={handleDetectLocal}
+            disabled={detecting()}
+            class="w-full px-3 py-1.5 text-xs font-medium rounded-[var(--radius-sm)] transition-smooth disabled:opacity-40 border"
+            style={{
+              "background-color": "var(--color-bg-card)",
+              color: "var(--color-text-primary)",
+              "border-color": "var(--color-border)",
+            }}
+          >
+            {detecting() ? "Detecting..." : "Detect Local Services"}
+          </button>
+
+          <Show when={localStatus()}>
+            <div class="rounded-[var(--radius-sm)] p-2 text-xs space-y-1" style={{ "background-color": "var(--color-bg-card)", "border": "1px solid var(--color-border)" }}>
+              <div class="flex items-center gap-1.5">
+                <span style={{ color: localStatus()!.ollamaAvailable ? "#22c55e" : "#ef4444" }}>
+                  {localStatus()!.ollamaAvailable ? "\u2713" : "\u2717"}
+                </span>
+                <span style={{ color: "var(--color-text-primary)" }}>Ollama</span>
+                <span style={{ color: "var(--color-text-muted)", "font-size": "11px" }}>
+                  {localStatus()!.ollamaAvailable ? "(localhost:11434)" : "not running"}
+                </span>
+              </div>
+
+              <Show when={localStatus()!.ollamaAvailable && localStatus()!.detectedModels.length > 0}>
+                <div class="ml-4 space-y-0.5">
+                  <span class="block" style={{ color: "var(--color-text-muted)", "font-size": "11px" }}>Detected models:</span>
+                  <For each={localStatus()!.detectedModels}>
+                    {(model) => (
+                      <span class="block ml-2" style={{ color: "var(--color-text-primary)", "font-size": "11px" }}>
+                        {model}
+                      </span>
+                    )}
+                  </For>
+                </div>
+              </Show>
+
+              <div class="flex items-center gap-1.5">
+                <span style={{ color: localStatus()!.llamacppAvailable ? "#22c55e" : "#ef4444" }}>
+                  {localStatus()!.llamacppAvailable ? "\u2713" : "\u2717"}
+                </span>
+                <span style={{ color: "var(--color-text-primary)" }}>llama.cpp server</span>
+                <span style={{ color: "var(--color-text-muted)", "font-size": "11px" }}>
+                  {localStatus()!.llamacppAvailable ? "(localhost:8080)" : "not running"}
+                </span>
+              </div>
+
+              <Show when={!localStatus()!.ollamaAvailable && !localStatus()!.llamacppAvailable}>
+                <p class="mt-1" style={{ color: "var(--color-text-muted)", "font-size": "11px" }}>
+                  Install Ollama from https://ollama.com or start llama.cpp server
+                </p>
+              </Show>
+            </div>
+          </Show>
+        </div>
+      </Show>
 
       <Show when={provider() === "OpenAi"}>
         <div class="space-y-2 mb-3">
