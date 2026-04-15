@@ -49,7 +49,7 @@ export default function ContextMenu(props: Props) {
 
   return (
     <div
-      class="glass-card fixed py-1 min-w-[140px] z-50"
+      class="glass-card fixed py-1 min-w-[140px] z-50 animate-context-menu"
       style={{ left: `${props.x}px`, top: `${props.y}px`, "box-shadow": "var(--shadow-elevated)" }}
     >
       <button

@@ -155,7 +155,8 @@ export default function ClipboardList() {
             }
           >
             <For each={items()}>
-              {(item) => (
+              {(item, index) => (
+                <div class="animate-slide-in" style={{ "animation-delay": `${index() * 30}ms` }}>
                 <ClipboardItemCard
                   item={item}
                   isSelected={batchMode() ? false : item.id === selectedId()}
@@ -177,6 +178,7 @@ export default function ClipboardList() {
                     })
                   }
                 />
+                </div>
               )}
             </For>
           </Show>

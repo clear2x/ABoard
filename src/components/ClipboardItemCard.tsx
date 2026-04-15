@@ -48,7 +48,7 @@ export default function ClipboardItemCard(props: Props) {
 
   return (
     <div
-      class={`glass-card p-3 transition-smooth cursor-pointer hover:border-[var(--color-border-hover)] ${selectedClass()} ${batchHighlight()}`}
+      class={`glass-card p-3 transition-smooth cursor-pointer hover-lift hover:border-[var(--color-border-hover)] ${selectedClass()} ${batchHighlight()}`}
       onClick={() => props.onSelect(props.item.id)}
       onContextMenu={(e) => {
         e.preventDefault();
