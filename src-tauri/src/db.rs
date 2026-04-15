@@ -1,4 +1,5 @@
 use crate::clipboard::ClipboardItem;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -50,6 +51,18 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
         CREATE TRIGGER IF NOT EXISTS clipboard_items_ad AFTER DELETE ON clipboard_items BEGIN
             INSERT INTO clipboard_items_fts(clipboard_items_fts, rowid, content) VALUES('delete', old.rowid, old.content);
         END;
+
+        CREATE TABLE IF NOT EXISTS model_metadata (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            file_size INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'available',
+            downloaded_at INTEGER NOT NULL,
+            context_length INTEGER NOT NULL DEFAULT 2048,
+            description TEXT
+        );
         ",
     )?;
 
@@ -58,6 +71,14 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
     });
 
     Ok(())
+}
+
+/// Ensure the models/ subdirectory exists within the app data directory.
+/// Returns the PathBuf to the models directory.
+pub fn ensure_models_dir(app_data_dir: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let models_dir = app_data_dir.join("models");
+    std::fs::create_dir_all(&models_dir)?;
+    Ok(models_dir)
 }
 
 /// Insert a clipboard item into the database.

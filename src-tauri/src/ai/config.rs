@@ -19,6 +19,8 @@ pub struct AiConfig {
     // Local provider settings
     pub model_path: Option<String>,
     pub context_length: u32,
+    pub temperature: f32,
+    pub top_p: f32,
 
     // OpenAI compatible settings
     pub openai_api_key: Option<String>,
@@ -36,6 +38,8 @@ impl Default for AiConfig {
             active_provider: ProviderType::Local,
             model_path: None,
             context_length: 2048,
+            temperature: 0.7,
+            top_p: 0.9,
             openai_api_key: None,
             openai_endpoint: "https://api.openai.com/v1".to_string(),
             openai_model: "gpt-4o-mini".to_string(),

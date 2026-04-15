@@ -1,6 +1,7 @@
 pub mod cloud;
 pub mod config;
 pub mod local;
+pub mod models;
 
 use config::{AiConfig, ProviderType};
 use serde::{Deserialize, Serialize};
