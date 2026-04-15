@@ -65,7 +65,12 @@ Plans:
   4. 列表项切换、面板展开、窗口过渡均具有流畅动画（视觉上达到 60fps）
   5. 浮动窗口中选中条目后内容直接粘贴到当前活动应用
   6. 窗口尺寸自适应，内容无裁切无溢出
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 03-01-PLAN.md — Design system tokens + glassmorphism CSS + Motion One setup
+- [ ] 03-02-PLAN.md — Main window glassmorphism redesign + dual-area layout + component restyling
+- [ ] 03-03-PLAN.md — Floating popup window (Rust + frontend) + keyboard navigation + paste-to-active
+- [ ] 03-04-PLAN.md — Framer Motion animations for list transitions, context menu, popup, card hover
 **UI hint**: yes
 
 ### Phase 4: AI Engine Integration
@@ -131,7 +136,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Clipboard Core & Tray | 0/3 | Ready to execute | - |
 | 2. Storage & History Management | 0/3 | Planning complete | - |
-| 3. UI Foundation & Design System | 0/? | Not started | - |
+| 3. UI Foundation & Design System | 0/4 | Planning complete | - |
 | 4. AI Engine Integration | 0/? | Not started | - |
 | 5. AI Intelligence Features | 0/? | Not started | - |
 | 6. Semantic Search & Advanced Interaction | 0/? | Not started | - |
