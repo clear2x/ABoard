@@ -35,6 +35,10 @@ pub struct ClipboardItem {
     pub hash: String,
     pub timestamp: i64,
     pub metadata: serde_json::Value,
+    #[serde(default)]
+    pub pinned: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pinned_at: Option<i64>,
 }
 
 /// Compute SHA256 hash of the given byte slice.
@@ -104,6 +108,8 @@ pub fn start_monitoring<R: Runtime>(app: tauri::AppHandle<R>) {
                         metadata: serde_json::json!({
                             "length": trimmed.len(),
                         }),
+                        pinned: false,
+                        pinned_at: None,
                     };
 
                     if let Err(e) = app.emit("clipboard-update", &item) {

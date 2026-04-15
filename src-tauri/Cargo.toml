@@ -17,6 +17,7 @@ sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["time"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
