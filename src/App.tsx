@@ -1,21 +1,25 @@
 import { onMount } from "solid-js";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { startClipboardListener, stopClipboardListener, loadHistory } from "./stores/clipboard";
+import { startClipboardListener, loadHistory } from "./stores/clipboard";
 import ClipboardList from "./components/ClipboardList";
+import FloatingPopup from "./components/FloatingPopup";
+
+const currentLabel = getCurrentWindow().label;
 
 export default function App() {
+  if (currentLabel === "floating") {
+    return <FloatingPopup />;
+  }
+
+  // Main window
   onMount(async () => {
-    // Setup close-to-tray behavior
     const appWindow = getCurrentWindow();
     await appWindow.onCloseRequested(async (event) => {
       event.preventDefault();
       await appWindow.hide();
     });
 
-    // Start listening for clipboard events
     await startClipboardListener();
-
-    // Load persisted history from SQLite
     await loadHistory();
   });
 
