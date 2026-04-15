@@ -107,7 +107,12 @@ Plans:
   7. 用户可在 Markdown、HTML、纯文本之间执行格式转换
   8. JSON 内容可一键美化格式化或压缩，并可校验显示错误位置
   9. XML 内容可格式化和校验
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 05-01-PLAN.md — 数据库扩展 + 自动处理流水线(类型检测+标签生成) + MPSC 队列
+- [ ] 05-02-PLAN.md — 自动摘要生成 + 前端摘要预览
+- [ ] 05-03-PLAN.md — AI 操作交互(翻译/总结/改写) + 右键菜单扩展 + 结果弹窗
+- [ ] 05-04-PLAN.md — 格式化工具(JSON/XML 格式化校验 + Markdown/HTML 格式转换)
 **UI hint**: yes
 
 ### Phase 6: Semantic Search & Advanced Interaction
@@ -136,7 +141,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -144,6 +149,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Storage & History Management | 0/3 | Planning complete | - |
 | 3. UI Foundation & Design System | 0/4 | Planning complete | - |
 | 4. AI Engine Integration | 0/5 | Gap closure planned | - |
-| 5. AI Intelligence Features | 0/? | Not started | - |
+| 5. AI Intelligence Features | 0/4 | Planning complete | - |
 | 6. Semantic Search & Advanced Interaction | 0/? | Not started | - |
 | 7. Cross-Platform Polish & Settings | 0/? | Not started | - |
