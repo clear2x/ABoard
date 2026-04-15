@@ -49,17 +49,19 @@ export default function ContextMenu(props: Props) {
 
   return (
     <div
-      class="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[140px] z-50"
-      style={{ left: `${props.x}px`, top: `${props.y}px` }}
+      class="glass-card fixed py-1 min-w-[140px] z-50"
+      style={{ left: `${props.x}px`, top: `${props.y}px`, "box-shadow": "var(--shadow-elevated)" }}
     >
       <button
-        class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 cursor-pointer transition-colors"
+        class="w-full text-left px-3 py-2 text-sm cursor-pointer transition-smooth rounded-[var(--radius-sm)] hover:bg-[var(--color-bg-card-hover)]"
+        style={{ color: "var(--color-text-secondary)" }}
         onClick={handlePin}
       >
         {props.isPinned ? "Unpin" : "Pin"}
       </button>
       <button
-        class="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-gray-700 cursor-pointer transition-colors"
+        class="w-full text-left px-3 py-2 text-sm cursor-pointer transition-smooth rounded-[var(--radius-sm)] hover:bg-[var(--color-bg-card-hover)]"
+        style={{ color: "var(--color-destructive)" }}
         onClick={handleDelete}
       >
         Delete

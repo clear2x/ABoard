@@ -26,9 +26,9 @@ export default function SearchBar() {
   });
 
   return (
-    <div class="relative px-2 pb-2">
+    <div class="relative flex-1">
       <div class="relative">
-        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none" style={{ color: "var(--color-text-muted)" }}>
           &#x1F50D;
         </span>
         <input
@@ -36,7 +36,8 @@ export default function SearchBar() {
           value={searchQuery()}
           onInput={handleInput}
           placeholder="Search history..."
-          class="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg pl-9 pr-3 py-2 text-sm text-gray-300 placeholder-gray-500 focus:outline-none focus:border-gray-600/50 transition-colors"
+          class="glass-subtle w-full border rounded-[var(--radius-md)] pl-9 pr-3 py-2 focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)] transition-smooth"
+          style={{ "font-size": "var(--font-body)", color: "var(--color-text-secondary)", "border-color": "var(--color-border)" }}
         />
       </div>
     </div>

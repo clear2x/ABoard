@@ -39,16 +39,16 @@ interface Props {
 
 export default function ClipboardItemCard(props: Props) {
   const selectedClass = () =>
-    props.isSelected ? "ring-2 ring-blue-500" : "";
+    props.isSelected ? "ring-2 ring-[var(--color-accent)]" : "";
 
   const batchHighlight = () =>
     props.showCheckbox && props.checked
-      ? "bg-blue-500/10 border-blue-500/50"
+      ? "bg-[var(--color-accent)]/10 border-[var(--color-accent)]/50"
       : "";
 
   return (
     <div
-      class={`p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 hover:border-gray-600/50 transition-colors cursor-pointer ${selectedClass()} ${batchHighlight()}`}
+      class={`glass-card p-3 transition-smooth cursor-pointer hover:border-[var(--color-border-hover)] ${selectedClass()} ${batchHighlight()}`}
       onClick={() => props.onSelect(props.item.id)}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -61,7 +61,7 @@ export default function ClipboardItemCard(props: Props) {
             type="checkbox"
             checked={props.checked}
             onChange={() => props.onSelect(props.item.id)}
-            class="mr-2 accent-blue-500 flex-shrink-0"
+            class="mr-2 accent-[var(--color-accent)] flex-shrink-0"
           />
         </Show>
         <div class="flex items-center gap-1.5">
@@ -69,16 +69,16 @@ export default function ClipboardItemCard(props: Props) {
             <span class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" />
           )}
           <span
-            class={`text-xs px-2 py-0.5 rounded-full ${typeBadgeClass(props.item.type)}`}
+            class={`text-xs px-2 py-0.5 rounded-[var(--radius-full)] ${typeBadgeClass(props.item.type)}`}
           >
             {props.item.type}
           </span>
         </div>
-        <span class="text-xs text-gray-500">
+        <span class="text-xs" style={{ "font-size": "var(--font-label)", color: "var(--color-text-muted)" }}>
           {formatTimestamp(props.item.timestamp)}
         </span>
       </div>
-      <p class="text-sm text-gray-300 break-all leading-relaxed">
+      <p class="break-all leading-relaxed" style={{ "font-size": "var(--font-body)", color: "var(--color-text-secondary)" }}>
         {props.item.type === "image"
           ? "[Image]"
           : truncateText(props.item.content)}

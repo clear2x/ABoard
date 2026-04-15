@@ -34,22 +34,24 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
   return (
     <Show when={props.open}>
       <div
-        class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
         onClick={handleBackdropClick}
       >
-        <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-6 max-w-sm mx-auto">
+        <div class="glass-card p-6 max-w-sm mx-auto" style={{ "border-radius": "var(--radius-lg)", "box-shadow": "var(--shadow-elevated)" }}>
           <h2 class="text-lg font-semibold text-white mb-2">{props.title}</h2>
-          <p class="text-sm text-gray-400 mb-6">{props.message}</p>
+          <p class="text-sm mb-6" style={{ color: "var(--color-text-muted)" }}>{props.message}</p>
           <div class="flex justify-end gap-3">
             <button
               ref={cancelButtonRef}
-              class="px-4 py-2 text-sm rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+              class="px-4 py-2 text-sm rounded-[var(--radius-md)] transition-smooth border"
+              style={{ background: "var(--color-bg-card)", color: "var(--color-text-secondary)", "border-color": "var(--color-border)" }}
               onClick={props.onCancel}
             >
               {props.cancelLabel ?? "Cancel"}
             </button>
             <button
-              class="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors"
+              class="px-4 py-2 text-sm rounded-[var(--radius-md)] transition-smooth text-white hover:opacity-80"
+              style={{ background: "var(--color-destructive)" }}
               onClick={props.onConfirm}
             >
               {props.confirmLabel ?? "Delete"}

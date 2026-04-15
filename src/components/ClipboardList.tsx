@@ -93,7 +93,8 @@ export default function ClipboardList() {
         <SearchBar />
         <Show when={!batchMode()}>
           <button
-            class="px-3 py-1.5 text-xs rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors flex-shrink-0"
+            class="px-3 py-1.5 text-xs rounded-lg bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-card-hover)] transition-smooth flex-shrink-0"
+            style={{ color: "var(--color-text-secondary)" }}
             onClick={enterBatchMode}
             title="Batch delete"
           >
@@ -103,21 +104,23 @@ export default function ClipboardList() {
       </div>
 
       <Show when={batchMode()}>
-        <div class="flex items-center gap-2 px-2 py-2 border-b border-gray-800">
+        <div class="glass-subtle flex items-center gap-2 px-2 py-2">
           <button
-            class="px-3 py-1.5 text-xs rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+            class="px-3 py-1.5 text-xs rounded-lg bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-card-hover)] transition-smooth"
+            style={{ color: "var(--color-text-secondary)" }}
             onClick={selectAll}
           >
             Select All
           </button>
           <button
-            class="px-3 py-1.5 text-xs rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+            class="px-3 py-1.5 text-xs rounded-lg bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-card-hover)] transition-smooth"
+            style={{ color: "var(--color-text-secondary)" }}
             onClick={clearSelection}
           >
             Clear
           </button>
           <button
-            class="px-3 py-1.5 text-xs rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            class="px-3 py-1.5 text-xs rounded-lg bg-[var(--color-destructive)] hover:opacity-80 text-white transition-smooth disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={handleBatchDelete}
             disabled={selectedCount() === 0}
           >
@@ -125,7 +128,8 @@ export default function ClipboardList() {
           </button>
           <div class="flex-1" />
           <button
-            class="px-3 py-1.5 text-xs rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+            class="px-3 py-1.5 text-xs rounded-lg bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-card-hover)] transition-smooth"
+            style={{ color: "var(--color-text-secondary)" }}
             onClick={exitBatchMode}
           >
             Cancel
@@ -133,11 +137,11 @@ export default function ClipboardList() {
         </div>
       </Show>
 
-      <div class="flex flex-col gap-2 overflow-y-auto flex-1 p-2">
+      <div class="flex flex-col overflow-y-auto flex-1 p-2" style={{ gap: "var(--space-sm)" }}>
         <Show
           when={!loading()}
           fallback={
-            <div class="flex items-center justify-center h-32 text-gray-500 text-sm">
+            <div class="flex items-center justify-center h-32 text-sm" style={{ color: "var(--color-text-muted)" }}>
               Loading...
             </div>
           }
@@ -145,7 +149,7 @@ export default function ClipboardList() {
           <Show
             when={items().length > 0}
             fallback={
-              <div class="flex items-center justify-center h-32 text-gray-500 text-sm">
+              <div class="flex items-center justify-center h-32 text-sm" style={{ color: "var(--color-text-muted)" }}>
                 No clipboard items yet. Copy something!
               </div>
             }
