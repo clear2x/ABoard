@@ -48,7 +48,11 @@ Plans:
   3. 用户可通过关键词搜索历史记录并得到匹配结果
   4. 用户可删除单条记录或批量删除多条记录
   5. 用户可置顶重要条目，置顶条目始终显示在列表顶部
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 02-01-PLAN.md — SQLite storage layer with FTS5 search + Tauri commands for history/pin/delete
+- [ ] 02-02-PLAN.md — Frontend store refactor + SearchBar + ContextMenu + keyboard interactions
+- [ ] 02-03-PLAN.md — Batch delete with ConfirmDialog + multi-select UI
 
 ### Phase 3: UI Foundation & Design System
 **Goal**: 用户看到苹果品质的现代 UI，包含毛玻璃效果、丝滑动效、完整窗口和浮动窗口
@@ -126,7 +130,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Clipboard Core & Tray | 0/3 | Ready to execute | - |
-| 2. Storage & History Management | 0/? | Not started | - |
+| 2. Storage & History Management | 0/3 | Planning complete | - |
 | 3. UI Foundation & Design System | 0/? | Not started | - |
 | 4. AI Engine Integration | 0/? | Not started | - |
 | 5. AI Intelligence Features | 0/? | Not started | - |
