@@ -34,7 +34,7 @@ export default function App() {
       </header>
       <main class="flex flex-1 overflow-hidden">
         {/* Left column: History list area */}
-        <div class="flex-1 flex flex-col overflow-hidden border-r" style={{ "border-color": "var(--color-border-subtle)" }}>
+        <div class="flex-1 flex flex-col overflow-hidden border-r transition-smooth" style={{ "border-color": "var(--color-border-subtle)" }}>
           <ClipboardList />
         </div>
         {/* Right column: AI Tool Panel placeholder */}

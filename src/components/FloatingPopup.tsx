@@ -45,7 +45,7 @@ export default function FloatingPopup() {
   }
 
   return (
-    <div class="window-bg min-h-screen text-white flex flex-col p-3 rounded-xl select-none">
+    <div class="window-bg min-h-screen text-white flex flex-col p-3 rounded-xl select-none animate-popup-in">
       <div class="text-xs mb-2 px-1" style={{ color: "var(--color-text-muted)" }}>
         Quick Paste
       </div>
@@ -58,11 +58,12 @@ export default function FloatingPopup() {
         <For each={popupItems()}>
           {(item, index) => (
             <div
-              class={`p-2 rounded-[var(--radius-md)] cursor-pointer transition-smooth ${
+              class={`p-2 rounded-[var(--radius-md)] cursor-pointer transition-smooth animate-slide-in ${
                 index() === selectedIndex()
                   ? "bg-[var(--color-accent)]/20 border border-[var(--color-accent)]/50"
                   : "hover:bg-[var(--color-bg-card-hover)] border border-transparent"
               }`}
+              style={{ "animation-delay": `${index() * 20}ms` }}
               onClick={() => {
                 setSelectedIndex(index());
                 selectAndPaste(item);
