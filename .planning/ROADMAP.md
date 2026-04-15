@@ -89,8 +89,8 @@ Plans:
 - [x] 04-01-PLAN.md — Rust AI engine core: InferenceProvider trait, llama-cpp-rs local provider, OpenAI/Anthropic cloud clients, Tauri commands
 - [x] 04-02-PLAN.md — Model management: SQLite metadata table, download/list/delete/switch models, parameter config persistence
 - [x] 04-03-PLAN.md — Frontend AI settings panel: provider config, model manager, parameter sliders, integrated into App.tsx
-- [ ] 04-04-PLAN.md — Gap closure: LocalProvider Ollama HTTP 推理替代 stub，本地服务检测
-- [ ] 04-05-PLAN.md — Gap closure: 智能路由模块 ComplexityRouter + Auto provider 模式
+- [x] 04-04-PLAN.md — Gap closure: LocalProvider Ollama HTTP 推理替代 stub，本地服务检测
+- [x] 04-05-PLAN.md — Gap closure: 智能路由模块 ComplexityRouter + Auto provider 模式
 **UI hint**: yes
 
 ### Phase 5: AI Intelligence Features
