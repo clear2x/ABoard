@@ -18,6 +18,7 @@ const [items, setItems] = createSignal<ClipboardItem[]>([]);
 const [loading, setLoading] = createSignal(false);
 const [searchQuery, setSearchQuery] = createSignal("");
 const [selectedId, setSelectedId] = createSignal<string | null>(null);
+const [selectedIds, setSelectedIds] = createSignal<Set<string>>(new Set());
 
 export {
   items,
@@ -27,7 +28,26 @@ export {
   setSearchQuery,
   selectedId,
   setSelectedId,
+  selectedIds,
+  setSelectedIds,
 };
+
+export function toggleSelect(id: string) {
+  setSelectedIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
+}
+
+export function clearSelection() {
+  setSelectedIds(new Set());
+}
+
+export function selectAll() {
+  setSelectedIds(new Set(items().map((i) => i.id)));
+}
 
 /// Load clipboard history from SQLite via Tauri command.
 /// Called on app startup and after mutations (delete, pin, unpin).

@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import type { ClipboardItem } from "../stores/clipboard";
 
 function formatTimestamp(ts: number): string {
@@ -30,6 +31,8 @@ function typeBadgeClass(type: string): string {
 interface Props {
   item: ClipboardItem;
   isSelected: boolean;
+  showCheckbox?: boolean;
+  checked?: boolean;
   onSelect: (id: string) => void;
   onContextMenu: (e: MouseEvent, id: string, pinned: boolean) => void;
 }
@@ -38,9 +41,14 @@ export default function ClipboardItemCard(props: Props) {
   const selectedClass = () =>
     props.isSelected ? "ring-2 ring-blue-500" : "";
 
+  const batchHighlight = () =>
+    props.showCheckbox && props.checked
+      ? "bg-blue-500/10 border-blue-500/50"
+      : "";
+
   return (
     <div
-      class={`p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 hover:border-gray-600/50 transition-colors cursor-pointer ${selectedClass()}`}
+      class={`p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 hover:border-gray-600/50 transition-colors cursor-pointer ${selectedClass()} ${batchHighlight()}`}
       onClick={() => props.onSelect(props.item.id)}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -48,6 +56,14 @@ export default function ClipboardItemCard(props: Props) {
       }}
     >
       <div class="flex items-center justify-between mb-1">
+        <Show when={props.showCheckbox}>
+          <input
+            type="checkbox"
+            checked={props.checked}
+            onChange={() => props.onSelect(props.item.id)}
+            class="mr-2 accent-blue-500 flex-shrink-0"
+          />
+        </Show>
         <div class="flex items-center gap-1.5">
           {props.item.pinned && (
             <span class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" />
