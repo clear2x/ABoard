@@ -3,6 +3,9 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { startClipboardListener, loadHistory } from "./stores/clipboard";
 import ClipboardList from "./components/ClipboardList";
 import FloatingPopup from "./components/FloatingPopup";
+import AiSettings from "./components/AiSettings";
+import ModelManager from "./components/ModelManager";
+import ModelParams from "./components/ModelParams";
 
 const currentLabel = getCurrentWindow().label;
 
@@ -37,11 +40,15 @@ export default function App() {
         <div class="flex-1 flex flex-col overflow-hidden border-r transition-smooth" style={{ "border-color": "var(--color-border-subtle)" }}>
           <ClipboardList />
         </div>
-        {/* Right column: AI Tool Panel placeholder */}
-        <div class="hidden lg:flex flex-col w-[300px] glass-subtle">
+        {/* Right column: AI Settings Panel */}
+        <div class="hidden lg:flex flex-col w-[300px] glass-subtle overflow-y-auto">
           <div class="p-4">
-            <h2 class="text-base font-semibold tracking-tight mb-2">AI Tools</h2>
-            <p class="text-sm" style={{ color: "var(--color-text-muted)" }}>Coming soon...</p>
+            <h2 class="text-base font-semibold tracking-tight mb-3">AI Settings</h2>
+            <AiSettings />
+            <div class="my-3" style={{ "border-top": "1px solid var(--color-border-subtle)" }}></div>
+            <ModelManager />
+            <div class="my-3" style={{ "border-top": "1px solid var(--color-border-subtle)" }}></div>
+            <ModelParams />
           </div>
         </div>
       </main>
