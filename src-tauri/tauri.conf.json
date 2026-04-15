@@ -18,6 +18,19 @@
         "resizable": true,
         "transparent": true,
         "decorations": true
+      },
+      {
+        "label": "floating",
+        "title": "ABoard Quick Paste",
+        "width": 360,
+        "height": 420,
+        "resizable": false,
+        "transparent": true,
+        "decorations": false,
+        "visible": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "url": "/"
       }
     ],
     "security": {

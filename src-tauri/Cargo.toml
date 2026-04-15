@@ -18,6 +18,10 @@ uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["time"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
+core-graphics = { version = "0.24", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-graphics = { version = "0.24" }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
