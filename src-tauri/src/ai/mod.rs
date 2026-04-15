@@ -2,6 +2,7 @@ pub mod cloud;
 pub mod config;
 pub mod local;
 pub mod models;
+pub mod router;
 
 use config::{AiConfig, ProviderType};
 use models::{ModelInfo, ModelManager};
