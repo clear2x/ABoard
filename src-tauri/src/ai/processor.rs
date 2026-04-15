@@ -13,6 +13,15 @@ const MAX_TAGS: usize = 5;
 /// Maximum length of each tag.
 const MAX_TAG_LEN: usize = 50;
 
+/// Minimum content length (in chars) to trigger summary generation.
+const MIN_SUMMARY_CHARS: usize = 200;
+
+/// Maximum content length sent to AI for summary generation.
+const MAX_SUMMARY_CONTENT_LEN: usize = 2000;
+
+/// Maximum tokens for AI summary output (T-05-06 mitigation).
+const MAX_SUMMARY_TOKENS: u32 = 150;
+
 /// Allowed content types for AI detection result (T-05-03 mitigation).
 const ALLOWED_AI_TYPES: &[&str] = &["code", "link", "json", "xml", "image", "text"];
 
@@ -59,7 +68,7 @@ pub fn enqueue(processor: &AiProcessor, job: ProcessingJob) -> bool {
     }
 }
 
-/// Process a single clipboard item: detect type, generate tags, update DB.
+/// Process a single clipboard item: detect type, generate tags, generate summary, update DB.
 async fn process_job(app: &tauri::AppHandle, job: &ProcessingJob) {
     // Step 1: Detect content type (rules first, AI fallback)
     let ai_type = detect_type(app, &job.content, &job.content_type).await;
@@ -67,7 +76,14 @@ async fn process_job(app: &tauri::AppHandle, job: &ProcessingJob) {
     // Step 2: Generate semantic tags
     let ai_tags = generate_tags(app, &job.content, &ai_type).await;
 
-    // Step 3: Update database
+    // Step 3: Generate summary for long text (>200 chars)
+    let ai_summary = if job.content.chars().count() > MIN_SUMMARY_CHARS {
+        generate_summary(app, &job.content).await
+    } else {
+        None
+    };
+
+    // Step 4: Update database with all AI metadata
     let db_state = app.state::<DbState>();
     let tags_json = ai_tags.as_ref().map(|tags| {
         serde_json::to_string(tags).unwrap_or_else(|_| "[]".to_string())
@@ -78,17 +94,18 @@ async fn process_job(app: &tauri::AppHandle, job: &ProcessingJob) {
         &job.item_id,
         Some(ai_type.clone()),
         tags_json,
-        None, // summary is for Plan 02
+        ai_summary.clone(),
     ) {
         eprintln!("[ai-processor] Failed to update AI metadata for {}: {}", job.item_id, e);
         return;
     }
 
-    // Step 4: Emit event to frontend
+    // Step 5: Emit event to frontend (includes ai_summary)
     let payload = serde_json::json!({
         "item_id": job.item_id,
         "ai_type": ai_type,
         "ai_tags": ai_tags.unwrap_or_default(),
+        "ai_summary": ai_summary,
     });
     if let Err(e) = app.emit("ai-processed", payload) {
         eprintln!("[ai-processor] Failed to emit ai-processed event: {}", e);
@@ -302,6 +319,68 @@ async fn generate_tags(app: &tauri::AppHandle, content: &str, ai_type: &str) -> 
         }
         Err(_) => {
             eprintln!("[ai-processor] AI tag generation timed out");
+            None
+        }
+    }
+}
+
+/// Generate a concise 1-2 sentence summary for long text content using AI.
+/// Returns None if AI is unavailable or generation fails (non-blocking).
+async fn generate_summary(app: &tauri::AppHandle, content: &str) -> Option<String> {
+    // Truncate content to avoid excessive token usage (T-05-06 mitigation)
+    let truncated = if content.len() <= MAX_SUMMARY_CONTENT_LEN {
+        content.to_string()
+    } else {
+        let end = content.char_indices()
+            .take_while(|(idx, _)| *idx < MAX_SUMMARY_CONTENT_LEN)
+            .last()
+            .map(|(idx, c)| idx + c.len_utf8())
+            .unwrap_or(MAX_SUMMARY_CONTENT_LEN);
+        if let Some(last_newline) = content[..end].rfind('\n') {
+            format!("{}...", &content[..last_newline])
+        } else {
+            format!("{}...", &content[..end])
+        }
+    };
+
+    let request = InferenceRequest {
+        prompt: format!(
+            "用 1-2 句话总结以下内容的要点，要求简洁准确，不超过 100 字：\n\n{}",
+            truncated
+        ),
+        system_prompt: Some("你是一个文本摘要助手。只返回摘要文本，不要添加前缀或解释。".to_string()),
+        max_tokens: Some(MAX_SUMMARY_TOKENS),
+        temperature: Some(0.3),
+        top_p: None,
+    };
+
+    let ai_state = app.state::<AiState>();
+    let provider = ai_state.provider.lock().await;
+
+    if !provider.is_available() {
+        return None;
+    }
+
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        provider.infer(request),
+    )
+    .await
+    {
+        Ok(Ok(response)) => {
+            let summary = response.text.trim().to_string();
+            if summary.is_empty() {
+                None
+            } else {
+                Some(summary)
+            }
+        }
+        Ok(Err(e)) => {
+            eprintln!("[ai-processor] AI summary generation failed: {}", e);
+            None
+        }
+        Err(_) => {
+            eprintln!("[ai-processor] AI summary generation timed out");
             None
         }
     }
