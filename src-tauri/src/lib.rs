@@ -49,11 +49,20 @@ pub fn run() {
                 app.global_shortcut().register(toggle_shortcut)?;
             }
 
+            db::init_db(&app.handle())?;
             clipboard::start_monitoring(app.handle().clone());
             tray::setup_tray(&app.handle())?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![clipboard::toggle_monitoring])
+        .invoke_handler(tauri::generate_handler![
+            clipboard::toggle_monitoring,
+            db::get_history,
+            db::search_history,
+            db::delete_items,
+            db::pin_item,
+            db::unpin_item,
+            db::get_pinned,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -1,7 +1,9 @@
+use crate::db;
+use crate::db::DbState;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{Emitter, Runtime};
+use tauri::{Emitter, Manager, Runtime};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use uuid::Uuid;
 
@@ -111,6 +113,11 @@ pub fn start_monitoring<R: Runtime>(app: tauri::AppHandle<R>) {
                         pinned: false,
                         pinned_at: None,
                     };
+
+                    let db_state = app.state::<DbState>();
+                    if let Err(e) = db::insert_item(&db_state.conn, &item) {
+                        eprintln!("[clipboard] Failed to persist item: {}", e);
+                    }
 
                     if let Err(e) = app.emit("clipboard-update", &item) {
                         eprintln!("[clipboard] Failed to emit event: {}", e);
