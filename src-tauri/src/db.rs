@@ -289,6 +289,46 @@ pub fn get_pinned(state: tauri::State<'_, DbState>) -> Result<Vec<ClipboardItem>
     Ok(items)
 }
 
+/// Update the content of an existing clipboard item.
+/// Used by AI operations (e.g., "replace original content" with AI result).
+#[tauri::command]
+pub fn update_item_content(
+    state: tauri::State<'_, DbState>,
+    id: String,
+    content: String,
+) -> Result<(), String> {
+    if id.len() > 64 || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Err(format!("Invalid ID format: {}", id));
+    }
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    // Also update FTS index: delete old entry and insert new one
+    conn.execute(
+        "UPDATE clipboard_items SET content = ?1 WHERE id = ?2",
+        rusqlite::params![content, id],
+    )
+    .map_err(|e| format!("Update content error: {}", e))?;
+    Ok(())
+}
+
+/// Insert a new clipboard item from the frontend (e.g., AI result appended as new entry).
+#[tauri::command]
+pub fn insert_clipboard_item(
+    state: tauri::State<'_, DbState>,
+    id: String,
+    content_type: String,
+    content: String,
+    hash: String,
+    timestamp: i64,
+    metadata: String,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    conn.execute(
+        "INSERT OR IGNORE INTO clipboard_items (id, content_type, content, hash, timestamp, metadata) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![id, content_type, content, hash, timestamp, metadata],
+    ).map_err(|e| format!("Insert error: {}", e))?;
+    Ok(())
+}
+
 /// Update AI metadata (type, tags, summary) for a clipboard item.
 #[tauri::command]
 pub fn update_ai_metadata(

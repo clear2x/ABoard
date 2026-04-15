@@ -17,6 +17,7 @@ import ClipboardItemCard from "./ClipboardItemCard";
 import SearchBar from "./SearchBar";
 import ContextMenu from "./ContextMenu";
 import ConfirmDialog from "./ConfirmDialog";
+import AiResultPopup from "./AiResultPopup";
 
 export default function ClipboardList() {
   const [contextMenu, setContextMenu] = createSignal<{
@@ -185,15 +186,19 @@ export default function ClipboardList() {
         </Show>
       </div>
       <Show when={cm !== null}>
-        {cm && (
-          <ContextMenu
-            x={cm.x}
-            y={cm.y}
-            itemId={cm.itemId}
-            isPinned={cm.isPinned}
-            onClose={() => setContextMenu(null)}
-          />
-        )}
+        {cm && (() => {
+          const currentItem = items().find((i) => i.id === cm.itemId);
+          return (
+            <ContextMenu
+              x={cm.x}
+              y={cm.y}
+              itemId={cm.itemId}
+              isPinned={cm.isPinned}
+              content={currentItem?.content || ""}
+              onClose={() => setContextMenu(null)}
+            />
+          );
+        })()}
       </Show>
       <ConfirmDialog
         open={confirmOpen()}
@@ -202,6 +207,7 @@ export default function ClipboardList() {
         onConfirm={confirmBatchDelete}
         onCancel={() => setConfirmOpen(false)}
       />
+      <AiResultPopup />
     </div>
   );
 }

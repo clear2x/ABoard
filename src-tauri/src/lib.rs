@@ -128,6 +128,8 @@ pub fn run() {
             ai::ai_detect_local_provider,
             ai::ai_infer_auto,
             db::update_ai_metadata,
+            db::update_item_content,
+            db::insert_clipboard_item,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
