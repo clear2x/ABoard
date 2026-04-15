@@ -115,6 +115,14 @@ export default function ClipboardItemCard(props: Props) {
           ? "[Image]"
           : truncateText(props.item.content)}
       </p>
+      <Show when={props.item.ai_summary}>
+        <p
+          class="mt-1 text-xs leading-relaxed line-clamp-2"
+          style={{ color: "var(--color-text-muted)" }}
+        >
+          {props.item.ai_summary}
+        </p>
+      </Show>
     </div>
   );
 }

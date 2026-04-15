@@ -143,10 +143,10 @@ export async function startClipboardListener() {
   });
 
   // Listen for AI processing results and update items in-place
-  unlistenAiFn = await listen<{ item_id: string; ai_type: string; ai_tags: string[] }>("ai-processed", (event) => {
+  unlistenAiFn = await listen<{ item_id: string; ai_type: string; ai_tags: string[]; ai_summary?: string | null }>("ai-processed", (event) => {
     setItems(prev => prev.map(item =>
       item.id === event.payload.item_id
-        ? { ...item, ai_type: event.payload.ai_type, ai_tags: event.payload.ai_tags }
+        ? { ...item, ai_type: event.payload.ai_type, ai_tags: event.payload.ai_tags, ai_summary: event.payload.ai_summary ?? item.ai_summary }
         : item
     ));
   });
