@@ -67,10 +67,10 @@ Plans:
   6. 窗口尺寸自适应，内容无裁切无溢出
 **Plans**: 4 plans
 Plans:
-- [ ] 03-01-PLAN.md — Design system tokens + glassmorphism CSS + Motion One setup
-- [ ] 03-02-PLAN.md — Main window glassmorphism redesign + dual-area layout + component restyling
-- [ ] 03-03-PLAN.md — Floating popup window (Rust + frontend) + keyboard navigation + paste-to-active
-- [ ] 03-04-PLAN.md — Framer Motion animations for list transitions, context menu, popup, card hover
+- [x] 03-01-PLAN.md — Design system tokens + glassmorphism CSS + Motion One setup
+- [x] 03-02-PLAN.md — Main window glassmorphism redesign + dual-area layout + component restyling
+- [x] 03-03-PLAN.md — Floating popup window (Rust + frontend) + keyboard navigation + paste-to-active
+- [x] 03-04-PLAN.md — Framer Motion animations for list transitions, context menu, popup, card hover
 **UI hint**: yes
 
 ### Phase 4: AI Engine Integration
