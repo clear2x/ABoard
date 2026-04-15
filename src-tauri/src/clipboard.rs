@@ -41,6 +41,15 @@ pub struct ClipboardItem {
     pub pinned: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pinned_at: Option<i64>,
+    /// AI-detected content type: code, link, json, xml, image, text
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_type: Option<String>,
+    /// AI-generated semantic tags, stored as JSON array string
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_tags: Option<String>,
+    /// AI-generated summary
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_summary: Option<String>,
 }
 
 /// Compute SHA256 hash of the given byte slice.
@@ -112,6 +121,9 @@ pub fn start_monitoring<R: Runtime>(app: tauri::AppHandle<R>) {
                         }),
                         pinned: false,
                         pinned_at: None,
+                        ai_type: None,
+                        ai_tags: None,
+                        ai_summary: None,
                     };
 
                     let db_state = app.state::<DbState>();
@@ -129,6 +141,14 @@ pub fn start_monitoring<R: Runtime>(app: tauri::AppHandle<R>) {
                             &item.hash[..8]
                         );
                     }
+
+                    // Enqueue AI processing job (async, non-blocking)
+                    let processor = app.state::<crate::ai::processor::AiProcessor>();
+                    crate::ai::processor::enqueue(&processor, crate::ai::processor::ProcessingJob {
+                        item_id: item.id.clone(),
+                        content: item.content.clone(),
+                        content_type: item.content_type.clone(),
+                    });
                 }
                 Err(_) => {
                     // Clipboard may contain non-text content (image, etc.)

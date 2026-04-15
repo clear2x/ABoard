@@ -32,7 +32,10 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
             timestamp INTEGER NOT NULL,
             metadata TEXT NOT NULL DEFAULT '{}',
             pinned INTEGER NOT NULL DEFAULT 0,
-            pinned_at INTEGER
+            pinned_at INTEGER,
+            ai_type TEXT,
+            ai_tags TEXT,
+            ai_summary TEXT
         );
 
         CREATE INDEX IF NOT EXISTS idx_clipboard_items_timestamp
@@ -65,6 +68,17 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
         );
         ",
     )?;
+
+    // Migrate: add AI metadata columns if they don't exist (compatible with existing databases)
+    let migrations = [
+        "ALTER TABLE clipboard_items ADD COLUMN ai_type TEXT",
+        "ALTER TABLE clipboard_items ADD COLUMN ai_tags TEXT",
+        "ALTER TABLE clipboard_items ADD COLUMN ai_summary TEXT",
+    ];
+    for sql in &migrations {
+        // Ignore error if column already exists
+        let _ = conn.execute(sql, []);
+    }
 
     app.manage(DbState {
         conn: Mutex::new(conn),
@@ -108,6 +122,9 @@ fn row_to_item(row: &rusqlite::Row<'_>) -> Result<ClipboardItem, rusqlite::Error
         metadata,
         pinned: pinned != 0,
         pinned_at: row.get(7)?,
+        ai_type: row.get(8)?,
+        ai_tags: row.get(9)?,
+        ai_summary: row.get(10)?,
     })
 }
 
@@ -123,7 +140,7 @@ pub fn get_history(
     let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at
+            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary
              FROM clipboard_items
              ORDER BY pinned DESC, pinned_at DESC, timestamp DESC
              LIMIT ?1 OFFSET ?2",
@@ -171,7 +188,7 @@ pub fn search_history(
     let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at
+            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary
              FROM clipboard_items
              WHERE id IN (
                  SELECT rowid FROM clipboard_items_fts
@@ -258,7 +275,7 @@ pub fn get_pinned(state: tauri::State<'_, DbState>) -> Result<Vec<ClipboardItem>
     let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at
+            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary
              FROM clipboard_items
              WHERE pinned = 1
              ORDER BY pinned_at DESC",
@@ -270,4 +287,49 @@ pub fn get_pinned(state: tauri::State<'_, DbState>) -> Result<Vec<ClipboardItem>
         .filter_map(|r| r.ok())
         .collect();
     Ok(items)
+}
+
+/// Update AI metadata (type, tags, summary) for a clipboard item.
+#[tauri::command]
+pub fn update_ai_metadata(
+    state: tauri::State<'_, DbState>,
+    id: String,
+    ai_type: Option<String>,
+    ai_tags: Option<String>,
+    ai_summary: Option<String>,
+) -> Result<(), String> {
+    if id.len() > 64 || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Err(format!("Invalid ID format: {}", id));
+    }
+
+    // Validate ai_type is within allowed enum (T-05-03 mitigation)
+    const ALLOWED_TYPES: &[&str] = &["code", "link", "json", "xml", "image", "text"];
+    if let Some(ref t) = ai_type {
+        if !ALLOWED_TYPES.contains(&t.as_str()) {
+            return Err(format!("Invalid ai_type: {}. Allowed: {:?}", t, ALLOWED_TYPES));
+        }
+    }
+
+    // Validate ai_tags is a valid JSON array with items <= 50 chars each (T-05-03 mitigation)
+    if let Some(ref tags_str) = ai_tags {
+        let parsed: serde_json::Value = serde_json::from_str(tags_str)
+            .map_err(|e| format!("ai_tags must be valid JSON: {}", e))?;
+        if let serde_json::Value::Array(arr) = &parsed {
+            for item in arr {
+                if let serde_json::Value::String(s) = item {
+                    if s.len() > 50 {
+                        return Err(format!("Tag too long (max 50 chars): {}", s));
+                    }
+                }
+            }
+        }
+    }
+
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    conn.execute(
+        "UPDATE clipboard_items SET ai_type = ?1, ai_tags = ?2, ai_summary = ?3 WHERE id = ?4",
+        rusqlite::params![ai_type, ai_tags, ai_summary, id],
+    )
+    .map_err(|e| format!("Update AI metadata error: {}", e))?;
+    Ok(())
 }

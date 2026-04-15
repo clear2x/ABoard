@@ -5,6 +5,8 @@ mod clipboard;
 mod db;
 mod tray;
 
+use tauri::Manager;
+
 #[tauri::command]
 fn paste_to_active(content: String, app: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -98,6 +100,11 @@ pub fn run() {
 
             db::init_db(&app.handle())?;
             ai::init_ai(&app.handle())?;
+
+            // Start AI auto-processing queue
+            let processor = ai::processor::start_processor(app.handle().clone());
+            app.manage(processor);
+
             clipboard::start_monitoring(app.handle().clone());
             tray::setup_tray(&app.handle())?;
             Ok(())
@@ -120,6 +127,7 @@ pub fn run() {
             ai::ai_set_config,
             ai::ai_detect_local_provider,
             ai::ai_infer_auto,
+            db::update_ai_metadata,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
