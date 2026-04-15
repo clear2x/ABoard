@@ -50,9 +50,9 @@ Plans:
   5. 用户可置顶重要条目，置顶条目始终显示在列表顶部
 **Plans**: 3 plans
 Plans:
-- [ ] 02-01-PLAN.md — SQLite storage layer with FTS5 search + Tauri commands for history/pin/delete
-- [ ] 02-02-PLAN.md — Frontend store refactor + SearchBar + ContextMenu + keyboard interactions
-- [ ] 02-03-PLAN.md — Batch delete with ConfirmDialog + multi-select UI
+- [x] 02-01-PLAN.md — SQLite storage layer with FTS5 search + Tauri commands for history/pin/delete
+- [x] 02-02-PLAN.md — Frontend store refactor + SearchBar + ContextMenu + keyboard interactions
+- [x] 02-03-PLAN.md — Batch delete with ConfirmDialog + multi-select UI
 
 ### Phase 3: UI Foundation & Design System
 **Goal**: 用户看到苹果品质的现代 UI，包含毛玻璃效果、丝滑动效、完整窗口和浮动窗口
