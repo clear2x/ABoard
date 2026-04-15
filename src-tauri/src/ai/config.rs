@@ -8,6 +8,7 @@ pub enum ProviderType {
     Local,
     OpenAi,
     Anthropic,
+    Auto,
 }
 
 /// AI configuration persisted to ai-config.json.

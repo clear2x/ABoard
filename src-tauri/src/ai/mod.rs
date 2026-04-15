@@ -56,6 +56,14 @@ pub struct InferenceResponse {
     pub duration_ms: u64,
 }
 
+/// Response from auto-routed AI inference, includes routing decision metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InferenceAutoResponse {
+    pub response: InferenceResponse,
+    pub routing_decision: Option<router::RoutingDecision>,
+}
+
 /// Status of local inference services (Ollama / llama.cpp server).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -99,6 +107,15 @@ pub fn init_ai(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
                 config.anthropic_model.clone(),
             );
             Box::new(p)
+        }
+        ProviderType::Auto => {
+            // Auto mode: default to LocalProvider; actual routing happens in ai_infer_auto
+            let local = if let Some(ref model_path) = config.model_path {
+                local::LocalProvider::new(model_path.clone())
+            } else {
+                local::LocalProvider::new(String::new())
+            };
+            Box::new(local)
         }
     };
 
@@ -245,6 +262,14 @@ pub async fn ai_set_provider(
                 config.anthropic_model.clone(),
             );
             Box::new(p)
+        }
+        ProviderType::Auto => {
+            let local = if let Some(ref model_path) = config.model_path {
+                local::LocalProvider::new(model_path.clone())
+            } else {
+                local::LocalProvider::new(String::new())
+            };
+            Box::new(local)
         }
     };
     drop(config);
@@ -446,6 +471,14 @@ pub async fn ai_set_config(
             );
             Box::new(p)
         }
+        ProviderType::Auto => {
+            let local = if let Some(ref model_path) = config.model_path {
+                local::LocalProvider::new(model_path.clone())
+            } else {
+                local::LocalProvider::new(String::new())
+            };
+            Box::new(local)
+        }
     };
 
     let mut provider = state.provider.lock().await;
@@ -485,5 +518,113 @@ pub async fn ai_detect_local_provider(
         ollama_available,
         llamacpp_available,
         detected_models,
+    })
+}
+
+/// Perform AI inference with automatic provider routing.
+///
+/// When active_provider is Auto, uses ComplexityRouter to assess prompt complexity
+/// and route to the best available provider. For other provider modes, delegates
+/// directly to the configured provider.
+#[tauri::command]
+pub async fn ai_infer_auto(
+    state: tauri::State<'_, AiState>,
+    request: InferenceRequest,
+) -> Result<InferenceAutoResponse, String> {
+    // Validate prompt length
+    if request.prompt.len() > MAX_PROMPT_LEN {
+        return Err(format!(
+            "Prompt too long (max {} bytes)",
+            MAX_PROMPT_LEN
+        ));
+    }
+
+    let config = state.config.lock().await.clone();
+
+    // If not Auto mode, use the current provider directly
+    if config.active_provider != ProviderType::Auto {
+        let provider = state.provider.lock().await;
+        if !provider.is_available() {
+            return Err(format!(
+                "Provider '{}' is not available. Please configure it first.",
+                provider.name()
+            ));
+        }
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(INFERENCE_TIMEOUT_SECS),
+            provider.infer(request),
+        )
+        .await
+        .map_err(|_| {
+            format!(
+                "Inference timed out after {} seconds",
+                INFERENCE_TIMEOUT_SECS
+            )
+        })??;
+
+        return Ok(InferenceAutoResponse {
+            response: result,
+            routing_decision: None,
+        });
+    }
+
+    // Auto mode: use router to decide provider
+    let decision = router::ComplexityRouter::route(&request, &config);
+
+    // Create provider based on routing decision
+    let provider: Box<dyn InferenceProvider> = match decision.provider {
+        ProviderType::Local => {
+            let local = if let Some(ref path) = config.model_path {
+                local::LocalProvider::new(path.clone())
+            } else {
+                local::LocalProvider::new(String::new())
+            };
+            Box::new(local)
+        }
+        ProviderType::OpenAi => {
+            let p = cloud::OpenAiProvider::new(
+                config.openai_api_key.clone(),
+                config.openai_endpoint.clone(),
+                config.openai_model.clone(),
+            );
+            Box::new(p)
+        }
+        ProviderType::Anthropic => {
+            let p = cloud::AnthropicProvider::new(
+                config.anthropic_api_key.clone(),
+                config.anthropic_model.clone(),
+            );
+            Box::new(p)
+        }
+        ProviderType::Auto => {
+            // Should not happen -- Auto mode is handled above
+            unreachable!("Auto mode should not produce Auto routing decision")
+        }
+    };
+
+    if !provider.is_available() {
+        return Err(format!(
+            "Routed provider '{}' is not available. Reason: {}",
+            provider.name(),
+            decision.reason
+        ));
+    }
+
+    // Execute inference with timeout
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(INFERENCE_TIMEOUT_SECS),
+        provider.infer(request),
+    )
+    .await
+    .map_err(|_| {
+        format!(
+            "Inference timed out after {} seconds",
+            INFERENCE_TIMEOUT_SECS
+        )
+    })??;
+
+    Ok(InferenceAutoResponse {
+        response: result,
+        routing_decision: Some(decision),
     })
 }
