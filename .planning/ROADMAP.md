@@ -84,7 +84,11 @@ Plans:
   4. 用户可配置云端 AI API（OpenAI/Claude 等）密钥和端点，作为可选推理后端
   5. 系统根据任务复杂度自动路由到本地或云端模型（简单任务走本地，复杂任务走云端）
   6. AI 处理全程异步执行，UI 和剪贴板监听不受阻塞
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 04-01-PLAN.md — Rust AI engine core: InferenceProvider trait, llama-cpp-rs local provider, OpenAI/Anthropic cloud clients, Tauri commands
+- [ ] 04-02-PLAN.md — Model management: SQLite metadata table, download/list/delete/switch models, parameter config persistence
+- [ ] 04-03-PLAN.md — Frontend AI settings panel: provider config, model manager, parameter sliders, integrated into App.tsx
 **UI hint**: yes
 
 ### Phase 5: AI Intelligence Features
@@ -137,7 +141,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Clipboard Core & Tray | 0/3 | Ready to execute | - |
 | 2. Storage & History Management | 0/3 | Planning complete | - |
 | 3. UI Foundation & Design System | 0/4 | Planning complete | - |
-| 4. AI Engine Integration | 0/? | Not started | - |
+| 4. AI Engine Integration | 0/3 | Planning complete | - |
 | 5. AI Intelligence Features | 0/? | Not started | - |
 | 6. Semantic Search & Advanced Interaction | 0/? | Not started | - |
 | 7. Cross-Platform Polish & Settings | 0/? | Not started | - |
