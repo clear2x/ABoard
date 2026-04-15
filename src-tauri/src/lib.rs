@@ -114,6 +114,10 @@ pub fn run() {
             ai::ai_infer,
             ai::ai_list_models,
             ai::ai_set_provider,
+            ai::ai_download_model,
+            ai::ai_delete_model,
+            ai::ai_get_config,
+            ai::ai_set_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
