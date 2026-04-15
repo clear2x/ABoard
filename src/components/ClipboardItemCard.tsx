@@ -29,17 +29,35 @@ function typeBadgeClass(type: string): string {
 
 interface Props {
   item: ClipboardItem;
+  isSelected: boolean;
+  onSelect: (id: string) => void;
+  onContextMenu: (e: MouseEvent, id: string, pinned: boolean) => void;
 }
 
 export default function ClipboardItemCard(props: Props) {
+  const selectedClass = () =>
+    props.isSelected ? "ring-2 ring-blue-500" : "";
+
   return (
-    <div class="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 hover:border-gray-600/50 transition-colors">
+    <div
+      class={`p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 hover:border-gray-600/50 transition-colors cursor-pointer ${selectedClass()}`}
+      onClick={() => props.onSelect(props.item.id)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        props.onContextMenu(e, props.item.id, props.item.pinned);
+      }}
+    >
       <div class="flex items-center justify-between mb-1">
-        <span
-          class={`text-xs px-2 py-0.5 rounded-full ${typeBadgeClass(props.item.type)}`}
-        >
-          {props.item.type}
-        </span>
+        <div class="flex items-center gap-1.5">
+          {props.item.pinned && (
+            <span class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" />
+          )}
+          <span
+            class={`text-xs px-2 py-0.5 rounded-full ${typeBadgeClass(props.item.type)}`}
+          >
+            {props.item.type}
+          </span>
+        </div>
         <span class="text-xs text-gray-500">
           {formatTimestamp(props.item.timestamp)}
         </span>

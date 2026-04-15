@@ -1,6 +1,6 @@
 import { onMount } from "solid-js";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { startClipboardListener, stopClipboardListener } from "./stores/clipboard";
+import { startClipboardListener, stopClipboardListener, loadHistory } from "./stores/clipboard";
 import ClipboardList from "./components/ClipboardList";
 
 export default function App() {
@@ -14,6 +14,9 @@ export default function App() {
 
     // Start listening for clipboard events
     await startClipboardListener();
+
+    // Load persisted history from SQLite
+    await loadHistory();
   });
 
   return (
