@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod ai;
 mod clipboard;
 mod db;
 mod tray;
@@ -96,6 +97,7 @@ pub fn run() {
             }
 
             db::init_db(&app.handle())?;
+            ai::init_ai(&app.handle())?;
             clipboard::start_monitoring(app.handle().clone());
             tray::setup_tray(&app.handle())?;
             Ok(())
@@ -109,6 +111,9 @@ pub fn run() {
             db::pin_item,
             db::unpin_item,
             db::get_pinned,
+            ai::ai_infer,
+            ai::ai_list_models,
+            ai::ai_set_provider,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
