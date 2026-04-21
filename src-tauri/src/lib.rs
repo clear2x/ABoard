@@ -135,6 +135,7 @@ fn quick_cycle(app: tauri::AppHandle, cycle: tauri::State<'_, Mutex<CycleState>>
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             #[cfg(desktop)]
             {
@@ -234,6 +235,7 @@ pub fn run() {
             db::update_item_content,
             db::insert_clipboard_item,
             db::semantic_search,
+            db::export_items,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

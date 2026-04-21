@@ -408,6 +408,75 @@ pub fn update_ai_metadata(
     Ok(())
 }
 
+/// Export selected clipboard items to a file in JSON, Markdown, or plain text format.
+#[tauri::command]
+pub async fn export_items(
+    state: tauri::State<'_, DbState>,
+    ids: Vec<String>,
+    format: String,
+    path: String,
+) -> Result<(), String> {
+    if ids.is_empty() {
+        return Err("No items selected for export".to_string());
+    }
+    for id in &ids {
+        if id.len() > 64 || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+            return Err(format!("Invalid ID format: {}", id));
+        }
+    }
+
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    let placeholders: Vec<String> = ids.iter().map(|_| "?".to_string()).collect();
+    let sql = format!(
+        "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary
+         FROM clipboard_items WHERE id IN ({})
+         ORDER BY pinned DESC, pinned_at DESC, timestamp DESC",
+        placeholders.join(",")
+    );
+    let params: Vec<&dyn rusqlite::types::ToSql> = ids.iter().map(|id| id as &dyn rusqlite::types::ToSql).collect();
+    let items: Vec<ClipboardItem> = {
+        let mut stmt = conn.prepare(&sql).map_err(|e| format!("Prepare error: {}", e))?;
+        let rows: Vec<Result<ClipboardItem, _>> = stmt
+            .query_map(params.as_slice(), row_to_item)
+            .map_err(|e| format!("Query error: {}", e))?
+            .collect();
+        rows.into_iter().filter_map(|r| r.ok()).collect()
+    };
+    drop(conn);
+
+    let content = match format.as_str() {
+        "json" => {
+            serde_json::to_string_pretty(&items).map_err(|e| format!("JSON serialize error: {}", e))?
+        }
+        "markdown" => {
+            let mut md = String::from("# ABoard Export\n\n");
+            for item in &items {
+                let time = chrono::DateTime::from_timestamp_millis(item.timestamp)
+                    .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string())
+                    .unwrap_or_default();
+                md.push_str(&format!("## {} {}\n", if item.pinned { "📌 " } else { "" }, time));
+                md.push_str(&format!("{}\n\n---\n\n", &item.content));
+            }
+            md
+        }
+        "text" => {
+            items
+                .iter()
+                .map(|item| {
+                    let time = chrono::DateTime::from_timestamp_millis(item.timestamp)
+                        .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string())
+                        .unwrap_or_default();
+                    format!("[{}]\n{}\n\n---\n", time, item.content)
+                })
+                .collect()
+        }
+        _ => return Err(format!("Unsupported export format: {}", format)),
+    };
+
+    std::fs::write(&path, content).map_err(|e| format!("File write error: {}", e))?;
+    Ok(())
+}
+
 /// Semantic search: uses AI to expand a natural language query into FTS5 keywords,
 /// then searches across content, ai_tags, and ai_summary.
 #[tauri::command]

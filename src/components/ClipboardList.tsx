@@ -1,4 +1,6 @@
 import { For, Show, onMount, createSignal } from "solid-js";
+import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import {
   items,
   selectedId,
@@ -81,6 +83,29 @@ export default function ClipboardList() {
     exitBatchMode();
   };
 
+  const handleExport = async (format: "json" | "markdown" | "text") => {
+    const ids = Array.from(selectedIds());
+    if (ids.length === 0) return;
+
+    const extensions: Record<string, string> = { json: "json", markdown: "md", text: "txt" };
+    const filePath = await open({
+      multiple: false,
+      directory: false,
+      defaultPath: `aboard-export.${extensions[format]}`,
+      filters: [{ name: format.toUpperCase(), extensions: [extensions[format]] }],
+    });
+    if (!filePath) return;
+
+    try {
+      await invoke("export_items", { ids, format, path: filePath });
+      exitBatchMode();
+    } catch (e) {
+      console.error("[ClipboardList] Export failed:", e);
+    }
+  };
+
+  const [showExportMenu, setShowExportMenu] = createSignal(false);
+
   const cm = contextMenu();
   const selectedCount = () => selectedIds().size;
 
@@ -127,6 +152,46 @@ export default function ClipboardList() {
           >
             Delete Selected ({selectedCount()})
           </button>
+          <div
+            class="relative"
+            onMouseEnter={() => setShowExportMenu(true)}
+            onMouseLeave={() => setShowExportMenu(false)}
+          >
+            <button
+              class="px-3 py-1.5 text-xs rounded-lg bg-[var(--color-accent)] hover:opacity-80 text-white transition-smooth disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={selectedCount() === 0}
+            >
+              Export
+            </button>
+            <Show when={showExportMenu() && selectedCount() > 0}>
+              <div
+                class="absolute top-full left-0 mt-1 py-1 min-w-[120px] glass-card animate-context-menu z-50"
+                style={{ "box-shadow": "var(--shadow-elevated)" }}
+              >
+                <button
+                  class="w-full text-left px-3 py-2 text-xs hover:bg-[var(--color-bg-card-hover)]"
+                  style={{ color: "var(--color-text-secondary)" }}
+                  onClick={() => handleExport("json")}
+                >
+                  Export as JSON
+                </button>
+                <button
+                  class="w-full text-left px-3 py-2 text-xs hover:bg-[var(--color-bg-card-hover)]"
+                  style={{ color: "var(--color-text-secondary)" }}
+                  onClick={() => handleExport("markdown")}
+                >
+                  Export as Markdown
+                </button>
+                <button
+                  class="w-full text-left px-3 py-2 text-xs hover:bg-[var(--color-bg-card-hover)]"
+                  style={{ color: "var(--color-text-secondary)" }}
+                  onClick={() => handleExport("text")}
+                >
+                  Export as Text
+                </button>
+              </div>
+            </Show>
+          </div>
           <div class="flex-1" />
           <button
             class="px-3 py-1.5 text-xs rounded-lg bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-card-hover)] transition-smooth"
