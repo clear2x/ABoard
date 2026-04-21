@@ -1,11 +1,13 @@
 import { onMount } from "solid-js";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { startClipboardListener, loadHistory } from "./stores/clipboard";
+import { initTheme } from "./stores/theme";
 import ClipboardList from "./components/ClipboardList";
 import FloatingPopup from "./components/FloatingPopup";
 import AiSettings from "./components/AiSettings";
 import ModelManager from "./components/ModelManager";
 import ModelParams from "./components/ModelParams";
+import Settings from "./components/Settings";
 
 const currentLabel = getCurrentWindow().label;
 
@@ -16,6 +18,8 @@ export default function App() {
 
   // Main window
   onMount(async () => {
+    initTheme();
+
     const appWindow = getCurrentWindow();
     await appWindow.onCloseRequested(async (event) => {
       event.preventDefault();
@@ -42,13 +46,15 @@ export default function App() {
         </div>
         {/* Right column: AI Settings Panel */}
         <div class="hidden lg:flex flex-col w-[300px] glass-subtle overflow-y-auto">
-          <div class="p-4">
-            <h2 class="text-base font-semibold tracking-tight mb-3">AI Settings</h2>
+          <div class="p-4 space-y-0">
+            <h2 class="text-base font-semibold tracking-tight mb-3" style={{ color: "var(--color-text-primary)" }}>AI Settings</h2>
             <AiSettings />
             <div class="my-3" style={{ "border-top": "1px solid var(--color-border-subtle)" }}></div>
             <ModelManager />
             <div class="my-3" style={{ "border-top": "1px solid var(--color-border-subtle)" }}></div>
             <ModelParams />
+            <div class="my-3" style={{ "border-top": "1px solid var(--color-border-subtle)" }}></div>
+            <Settings />
           </div>
         </div>
       </main>

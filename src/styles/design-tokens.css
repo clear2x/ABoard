@@ -1,5 +1,5 @@
 :root {
-  /* Colors - Dark theme */
+  /* Colors - Dark theme (default) */
   --color-bg-dominant: #111827;
   --color-bg-secondary: rgba(31, 41, 55, 0.5);
   --color-bg-card: rgba(31, 41, 55, 0.6);
@@ -58,4 +58,27 @@
   --duration-slow: 400ms;
   --ease-default: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Light theme */
+:root[data-theme="light"] {
+  --color-bg-dominant: #f8fafc;
+  --color-bg-secondary: rgba(241, 245, 249, 0.8);
+  --color-bg-card: rgba(255, 255, 255, 0.8);
+  --color-bg-card-hover: rgba(241, 245, 249, 0.9);
+  --color-bg-glass: rgba(255, 255, 255, 0.7);
+  --color-border: rgba(203, 213, 225, 0.6);
+  --color-border-hover: rgba(148, 163, 184, 0.6);
+  --color-border-subtle: rgba(226, 232, 240, 1);
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #334155;
+  --color-text-tertiary: #64748b;
+  --color-text-muted: #94a3b8;
+  --color-accent: #2563eb;
+  --color-accent-hover: #3b82f6;
+  --color-destructive: #dc2626;
+  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
