@@ -130,6 +130,7 @@ pub fn run() {
             db::update_ai_metadata,
             db::update_item_content,
             db::insert_clipboard_item,
+            db::semantic_search,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

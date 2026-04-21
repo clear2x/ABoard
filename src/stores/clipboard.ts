@@ -91,6 +91,27 @@ export async function searchHistory(query: string) {
   }
 }
 
+/// Semantic search: uses AI to expand query into keywords, then FTS5 search.
+export async function semanticSearchHistory(query: string) {
+  if (!query.trim()) {
+    await loadHistory();
+    return;
+  }
+  setLoading(true);
+  try {
+    const result = await invoke<ClipboardItem[]>("semantic_search", {
+      query,
+      offset: 0,
+      limit: 50,
+    });
+    setItems(result);
+  } catch (e) {
+    console.error("[store] Semantic search failed:", e);
+  } finally {
+    setLoading(false);
+  }
+}
+
 /// Delete one or more clipboard items by ID, then refresh the list.
 export async function deleteItems(ids: string[]) {
   try {

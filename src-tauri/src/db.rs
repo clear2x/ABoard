@@ -44,17 +44,6 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
         CREATE INDEX IF NOT EXISTS idx_clipboard_items_pinned
             ON clipboard_items (pinned, pinned_at DESC);
 
-        CREATE VIRTUAL TABLE IF NOT EXISTS clipboard_items_fts
-            USING fts5(content, content='clipboard_items', content_rowid='rowid');
-
-        CREATE TRIGGER IF NOT EXISTS clipboard_items_ai AFTER INSERT ON clipboard_items BEGIN
-            INSERT INTO clipboard_items_fts(rowid, content) VALUES (new.rowid, new.content);
-        END;
-
-        CREATE TRIGGER IF NOT EXISTS clipboard_items_ad AFTER DELETE ON clipboard_items BEGIN
-            INSERT INTO clipboard_items_fts(clipboard_items_fts, rowid, content) VALUES('delete', old.rowid, old.content);
-        END;
-
         CREATE TABLE IF NOT EXISTS model_metadata (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -78,6 +67,51 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
     for sql in &migrations {
         // Ignore error if column already exists
         let _ = conn.execute(sql, []);
+    }
+
+    // Migrate FTS5: rebuild with ai_tags and ai_summary columns if needed
+    let fts_needs_rebuild = {
+        let col_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('clipboard_items_fts') WHERE name IN ('ai_tags', 'ai_summary')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+        col_count < 2
+    };
+
+    if fts_needs_rebuild {
+        // Drop old FTS table and triggers, recreate with enhanced schema
+        conn.execute_batch(
+            "DROP TABLE IF EXISTS clipboard_items_fts;
+             DROP TRIGGER IF EXISTS clipboard_items_ai;
+             DROP TRIGGER IF EXISTS clipboard_items_ad;
+             DROP TRIGGER IF EXISTS clipboard_items_au;
+
+             CREATE VIRTUAL TABLE IF NOT EXISTS clipboard_items_fts
+                 USING fts5(content, ai_tags, ai_summary, content='clipboard_items', content_rowid='rowid');
+
+             CREATE TRIGGER IF NOT EXISTS clipboard_items_ai AFTER INSERT ON clipboard_items BEGIN
+                 INSERT INTO clipboard_items_fts(rowid, content, ai_tags, ai_summary)
+                 VALUES (new.rowid, new.content, new.ai_tags, new.ai_summary);
+             END;
+
+             CREATE TRIGGER IF NOT EXISTS clipboard_items_ad AFTER DELETE ON clipboard_items BEGIN
+                 INSERT INTO clipboard_items_fts(clipboard_items_fts, rowid, content, ai_tags, ai_summary)
+                 VALUES('delete', old.rowid, old.content, old.ai_tags, old.ai_summary);
+             END;
+
+             CREATE TRIGGER IF NOT EXISTS clipboard_items_au AFTER UPDATE ON clipboard_items BEGIN
+                 INSERT INTO clipboard_items_fts(clipboard_items_fts, rowid, content, ai_tags, ai_summary)
+                 VALUES('delete', old.rowid, old.content, old.ai_tags, old.ai_summary);
+                 INSERT INTO clipboard_items_fts(rowid, content, ai_tags, ai_summary)
+                 VALUES (new.rowid, new.content, new.ai_tags, new.ai_summary);
+             END;
+
+             INSERT INTO clipboard_items_fts(clipboard_items_fts) VALUES('rebuild');
+             ",
+        )?;
     }
 
     app.manage(DbState {
@@ -372,4 +406,83 @@ pub fn update_ai_metadata(
     )
     .map_err(|e| format!("Update AI metadata error: {}", e))?;
     Ok(())
+}
+
+/// Semantic search: uses AI to expand a natural language query into FTS5 keywords,
+/// then searches across content, ai_tags, and ai_summary.
+#[tauri::command]
+pub async fn semantic_search(
+    ai_state: tauri::State<'_, crate::ai::AiState>,
+    db_state: tauri::State<'_, DbState>,
+    query: String,
+    offset: u32,
+    limit: u32,
+) -> Result<Vec<ClipboardItem>, String> {
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return Ok(vec![]);
+    }
+    if trimmed.len() > MAX_QUERY_LEN {
+        return Err(format!("Query too long (max {} characters)", MAX_QUERY_LEN));
+    }
+    let limit = limit.min(MAX_LIMIT).max(1);
+
+    // Use AI to expand the query into search keywords
+    let expand_prompt = format!(
+        "Extract 3-5 concise search keywords from this query. Return ONLY the keywords separated by spaces, nothing else. Query: {}",
+        trimmed
+    );
+    let request = crate::ai::InferenceRequest {
+        prompt: expand_prompt,
+        system_prompt: Some("You are a search keyword extractor. Return only space-separated keywords.".to_string()),
+        max_tokens: Some(50),
+        temperature: Some(0.3),
+        top_p: None,
+    };
+
+    let expanded_keywords = match crate::ai::ai_infer_auto(ai_state, request).await {
+        Ok(response) => response.response.text.trim().to_string(),
+        Err(_) => trimmed.to_string(), // Fallback to original query if AI fails
+    };
+
+    // Build FTS5 query: combine original and expanded keywords
+    let all_terms = format!("{} {}", trimmed, expanded_keywords);
+    let sanitized: String = all_terms
+        .chars()
+        .filter(|c| !matches!(c, '"' | '^' | '#' | ':'))
+        .collect();
+    if sanitized.trim().is_empty() {
+        return Ok(vec![]);
+    }
+    // Split into individual words and join with OR for broader matching
+    let fts_terms: Vec<String> = sanitized
+        .split_whitespace()
+        .filter(|w| w.len() >= 2)
+        .map(|w| w.to_string())
+        .collect();
+    if fts_terms.is_empty() {
+        return Ok(vec![]);
+    }
+    let fts_query = fts_terms.join(" OR ");
+
+    let conn = db_state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary
+             FROM clipboard_items
+             WHERE id IN (
+                 SELECT rowid FROM clipboard_items_fts
+                 WHERE clipboard_items_fts MATCH ?1
+                 ORDER BY rank
+             )
+             ORDER BY pinned DESC, pinned_at DESC, timestamp DESC
+             LIMIT ?2 OFFSET ?3",
+        )
+        .map_err(|e| format!("Prepare error: {}", e))?;
+    let items = stmt
+        .query_map(rusqlite::params![fts_query, limit, offset], row_to_item)
+        .map_err(|e| format!("Query error: {}", e))?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(items)
 }
