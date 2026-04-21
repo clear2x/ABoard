@@ -16,6 +16,7 @@
     "core:window:allow-set-position",
     "core:window:allow-close",
     "core:window:allow-is-visible",
-    "core:window:allow-cursor-position"
+    "core:window:allow-cursor-position",
+    "dialog:allow-open"
   ]
 }
