@@ -5,8 +5,9 @@ import { invoke } from "@tauri-apps/api/core";
 export interface AiActionResult {
   originalContent: string;
   resultText: string;
-  actionType: "translate" | "summarize" | "rewrite";
+  actionType: "translate" | "summarize" | "rewrite" | "format";
   itemId: string;
+  isValid?: boolean; // for validation results
 }
 
 /// Inference auto-response mirrors the Rust struct InferenceAutoResponse.

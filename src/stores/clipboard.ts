@@ -45,7 +45,7 @@ export function toggleSelect(id: string) {
 }
 
 export function clearSelection() {
-  setSelectedIds(new Set());
+  setSelectedIds(new Set<string>());
 }
 
 export function selectAll() {

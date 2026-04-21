@@ -10,6 +10,7 @@ const ACTION_TITLES: Record<string, string> = {
   translate: "\u7ffb\u8bd1\u7ed3\u679c",
   summarize: "\u603b\u7ed3\u7ed3\u679c",
   rewrite: "\u6539\u5199\u7ed3\u679c",
+  format: "\u683c\u5f0f\u5316\u7ed3\u679c",
 };
 
 export default function AiResultPopup() {

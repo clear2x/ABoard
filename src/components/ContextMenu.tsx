@@ -5,8 +5,19 @@ import {
   rewriteContent,
   processing,
   REWRITE_STYLES,
+  setResultPopup,
 } from "../stores/ai-actions";
-import { onMount, onCleanup, createSignal, Show } from "solid-js";
+import {
+  detectContentFormat,
+  formatJson,
+  minifyJson,
+  validateJson,
+  formatXml,
+  validateXml,
+  convertFormat,
+  type FormatType,
+} from "../stores/format-tools";
+import { onMount, onCleanup, createSignal, Show, createMemo } from "solid-js";
 
 interface Props {
   x: number;
@@ -27,6 +38,101 @@ const REWRITE_STYLE_LABELS: Record<string, string> = {
 
 export default function ContextMenu(props: Props) {
   const [showRewriteMenu, setShowRewriteMenu] = createSignal(false);
+  const [showConvertMenu, setShowConvertMenu] = createSignal(false);
+
+  const contentFormat = createMemo(() => detectContentFormat(props.content));
+
+  const handleFormatJson = () => {
+    const result = formatJson(props.content);
+    setResultPopup({
+      originalContent: props.content,
+      resultText: "result" in result ? result.result : `Error: ${result.error}`,
+      actionType: "format",
+      itemId: props.itemId,
+      isValid: "result" in result,
+    });
+    props.onClose();
+  };
+
+  const handleMinifyJson = () => {
+    const result = minifyJson(props.content);
+    setResultPopup({
+      originalContent: props.content,
+      resultText: "result" in result ? result.result : `Error: ${result.error}`,
+      actionType: "format",
+      itemId: props.itemId,
+      isValid: "result" in result,
+    });
+    props.onClose();
+  };
+
+  const handleValidateJson = () => {
+    const result = validateJson(props.content);
+    if (result.valid) {
+      setResultPopup({
+        originalContent: props.content,
+        resultText: "JSON \u683c\u5f0f\u6b63\u786e \u2713",
+        actionType: "format",
+        itemId: props.itemId,
+        isValid: true,
+      });
+    } else {
+      setResultPopup({
+        originalContent: props.content,
+        resultText: `JSON \u683c\u5f0f\u9519\u8bef:\n${result.error}${result.line ? `\n\u7b2c ${result.line} \u884c` : ""}`,
+        actionType: "format",
+        itemId: props.itemId,
+        isValid: false,
+      });
+    }
+    props.onClose();
+  };
+
+  const handleFormatXml = () => {
+    const result = formatXml(props.content);
+    setResultPopup({
+      originalContent: props.content,
+      resultText: "result" in result ? result.result : `Error: ${result.error}`,
+      actionType: "format",
+      itemId: props.itemId,
+      isValid: "result" in result,
+    });
+    props.onClose();
+  };
+
+  const handleValidateXml = () => {
+    const result = validateXml(props.content);
+    if (result.valid) {
+      setResultPopup({
+        originalContent: props.content,
+        resultText: "XML \u683c\u5f0f\u6b63\u786e \u2713",
+        actionType: "format",
+        itemId: props.itemId,
+        isValid: true,
+      });
+    } else {
+      setResultPopup({
+        originalContent: props.content,
+        resultText: `XML \u683c\u5f0f\u9519\u8bef:\n${result.error}${result.line ? `\n\u7b2c ${result.line} \u884c` : ""}`,
+        actionType: "format",
+        itemId: props.itemId,
+        isValid: false,
+      });
+    }
+    props.onClose();
+  };
+
+  const handleConvertFormat = (from: FormatType, to: FormatType) => {
+    const result = convertFormat(props.content, from, to);
+    setResultPopup({
+      originalContent: props.content,
+      resultText: "result" in result ? result.result : `Error: ${result.error}`,
+      actionType: "format",
+      itemId: props.itemId,
+      isValid: "result" in result,
+    });
+    props.onClose();
+  };
 
   const handlePin = async () => {
     if (props.isPinned) {
@@ -140,6 +246,105 @@ export default function ContextMenu(props: Props) {
           </div>
         </Show>
       </div>
+
+      {/* Format tools - conditional on content type */}
+      <Show when={contentFormat().isJson}>
+        <div class="my-1" style={{ "border-top": "1px solid var(--color-border)" }} />
+        <button
+          class={menuItemClass()}
+          style={{ color: "var(--color-text-secondary)" }}
+          onClick={handleFormatJson}
+        >
+          \u7f8e\u5316 JSON (Beautify)
+        </button>
+        <button
+          class={menuItemClass()}
+          style={{ color: "var(--color-text-secondary)" }}
+          onClick={handleMinifyJson}
+        >
+          \u538b\u7f29 JSON (Minify)
+        </button>
+        <button
+          class={menuItemClass()}
+          style={{ color: "var(--color-text-secondary)" }}
+          onClick={handleValidateJson}
+        >
+          \u6821\u9a8c JSON (Validate)
+        </button>
+      </Show>
+
+      <Show when={contentFormat().isXml && !contentFormat().isJson}>
+        <div class="my-1" style={{ "border-top": "1px solid var(--color-border)" }} />
+        <button
+          class={menuItemClass()}
+          style={{ color: "var(--color-text-secondary)" }}
+          onClick={handleFormatXml}
+        >
+          \u683c\u5f0f\u5316 XML
+        </button>
+        <button
+          class={menuItemClass()}
+          style={{ color: "var(--color-text-secondary)" }}
+          onClick={handleValidateXml}
+        >
+          \u6821\u9a8c XML
+        </button>
+      </Show>
+
+      <Show when={(contentFormat().isMarkdown || contentFormat().isHtml) && !contentFormat().isJson && !contentFormat().isXml}>
+        <div
+          class="relative"
+          onMouseEnter={() => setShowConvertMenu(true)}
+          onMouseLeave={() => setShowConvertMenu(false)}
+        >
+          <button
+            class={menuItemClass()}
+            style={{ color: "var(--color-text-secondary)" }}
+          >
+            \u683c\u5f0f\u8f6c\u6362 (Convert)
+            <span class="ml-1 text-xs" style={{ color: "var(--color-text-muted)" }}>&#x25b6;</span>
+          </button>
+          <Show when={showConvertMenu()}>
+            <div
+              class="absolute left-full top-0 py-1 min-w-[160px] glass-card animate-context-menu"
+              style={{ "box-shadow": "var(--shadow-elevated)", margin: "-4px 0 0 4px" }}
+            >
+              <Show when={contentFormat().isMarkdown}>
+                <button
+                  class={menuItemClass()}
+                  style={{ color: "var(--color-text-secondary)" }}
+                  onClick={() => handleConvertFormat("markdown", "html")}
+                >
+                  Markdown \u2192 HTML
+                </button>
+                <button
+                  class={menuItemClass()}
+                  style={{ color: "var(--color-text-secondary)" }}
+                  onClick={() => handleConvertFormat("markdown", "plaintext")}
+                >
+                  Markdown \u2192 \u7eaf\u6587\u672c
+                </button>
+              </Show>
+              <Show when={contentFormat().isHtml}>
+                <button
+                  class={menuItemClass()}
+                  style={{ color: "var(--color-text-secondary)" }}
+                  onClick={() => handleConvertFormat("html", "markdown")}
+                >
+                  HTML \u2192 Markdown
+                </button>
+                <button
+                  class={menuItemClass()}
+                  style={{ color: "var(--color-text-secondary)" }}
+                  onClick={() => handleConvertFormat("html", "plaintext")}
+                >
+                  HTML \u2192 \u7eaf\u6587\u672c
+                </button>
+              </Show>
+            </div>
+          </Show>
+        </div>
+      </Show>
 
       {/* Separator */}
       <div class="my-1" style={{ "border-top": "1px solid var(--color-border)" }} />
