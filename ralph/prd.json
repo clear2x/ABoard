@@ -16,11 +16,9 @@
         "自测: 在 tauri dev 中选中一条剪贴板内容，点击翻译，弹窗必须出现在屏幕正中央，不需要滚动"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Moved AiResultPopup from ContentArea to App.tsx root level. Updated wrapper to glass-panel rounded-2xl max-h-[80vh]"
     },
-    {
-      "id": "US-202",
       "title": "内嵌 Qwen2.5-0.5B Q4 模型 — Rust candle 推理",
       "description": "软件必须内置本地模型，Rust 端使用 candle 框架直接加载 GGUF 文件推理，无需外部 Ollama/llama.cpp。首次启动自动下载 Qwen2.5-0.5B Q4 (~400MB) 到 models/ 目录。",
       "acceptanceCriteria": [
@@ -54,8 +52,8 @@
         "npm run build 通过"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Rewrote TitleBar with inline search bar. Traffic lights w-[160px] with border shadow-inner. Search bg-white/70 border-white/80 py-1.5 with ⌘K badge and ph-funnel icon"
     },
     {
       "id": "US-204",
@@ -73,8 +71,8 @@
         "npm run build 通过"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Replaced all CSS var colors with text-gray-600/700/400/500. Added sidebar.newTag button with ph-plus icon"
     },
     {
       "id": "US-205",
@@ -92,8 +90,8 @@
         "npm run build 通过"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Fixed border-white/30, added custom filter tab, code block bg-white/30 border-white/50, tags bg-gray-100/50 border-gray-200, link preview card, timestamp text-gray-400"
     },
     {
       "id": "US-206",
@@ -111,8 +109,8 @@
         "npm run build 通过"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added model selector, model running status card with animate-ping, privacy/storage cards in grid layout, decorative glow on local mode card, bg-white/30 header, bg-white/10 tab bar, border border-blue-400"
     },
     {
       "id": "US-207",
@@ -129,8 +127,8 @@
         "npm run build 通过"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Replaced all CSS var(--color-text-*) with Tailwind text-gray-* classes across all active components (Sidebar, ContentArea, ClipboardItemCard, SettingsPanel, FloatingPopup, AiResultPopup, ContextMenu, ConfirmDialog)"
     },
     {
       "id": "US-208",
@@ -145,8 +143,8 @@
         "npm run build 通过"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Deleted old .glass-card (CSS var version). Renamed .glass to .glass-legacy. Only one .glass-card definition matching ui.html remains"
     },
     {
       "id": "US-209",

@@ -29,6 +29,7 @@ const TIME_FILTERS = [
   { key: "today", labelKey: "filter.today" },
   { key: "yesterday", labelKey: "filter.yesterday" },
   { key: "last7days", labelKey: "filter.last7days" },
+  { key: "custom", labelKey: "filter.custom" },
 ] as const;
 
 function isToday(ts: number): boolean {
@@ -183,10 +184,9 @@ export default function ContentArea() {
       onKeyDown={handleKeyDown}
     >
       {/* Filter tabs */}
-      <div class="flex gap-4 px-6 pt-4 pb-2 border-b text-sm sticky top-0 backdrop-blur-md z-10"
+      <div class="flex gap-4 px-6 pt-4 pb-2 border-b text-sm text-gray-500 sticky top-0 bg-white/20 backdrop-blur-md z-10"
         style={{
-          "border-color": "rgba(255,255,255,0.4)",
-          background: "rgba(255,255,255,0.2)",
+          "border-color": "rgba(255,255,255,0.3)",
         }}
       >
         <For each={TIME_FILTERS}>
@@ -199,7 +199,6 @@ export default function ContentArea() {
                   "text-blue-600 font-medium border-b-2 border-blue-600": isActive(),
                   "hover:text-gray-800": !isActive(),
                 }}
-                style={isActive() ? {} : { color: "var(--color-text-muted)" }}
                 onClick={() => setTimeFilter(filter.key)}
               >
                 {t(filter.labelKey)}
@@ -213,8 +212,7 @@ export default function ContentArea() {
         {/* Batch mode toggle */}
         <Show when={!batchMode()}>
           <button
-            class="text-xs px-2 py-1 rounded-lg transition-colors hover:bg-white/30"
-            style={{ color: "var(--color-text-muted)" }}
+            class="text-xs px-2 py-1 rounded-lg transition-colors hover:bg-white/30 text-gray-400"
             onClick={enterBatchMode}
           >
             {t("clipboard.batch")}
@@ -224,20 +222,17 @@ export default function ContentArea() {
 
       {/* Batch mode toolbar */}
       <Show when={batchMode()}>
-        <div class="flex items-center gap-2 px-4 py-2"
-          style={{ background: "rgba(255,255,255,0.1)", "border-bottom": "1px solid rgba(255,255,255,0.2)" }}
+        <div class="flex items-center gap-2 px-4 py-2 bg-white/10"
+          style={{ "border-bottom": "1px solid rgba(255,255,255,0.2)" }}
         >
-          <button class="px-3 py-1.5 text-xs rounded-lg hover:bg-white/30 transition-colors"
-            style={{ color: "var(--color-text-secondary)" }} onClick={selectAll}>
+          <button class="px-3 py-1.5 text-xs rounded-lg hover:bg-white/30 transition-colors text-gray-600" onClick={selectAll}>
             {t("clipboard.selectAll")}
           </button>
-          <button class="px-3 py-1.5 text-xs rounded-lg hover:bg-white/30 transition-colors"
-            style={{ color: "var(--color-text-secondary)" }} onClick={clearSelection}>
+          <button class="px-3 py-1.5 text-xs rounded-lg hover:bg-white/30 transition-colors text-gray-600" onClick={clearSelection}>
             {t("clipboard.clearSel")}
           </button>
           <button
-            class="px-3 py-1.5 text-xs rounded-lg text-white transition-smooth disabled:opacity-40"
-            style={{ "background-color": "var(--color-destructive)" }}
+            class="px-3 py-1.5 text-xs rounded-lg text-white transition-smooth disabled:opacity-40 bg-red-500"
             onClick={handleBatchDelete}
             disabled={selectedCount() === 0}
           >
@@ -248,34 +243,29 @@ export default function ContentArea() {
             onMouseLeave={() => setShowExportMenu(false)}
           >
             <button
-              class="px-3 py-1.5 text-xs rounded-lg text-white disabled:opacity-40"
-              style={{ "background-color": "var(--color-accent)" }}
+              class="px-3 py-1.5 text-xs rounded-lg text-white disabled:opacity-40 bg-blue-500"
               disabled={selectedCount() === 0}
             >
               {t("clipboard.export")}
             </button>
             <Show when={showExportMenu() && selectedCount() > 0}>
               <div class="absolute top-full left-0 mt-1 py-1 min-w-[120px] glass-card animate-context-menu z-50"
-                style={{ "box-shadow": "var(--shadow-elevated)" }}
+                style={{ "box-shadow": "0 4px 6px rgba(0,0,0,0.1)" }}
               >
-                <button class="w-full text-left px-3 py-2 text-xs hover:bg-white/30"
-                  style={{ color: "var(--color-text-secondary)" }}
+                <button class="w-full text-left px-3 py-2 text-xs hover:bg-white/30 text-gray-600"
                   onClick={() => handleExport("json")}
                 >{t("clipboard.exportJson")}</button>
-                <button class="w-full text-left px-3 py-2 text-xs hover:bg-white/30"
-                  style={{ color: "var(--color-text-secondary)" }}
+                <button class="w-full text-left px-3 py-2 text-xs hover:bg-white/30 text-gray-600"
                   onClick={() => handleExport("markdown")}
                 >{t("clipboard.exportMd")}</button>
-                <button class="w-full text-left px-3 py-2 text-xs hover:bg-white/30"
-                  style={{ color: "var(--color-text-secondary)" }}
+                <button class="w-full text-left px-3 py-2 text-xs hover:bg-white/30 text-gray-600"
                   onClick={() => handleExport("text")}
                 >{t("clipboard.exportText")}</button>
               </div>
             </Show>
           </div>
           <div class="flex-1" />
-          <button class="px-3 py-1.5 text-xs rounded-lg hover:bg-white/30 transition-colors"
-            style={{ color: "var(--color-text-secondary)" }} onClick={exitBatchMode}>
+          <button class="px-3 py-1.5 text-xs rounded-lg hover:bg-white/30 transition-colors text-gray-600" onClick={exitBatchMode}>
             {t("clipboard.cancel")}
           </button>
         </div>
@@ -286,7 +276,7 @@ export default function ContentArea() {
         <Show
           when={!loading()}
           fallback={
-            <div class="flex items-center justify-center h-32 text-sm" style={{ color: "var(--color-text-muted)" }}>
+            <div class="flex items-center justify-center h-32 text-sm text-gray-400">
               {t("clipboard.loading")}
             </div>
           }
@@ -294,7 +284,7 @@ export default function ContentArea() {
           <Show
             when={filteredItems().length > 0}
             fallback={
-              <div class="flex items-center justify-center h-32 text-sm" style={{ color: "var(--color-text-muted)" }}>
+              <div class="flex items-center justify-center h-32 text-sm text-gray-400">
                 {t("clipboard.noItems")}
               </div>
             }
@@ -305,7 +295,7 @@ export default function ContentArea() {
                 return (
                   <div class="flex gap-4 group animate-slide-in">
                     {/* Timeline timestamp */}
-                    <div class="text-[10px] w-8 text-right shrink-0 mt-1" style={{ color: "var(--color-text-muted)" }}>
+                    <div class="text-[10px] w-8 text-right shrink-0 mt-1 text-gray-400">
                       {timeStr()}
                     </div>
                     {/* Card */}

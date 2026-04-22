@@ -90,8 +90,7 @@ export default function App() {
               onClick={openSettings}
             >{t("settings.title")}</button>
             <button
-              class="text-xs px-1.5 py-1 rounded transition-smooth"
-              style={{ color: "var(--color-text-muted)" }}
+              class="text-xs px-1.5 py-1 rounded transition-smooth text-gray-400"
               onClick={() => setAiBannerDismissed(true)}
             >
               <i class="ph ph-x text-xs" />

@@ -120,7 +120,7 @@ export default function FloatingPopup() {
       {/* Content sections */}
       <div class="flex-1 overflow-y-auto no-scrollbar p-3 space-y-4">
         <Show when={filteredItems().length === 0}>
-          <div class="text-center py-8 text-sm" style={{ color: "var(--color-text-muted)" }}>
+          <div class="text-center py-8 text-sm text-gray-400">
             {t("float.empty")}
           </div>
         </Show>
@@ -128,7 +128,7 @@ export default function FloatingPopup() {
         {/* Pinned section */}
         <Show when={pinnedItems().length > 0}>
           <div>
-            <div class="flex justify-between items-center text-xs mb-2 px-1 font-medium" style={{ color: "var(--color-text-muted)" }}>
+            <div class="flex justify-between items-center text-xs mb-2 px-1 font-medium text-gray-500">
               <span class="flex items-center gap-1"><i class="ph ph-push-pin-fill" /> {t("float.pinned")}</span>
             </div>
             <div class="space-y-2">
@@ -149,7 +149,7 @@ export default function FloatingPopup() {
                             <i class={`ph ${icon().icon}`} />
                           </Show>
                         </div>
-                        <div class="text-xs leading-tight truncate" style={{ color: "var(--color-text-secondary)" }}>
+                        <div class="text-xs text-gray-600 leading-tight truncate">
                           {item.content.slice(0, 80)}
                         </div>
                       </div>
@@ -164,7 +164,7 @@ export default function FloatingPopup() {
         {/* Recent section */}
         <Show when={recentItems().length > 0}>
           <div>
-            <div class="flex justify-between items-center text-xs mb-2 px-1 font-medium" style={{ color: "var(--color-text-muted)" }}>
+            <div class="flex justify-between items-center text-xs mb-2 px-1 font-medium text-gray-500">
               <span class="flex items-center gap-1"><i class="ph ph-clock" /> {t("float.recent")}</span>
             </div>
             <div class="space-y-2">
@@ -188,18 +188,17 @@ export default function FloatingPopup() {
                         <Show
                           when={dtype() === "code"}
                           fallback={
-                            <div class="text-xs leading-tight truncate" style={{ color: "var(--color-text-secondary)" }}>
+                            <div class="text-xs text-gray-600 leading-tight truncate">
                               {item.content.slice(0, 80)}
                             </div>
                           }
                         >
-                          <div class="text-xs font-mono leading-tight" style={{ color: "var(--color-text-secondary)" }}>
+                          <div class="text-xs font-mono text-gray-600 leading-tight">
                             {item.content.slice(0, 100)}
                           </div>
                         </Show>
                       </div>
-                      <i class="ph ph-star absolute right-3 bottom-3 hover:text-yellow-400"
-                        style={{ color: "var(--color-text-muted)" }}
+                      <i class="ph ph-star absolute right-3 bottom-3 hover:text-yellow-400 text-gray-300"
                       />
                     </div>
                   );

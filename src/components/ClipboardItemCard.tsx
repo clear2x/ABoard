@@ -16,18 +16,18 @@ function displayType(item: ClipboardItem): string {
 function typeAvatar(type: string): { letter: string; bg: string; color: string; icon?: string } {
   switch (type) {
     case "code":
-      return { letter: "", bg: "bg-purple-50 dark:bg-purple-900/30", color: "text-purple-500 dark:text-purple-400", icon: "ph-code" };
+      return { letter: "", bg: "bg-purple-50", color: "text-purple-500", icon: "ph-code" };
     case "link":
-      return { letter: "", bg: "bg-blue-50 dark:bg-blue-900/30", color: "text-blue-500 dark:text-blue-400", icon: "ph-link" };
+      return { letter: "", bg: "bg-blue-50", color: "text-blue-500", icon: "ph-link" };
     case "image":
-      return { letter: "", bg: "bg-green-50 dark:bg-green-900/30", color: "text-green-500 dark:text-green-400", icon: "ph-image" };
+      return { letter: "", bg: "bg-green-50", color: "text-green-500", icon: "ph-image" };
     case "json":
-      return { letter: "", bg: "bg-orange-50 dark:bg-orange-900/30", color: "text-orange-500 dark:text-orange-400", icon: "ph-brackets-curly" };
+      return { letter: "", bg: "bg-orange-50", color: "text-orange-500", icon: "ph-brackets-curly" };
     case "xml":
-      return { letter: "", bg: "bg-yellow-50 dark:bg-yellow-900/30", color: "text-yellow-600 dark:text-yellow-400", icon: "ph-brackets-curly" };
+      return { letter: "", bg: "bg-yellow-50", color: "text-yellow-600", icon: "ph-brackets-curly" };
     case "text":
     default:
-      return { letter: "T", bg: "bg-blue-100 dark:bg-blue-900/30", color: "text-blue-600 dark:text-blue-400" };
+      return { letter: "T", bg: "bg-blue-100", color: "text-blue-600" };
   }
 }
 
@@ -71,7 +71,7 @@ export default function ClipboardItemCard(props: Props) {
     copyItemContent(props.item);
   };
 
-  // Timeline mode — reference-style card
+  // Timeline mode — reference-style card matching ui.html
   if (props.timeline) {
     return (
       <div
@@ -104,42 +104,30 @@ export default function ClipboardItemCard(props: Props) {
 
           {/* Content */}
           <div class="flex-1 min-w-0">
-            {/* Text content */}
+            {/* Link content — with preview card matching ui.html */}
             <Show when={dtype() === "link"} fallback={
               <div>
                 <Show
                   when={dtype() === "code"}
                   fallback={
-                    <p class="text-sm leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                    <p class="text-sm text-gray-700 leading-relaxed">
                       {truncateText(props.item.content)}
                     </p>
                   }
                 >
-                  <div class="font-mono text-sm p-3 rounded-lg border"
-                    style={{
-                      background: "rgba(255,255,255,0.2)",
-                      color: "var(--color-text-secondary)",
-                      "border-color": "rgba(255,255,255,0.3)",
-                    }}
-                  >
+                  <div class="font-mono text-sm text-gray-600 bg-white/30 p-3 rounded-lg border border-white/50">
                     {truncateText(props.item.content, 200).split("\n").map((line, i) => (
                       <div classList={{ "pl-4": i > 0 && i < (props.item.content.split("\n").length - 1) }}>{line}</div>
                     ))}
                   </div>
                 </Show>
 
-                {/* Tags */}
+                {/* Tags — matching ui.html */}
                 <Show when={tags().length > 0}>
                   <div class="flex gap-2 mt-2">
                     <For each={tags().slice(0, 4)}>
                       {(tag) => (
-                        <span class="px-2 py-0.5 rounded-md text-[10px]"
-                          style={{
-                            background: "rgba(128,128,128,0.08)",
-                            border: "1px solid rgba(128,128,128,0.15)",
-                            color: "var(--color-text-muted)",
-                          }}
-                        >
+                        <span class="px-2 py-0.5 bg-gray-100/50 border border-gray-200 text-gray-500 rounded-md text-[10px]">
                           {tag}
                         </span>
                       )}
@@ -148,21 +136,30 @@ export default function ClipboardItemCard(props: Props) {
                 </Show>
               </div>
             }>
-              {/* Link content */}
-              <div class="flex items-center gap-2 mb-2">
-                <span class="text-sm text-blue-600 dark:text-blue-400 truncate">
+              {/* Link card matching ui.html */}
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-sm text-blue-600 truncate">
                   {truncateText(props.item.content, 80)}
                 </span>
+              </div>
+              <div class="bg-white/40 border border-white/60 rounded-lg p-3 flex gap-3 items-center">
+                <div class="flex-1">
+                  <div class="text-sm font-bold text-gray-800 mb-1">
+                    {props.item.content.replace(/https?:\/\//, "").split("/")[0]}
+                  </div>
+                  <div class="text-xs text-gray-500 line-clamp-2">
+                    {truncateText(props.item.content)}
+                  </div>
+                </div>
               </div>
             </Show>
           </div>
 
-          {/* Hover actions */}
+          {/* Hover actions — matching ui.html opacity transition */}
           <Show when={hovered() && !props.showCheckbox}>
-            <div class="flex items-center gap-2 shrink-0" style={{ color: "var(--color-text-muted)" }}>
+            <div class="flex items-center gap-2 text-gray-400">
               <button
                 class="transition-colors"
-                style={{ color: props.item.pinned ? "#facc15" : "var(--color-text-muted)" }}
                 onClick={handlePin}
                 title={props.item.pinned ? t("ctx.unpin") : t("ctx.pin")}
               >
@@ -177,10 +174,8 @@ export default function ClipboardItemCard(props: Props) {
 
         {/* Copied feedback */}
         <Show when={justCopied()}>
-          <div class="absolute inset-0 flex items-center justify-center rounded-xl pointer-events-none"
-            style={{ background: "rgba(59, 130, 246, 0.15)", "backdrop-filter": "blur(2px)" }}
-          >
-            <span class="text-xs font-medium px-2 py-1 rounded-full" style={{ background: "var(--color-accent)", color: "#fff" }}>
+          <div class="absolute inset-0 flex items-center justify-center rounded-xl pointer-events-none bg-blue-500/15 backdrop-blur-[2px]">
+            <span class="text-xs font-medium px-2 py-1 rounded-full bg-blue-500 text-white">
               {t("ctx.copied")}
             </span>
           </div>
@@ -192,9 +187,9 @@ export default function ClipboardItemCard(props: Props) {
   // Legacy mode (grid / fallback)
   return (
     <div
-      class={`glass-card transition-smooth cursor-pointer hover-lift hover:border-[var(--color-border-hover)] p-3 relative
-        ${props.isSelected ? "ring-2 ring-[var(--color-accent)]" : ""}
-        ${props.showCheckbox && props.checked ? "bg-[var(--color-accent)]/10 border-[var(--color-accent)]/50" : ""}
+      class={`glass-card transition-smooth cursor-pointer hover-lift p-3 relative
+        ${props.isSelected ? "ring-2 ring-blue-500" : ""}
+        ${props.showCheckbox && props.checked ? "bg-blue-500/10 border-blue-500/50" : ""}
       `}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -208,18 +203,15 @@ export default function ClipboardItemCard(props: Props) {
       <div class="flex items-center justify-between mb-1">
         <Show when={props.showCheckbox}>
           <input type="checkbox" checked={props.checked} onChange={() => props.onSelect(props.item.id)}
-            class="mr-2 accent-[var(--color-accent)] shrink-0" />
+            class="mr-2 accent-blue-500 shrink-0" />
         </Show>
         <div class="flex items-center gap-1.5 overflow-hidden flex-1 min-w-0">
           {props.item.pinned && <span class="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />}
-          <span class="text-xs px-2 py-0.5 rounded-full shrink-0" style={{
-            background: "rgba(128,128,128,0.1)",
-            color: "var(--color-text-muted)",
-          }}>
+          <span class="text-xs px-2 py-0.5 rounded-full shrink-0 bg-gray-100/50 text-gray-500">
             {dtype()}
           </span>
         </div>
-        <span class="text-xs ml-2 shrink-0" style={{ color: "var(--color-text-muted)" }}>
+        <span class="text-xs ml-2 shrink-0 text-gray-400">
           {new Date(props.item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </span>
       </div>
@@ -227,7 +219,7 @@ export default function ClipboardItemCard(props: Props) {
       <Show
         when={props.item.type === "image" && props.item.content.startsWith("data:")}
         fallback={
-          <p class="break-all leading-relaxed" style={{ "font-size": "var(--font-body)", color: "var(--color-text-secondary)" }}>
+          <p class="break-all leading-relaxed text-sm text-gray-700">
             {truncateText(props.item.content)}
           </p>
         }
@@ -238,10 +230,8 @@ export default function ClipboardItemCard(props: Props) {
       </Show>
 
       <Show when={justCopied()}>
-        <div class="absolute inset-0 flex items-center justify-center rounded-[var(--radius-md)] pointer-events-none"
-          style={{ background: "rgba(59, 130, 246, 0.15)", "backdrop-filter": "blur(2px)" }}
-        >
-          <span class="text-xs font-medium px-2 py-1 rounded-full" style={{ background: "var(--color-accent)", color: "#fff" }}>
+        <div class="absolute inset-0 flex items-center justify-center rounded-xl pointer-events-none bg-blue-500/15 backdrop-blur-[2px]">
+          <span class="text-xs font-medium px-2 py-1 rounded-full bg-blue-500 text-white">
             {t("ctx.copied")}
           </span>
         </div>

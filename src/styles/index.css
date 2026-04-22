@@ -2,7 +2,7 @@
 @import "./design-tokens.css";
 
 /* Glassmorphism utility classes — enhanced frosted glass */
-.glass {
+.glass-legacy {
   background: var(--glass-bg);
   backdrop-filter: saturate(1.8) blur(var(--blur-glass));
   -webkit-backdrop-filter: saturate(1.8) blur(var(--blur-glass));
@@ -15,15 +15,6 @@
   backdrop-filter: saturate(1.5) blur(var(--blur-subtle));
   -webkit-backdrop-filter: saturate(1.5) blur(var(--blur-subtle));
   border: 1px solid var(--glass-border);
-}
-
-.glass-card {
-  background: var(--color-bg-card);
-  backdrop-filter: saturate(1.6) blur(var(--blur-glass));
-  -webkit-backdrop-filter: saturate(1.6) blur(var(--blur-glass));
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
 }
 
 /* Window background — true frosted glass */

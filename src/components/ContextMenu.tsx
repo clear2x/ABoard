@@ -189,7 +189,7 @@ export default function ContextMenu(props: Props) {
   const isProcessing = () => processing() !== null;
 
   const menuItemClass = (disabled: boolean = false) =>
-    `w-full text-left px-3 py-2 text-sm cursor-pointer transition-smooth rounded-[var(--radius-sm)] hover:bg-[var(--color-bg-card-hover)]${disabled ? " opacity-50 cursor-not-allowed" : ""}`;
+    `w-full text-left px-3 py-2 text-sm cursor-pointer transition-smooth rounded-[var(--radius-sm)] text-gray-600 hover:bg-[var(--color-bg-card-hover)]${disabled ? " opacity-50 cursor-not-allowed" : ""}`;
 
   return (
     <div
@@ -199,7 +199,6 @@ export default function ContextMenu(props: Props) {
       {/* AI Actions */}
       <button
         class={menuItemClass(isProcessing())}
-        style={{ color: "var(--color-text-secondary)" }}
         onClick={handleTranslate}
         disabled={isProcessing()}
       >
@@ -207,7 +206,6 @@ export default function ContextMenu(props: Props) {
       </button>
       <button
         class={menuItemClass(isProcessing())}
-        style={{ color: "var(--color-text-secondary)" }}
         onClick={handleSummarize}
         disabled={isProcessing()}
       >
@@ -222,11 +220,10 @@ export default function ContextMenu(props: Props) {
       >
         <button
           class={menuItemClass(isProcessing())}
-          style={{ color: "var(--color-text-secondary)" }}
           disabled={isProcessing()}
         >
           {processing() === "rewrite" ? t("ctx.rewriting") : t("ctx.rewrite")}
-          <span class="ml-1 text-xs" style={{ color: "var(--color-text-muted)" }}>&#x25b6;</span>
+          <span class="ml-1 text-xs text-gray-400">&#x25b6;</span>
         </button>
 
         <Show when={showRewriteMenu()}>
@@ -237,7 +234,6 @@ export default function ContextMenu(props: Props) {
             {Object.keys(REWRITE_STYLES).map((style) => (
               <button
                 class={menuItemClass(isProcessing())}
-                style={{ color: "var(--color-text-secondary)" }}
                 onClick={() => handleRewrite(style)}
                 disabled={isProcessing()}
               >
@@ -250,24 +246,21 @@ export default function ContextMenu(props: Props) {
 
       {/* Format tools - conditional on content type */}
       <Show when={contentFormat().isJson}>
-        <div class="my-1" style={{ "border-top": "1px solid var(--color-border)" }} />
+        <div class="my-1 border-t border-white/80" />
         <button
           class={menuItemClass()}
-          style={{ color: "var(--color-text-secondary)" }}
           onClick={handleFormatJson}
         >
           {t("ctx.beautifyJson")}
         </button>
         <button
           class={menuItemClass()}
-          style={{ color: "var(--color-text-secondary)" }}
           onClick={handleMinifyJson}
         >
           {t("ctx.minifyJson")}
         </button>
         <button
           class={menuItemClass()}
-          style={{ color: "var(--color-text-secondary)" }}
           onClick={handleValidateJson}
         >
           {t("ctx.validateJson")}
@@ -275,17 +268,15 @@ export default function ContextMenu(props: Props) {
       </Show>
 
       <Show when={contentFormat().isXml && !contentFormat().isJson}>
-        <div class="my-1" style={{ "border-top": "1px solid var(--color-border)" }} />
+        <div class="my-1 border-t border-white/80" />
         <button
           class={menuItemClass()}
-          style={{ color: "var(--color-text-secondary)" }}
           onClick={handleFormatXml}
         >
           {t("ctx.formatXml")}
         </button>
         <button
           class={menuItemClass()}
-          style={{ color: "var(--color-text-secondary)" }}
           onClick={handleValidateXml}
         >
           {t("ctx.validateXml")}
@@ -300,10 +291,9 @@ export default function ContextMenu(props: Props) {
         >
           <button
             class={menuItemClass()}
-            style={{ color: "var(--color-text-secondary)" }}
           >
             {t("ctx.convert")}
-            <span class="ml-1 text-xs" style={{ color: "var(--color-text-muted)" }}>&#x25b6;</span>
+            <span class="ml-1 text-xs text-gray-400">&#x25b6;</span>
           </button>
           <Show when={showConvertMenu()}>
             <div
@@ -313,14 +303,12 @@ export default function ContextMenu(props: Props) {
               <Show when={contentFormat().isMarkdown}>
                 <button
                   class={menuItemClass()}
-                  style={{ color: "var(--color-text-secondary)" }}
                   onClick={() => handleConvertFormat("markdown", "html")}
                 >
                   Markdown \u2192 HTML
                 </button>
                 <button
                   class={menuItemClass()}
-                  style={{ color: "var(--color-text-secondary)" }}
                   onClick={() => handleConvertFormat("markdown", "plaintext")}
                 >
                   Markdown \u2192 \u7eaf\u6587\u672c
@@ -329,14 +317,12 @@ export default function ContextMenu(props: Props) {
               <Show when={contentFormat().isHtml}>
                 <button
                   class={menuItemClass()}
-                  style={{ color: "var(--color-text-secondary)" }}
                   onClick={() => handleConvertFormat("html", "markdown")}
                 >
                   HTML \u2192 Markdown
                 </button>
                 <button
                   class={menuItemClass()}
-                  style={{ color: "var(--color-text-secondary)" }}
                   onClick={() => handleConvertFormat("html", "plaintext")}
                 >
                   HTML \u2192 \u7eaf\u6587\u672c
@@ -352,8 +338,7 @@ export default function ContextMenu(props: Props) {
 
       {/* Existing actions */}
       <button
-        class="w-full text-left px-3 py-2 text-sm cursor-pointer transition-smooth rounded-[var(--radius-sm)] hover:bg-[var(--color-bg-card-hover)]"
-        style={{ color: "var(--color-text-secondary)" }}
+        class="w-full text-left px-3 py-2 text-sm cursor-pointer transition-smooth rounded-[var(--radius-sm)] text-gray-600 hover:bg-[var(--color-bg-card-hover)]"
         onClick={handlePin}
       >
         {props.isPinned ? t("ctx.unpin") : t("ctx.pin")}

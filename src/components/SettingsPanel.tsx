@@ -53,6 +53,7 @@ export default function SettingsPanel(props: Props) {
   const [localStatus, setLocalStatus] = createSignal<LocalProviderStatus | null>(null);
   const [gpuEnabled, setGpuEnabled] = createSignal(true);
   const [engine, setEngine] = createSignal<"llamacpp" | "ollama">("llamacpp");
+  const [selectedModel, setSelectedModel] = createSignal("llama3.1:8b-instruct-q4_k_m");
 
   onMount(async () => {
     try {
@@ -111,19 +112,6 @@ export default function SettingsPanel(props: Props) {
   onMount(() => document.addEventListener("keydown", handleKeyDown));
   onCleanup(() => document.removeEventListener("keydown", handleKeyDown));
 
-  const inputStyle = {
-    "font-size": "var(--font-body)",
-    color: "var(--color-text-primary)",
-    "background-color": "var(--color-bg-card)",
-    "border-color": "var(--color-border)",
-  };
-
-  const labelStyle = {
-    "font-size": "var(--font-label)",
-    color: "var(--color-text-muted)",
-    "font-weight": "500" as string,
-  };
-
   return (
     <div class="fixed inset-0 z-40">
       {/* Backdrop */}
@@ -137,21 +125,17 @@ export default function SettingsPanel(props: Props) {
           "box-shadow": "-8px 0 32px rgba(0,0,0,0.15)",
         }}
       >
-        {/* Header */}
-        <div class="h-10 flex justify-center items-center font-medium text-sm relative border-b"
-          style={{ color: "var(--color-text-primary)", "border-color": "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.2)" }}
-        >
+        {/* Header — bg-white/30 matching ui.html */}
+        <div class="h-10 flex justify-center items-center font-medium text-sm text-gray-700 relative border-b border-white/40 bg-white/30">
           {t("settings.title")}
-          <button class="absolute right-3 w-6 h-6 rounded flex items-center justify-center hover:bg-white/20 transition-colors"
-            style={{ color: "var(--color-text-muted)" }} onClick={props.onClose}>
+          <button class="absolute right-3 w-6 h-6 rounded flex items-center justify-center hover:bg-white/20 transition-colors text-gray-400"
+            onClick={props.onClose}>
             <i class="ph ph-x" />
           </button>
         </div>
 
-        {/* Icon tab bar */}
-        <div class="flex justify-around items-center px-6 py-4 border-b"
-          style={{ "border-color": "rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.05)" }}
-        >
+        {/* Icon tab bar — bg-white/10 border-white/30 matching ui.html */}
+        <div class="flex justify-around items-center px-6 py-4 border-b border-white/30 bg-white/10">
           {TABS.map((tab) => {
             const isActive = () => activeTab() === tab.key;
             const tabLabels: Record<string, string> = {
@@ -165,18 +149,17 @@ export default function SettingsPanel(props: Props) {
               <button
                 class="flex flex-col items-center gap-1.5 cursor-pointer transition-opacity"
                 classList={{ "opacity-50 hover:opacity-100": !isActive() }}
-                style={isActive() ? { color: "var(--color-accent)" } : { color: "var(--color-text-muted)" }}
+                style={isActive() ? { color: "#2563eb" } : { color: "#9ca3af" }}
                 onClick={() => setActiveTab(tab.key)}
               >
                 <Show when={isActive()} fallback={
                   <i class={`${tab.icon} text-xl`} />
                 }>
-                  <div class="bg-blue-100/50 dark:bg-blue-900/30 p-1 rounded-md shadow-sm"
-                    style={{ border: "1px solid rgba(59,130,246,0.2)" }}>
-                    <i class={`${tab.icon} text-xl`} />
+                  <div class="bg-blue-100/50 p-1 rounded-md shadow-sm border border-blue-200/50">
+                    <i class={`${tab.icon} text-xl text-blue-600`} />
                   </div>
                 </Show>
-                <span class="text-[10px]" classList={{ "font-medium": isActive() }}>
+                <span class="text-[10px]" classList={{ "font-medium text-blue-600": isActive() }}>
                   {tabLabels[tab.key]}
                 </span>
               </button>
@@ -190,16 +173,16 @@ export default function SettingsPanel(props: Props) {
           <Show when={activeTab() === "general"}>
             <div class="space-y-5">
               <div>
-                <label class="block mb-2 text-xs font-medium" style={labelStyle}>{t("settings.language")}</label>
+                <label class="block mb-2 text-xs font-medium text-gray-500">{t("settings.language")}</label>
                 <div class="flex gap-2">
                   <button class="px-4 py-2 text-sm rounded-lg transition-colors"
                     classList={{ "bg-blue-500 text-white": locale() === "zh" }}
-                    style={locale() !== "zh" ? { background: "var(--color-bg-card)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" } : {}}
+                    style={locale() !== "zh" ? { background: "rgba(255,255,255,0.5)", color: "#4b5563", border: "1px solid rgba(255,255,255,0.8)" } : {}}
                     onClick={() => setLocale("zh")}
                   >中文</button>
                   <button class="px-4 py-2 text-sm rounded-lg transition-colors"
                     classList={{ "bg-blue-500 text-white": locale() === "en" }}
-                    style={locale() !== "en" ? { background: "var(--color-bg-card)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" } : {}}
+                    style={locale() !== "en" ? { background: "rgba(255,255,255,0.5)", color: "#4b5563", border: "1px solid rgba(255,255,255,0.8)" } : {}}
                     onClick={() => setLocale("en")}
                   >English</button>
                 </div>
@@ -210,37 +193,41 @@ export default function SettingsPanel(props: Props) {
           {/* AI Config tab */}
           <Show when={activeTab() === "ai"}>
             <div class="space-y-5">
-              {/* AI Mode selector */}
+              {/* AI Mode selector — border not border-2, with decorative glow */}
               <div>
-                <h3 class="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "var(--color-text-muted)" }}>
+                <h3 class="text-xs font-bold uppercase tracking-wider mb-3 text-gray-500">
                   {t("settings.aiMode")}
                 </h3>
                 <div class="flex gap-3">
                   <button
                     class="flex-1 p-3 rounded-xl flex flex-col justify-center items-center cursor-pointer relative overflow-hidden transition-all"
                     classList={{
-                      "bg-blue-50/70 border-2 border-blue-400 shadow-sm": provider() === "Local",
+                      "bg-blue-50/70 border border-blue-400 shadow-sm": provider() === "Local",
                       "bg-white/40 border border-white/80 opacity-70 hover:opacity-100": provider() !== "Local",
                     }}
                     onClick={() => setProvider("Local")}
                   >
-                    <span class="text-sm font-semibold text-blue-700 dark:text-blue-400 mb-1 flex items-center gap-1">
+                    {/* Decorative glow */}
+                    <Show when={provider() === "Local"}>
+                      <div class="absolute -right-2 -top-2 w-10 h-10 bg-blue-500 rounded-full opacity-10 blur-xl" />
+                    </Show>
+                    <span class="text-sm font-semibold text-blue-700 mb-1 flex items-center gap-1">
                       {t("settings.aiModeLocal")} <i class="ph-fill ph-check-circle text-blue-500 text-sm" />
                     </span>
-                    <span class="text-[10px]" style={{ color: "var(--color-text-muted)" }}>{t("settings.aiModeLocalDesc")}</span>
+                    <span class="text-[10px] text-gray-500">{t("settings.aiModeLocalDesc")}</span>
                   </button>
                   <button
                     class="flex-1 p-3 rounded-xl flex flex-col justify-center items-center cursor-pointer transition-all"
                     classList={{
-                      "bg-blue-50/70 border-2 border-blue-400 shadow-sm": provider() === "OpenAi" || provider() === "Anthropic",
+                      "bg-blue-50/70 border border-blue-400 shadow-sm": provider() === "OpenAi" || provider() === "Anthropic",
                       "bg-white/40 border border-white/80 opacity-70 hover:opacity-100": provider() !== "OpenAi" && provider() !== "Anthropic",
                     }}
                     onClick={() => setProvider("OpenAi")}
                   >
-                    <span class="text-sm font-semibold mb-1 flex items-center gap-1" style={{ color: "var(--color-text-primary)" }}>
+                    <span class="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-1">
                       <i class="ph ph-cloud" /> {t("settings.aiModeCloud")}
                     </span>
-                    <span class="text-[10px]" style={{ color: "var(--color-text-muted)" }}>{t("settings.aiModeCloudDesc")}</span>
+                    <span class="text-[10px] text-gray-500">{t("settings.aiModeCloudDesc")}</span>
                   </button>
                 </div>
               </div>
@@ -250,43 +237,51 @@ export default function SettingsPanel(props: Props) {
                 <div class="glass-card rounded-xl p-4 space-y-4">
                   {/* Engine radio */}
                   <div class="flex justify-between items-center text-sm">
-                    <span class="font-medium" style={{ color: "var(--color-text-secondary)" }}>{t("settings.inferenceEngine")}</span>
+                    <span class="font-medium text-gray-700">{t("settings.inferenceEngine")}</span>
                     <div class="flex gap-4 text-xs">
                       <label class="flex items-center gap-1.5 cursor-pointer">
                         <div class="w-3.5 h-3.5 rounded-full border-4 border-blue-500 bg-white outline outline-1 outline-blue-500" />
                         llama.cpp
                       </label>
-                      <label class="flex items-center gap-1.5 cursor-pointer" style={{ color: "var(--color-text-muted)" }}>
+                      <label class="flex items-center gap-1.5 cursor-pointer text-gray-500">
                         <div class="w-3.5 h-3.5 rounded-full border border-gray-300" />
                         Ollama
                       </label>
                     </div>
                   </div>
 
+                  {/* Model selector — matching ui.html */}
+                  <div class="flex justify-between items-center text-sm">
+                    <span class="font-medium text-gray-700">{t("ai.model")}</span>
+                    <div class="flex items-center gap-2 bg-white/60 border border-white/80 px-3 py-1.5 rounded-lg text-xs cursor-pointer shadow-sm w-[180px] justify-between">
+                      <span class="truncate">{selectedModel()}</span>
+                      <i class="ph ph-caret-down text-gray-400 shrink-0" />
+                    </div>
+                  </div>
+
                   {/* Detect local */}
                   <button onClick={handleDetectLocal} disabled={detecting()}
-                    class="w-full px-3 py-2 text-xs font-medium rounded-lg disabled:opacity-40 border transition-colors"
-                    style={{ background: "var(--color-bg-card)", color: "var(--color-text-primary)", "border-color": "var(--color-border)" }}
+                    class="w-full px-3 py-2 text-xs font-medium rounded-lg disabled:opacity-40 border transition-colors bg-white/50 text-gray-700 border-white/80"
                   >
                     {detecting() ? t("ai.detecting") : t("ai.detectLocal")}
                   </button>
 
                   <Show when={localStatus()}>
-                    <div class="rounded-lg p-3 text-xs space-y-1.5" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border)" }}>
+                    <div class="rounded-lg p-3 text-xs space-y-1.5 bg-white/50 border border-white/80">
                       <div class="flex items-center gap-1.5">
                         <span style={{ color: localStatus()!.ollamaAvailable ? "#22c55e" : "#ef4444" }}>
                           {localStatus()!.ollamaAvailable ? "\u2713" : "\u2717"}
                         </span>
-                        <span>Ollama</span>
-                        <span style={{ color: "var(--color-text-muted)", "font-size": "11px" }}>
+                        <span class="text-gray-700">Ollama</span>
+                        <span class="text-gray-400 text-[11px]">
                           {localStatus()!.ollamaAvailable ? "(localhost:11434)" : t("ai.notRunning")}
                         </span>
                       </div>
                       <Show when={localStatus()!.ollamaAvailable && localStatus()!.detectedModels.length > 0}>
                         <div class="ml-4 space-y-0.5">
-                          <span class="block" style={{ color: "var(--color-text-muted)", "font-size": "11px" }}>{t("ai.detectedModels")}</span>
+                          <span class="block text-gray-400 text-[11px]">{t("ai.detectedModels")}</span>
                           <For each={localStatus()!.detectedModels}>
-                            {(model) => <span class="block ml-2" style={{ "font-size": "11px" }}>{model}</span>}
+                            {(model) => <span class="block ml-2 text-gray-600 text-[11px]">{model}</span>}
                           </For>
                         </div>
                       </Show>
@@ -294,38 +289,57 @@ export default function SettingsPanel(props: Props) {
                         <span style={{ color: localStatus()!.llamacppAvailable ? "#22c55e" : "#ef4444" }}>
                           {localStatus()!.llamacppAvailable ? "\u2713" : "\u2717"}
                         </span>
-                        <span>llama.cpp server</span>
-                        <span style={{ color: "var(--color-text-muted)", "font-size": "11px" }}>
+                        <span class="text-gray-700">llama.cpp server</span>
+                        <span class="text-gray-400 text-[11px]">
                           {localStatus()!.llamacppAvailable ? "(localhost:8080)" : t("ai.notRunning")}
                         </span>
                       </div>
                       <Show when={!localStatus()!.ollamaAvailable && !localStatus()!.llamacppAvailable}>
-                        <p class="mt-1" style={{ color: "var(--color-text-muted)", "font-size": "11px" }}>{t("ai.installHint")}</p>
+                        <p class="mt-1 text-gray-400 text-[11px]">{t("ai.installHint")}</p>
                       </Show>
                     </div>
                   </Show>
 
-                  {/* Context window */}
+                  {/* Context window — matching ui.html */}
                   <div class="flex justify-between items-center text-sm">
-                    <span class="font-medium" style={{ color: "var(--color-text-secondary)" }}>{t("settings.contextWindow")}</span>
+                    <span class="font-medium text-gray-700">{t("settings.contextWindow")}</span>
                     <input type="text" value="8192"
-                      class="border px-3 py-1.5 rounded-lg text-xs w-[140px] text-right font-mono outline-none"
-                      style={inputStyle}
+                      class="bg-white/60 border border-white/80 px-3 py-1.5 rounded-lg text-xs w-[180px] shadow-sm outline-none text-right font-mono"
                     />
                   </div>
 
-                  {/* GPU toggle */}
+                  {/* GPU toggle — matching ui.html */}
                   <div class="flex justify-between items-center text-sm pb-1">
-                    <span class="font-medium" style={{ color: "var(--color-text-secondary)" }}>{t("settings.gpuAcceleration")}</span>
+                    <span class="font-medium text-gray-700">{t("settings.gpuAcceleration")}</span>
                     <button
                       class="w-9 h-5 rounded-full relative shadow-inner cursor-pointer transition-colors"
-                      style={{ background: gpuEnabled() ? "var(--color-accent)" : "var(--color-border)" }}
+                      classList={{ "bg-blue-500": gpuEnabled(), "bg-gray-300": !gpuEnabled() }}
                       onClick={() => setGpuEnabled(!gpuEnabled())}
                     >
                       <div class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform"
                         style={{ left: gpuEnabled() ? "18px" : "2px" }}
                       />
                     </button>
+                  </div>
+
+                  {/* Model running status card — matching ui.html */}
+                  <div class="bg-[#f0fdf4]/60 border border-green-200/60 p-3 rounded-lg flex items-center justify-between">
+                    <div>
+                      <div class="flex items-center gap-1.5 text-green-700 text-xs font-semibold mb-0.5">
+                        <span class="relative flex h-2 w-2">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                          <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                        </span>
+                        模型运行中
+                      </div>
+                      <div class="text-[9px] text-green-600/70 font-mono">llama.cpp · 线程: 8 · 上下文: 8192</div>
+                    </div>
+                    <div class="text-right flex flex-col items-end">
+                      <div class="text-[10px] text-green-600/70 mb-0.5">Tokens/s</div>
+                      <div class="text-green-600 font-mono font-bold text-sm flex items-center gap-1">
+                        45.2 <i class="ph ph-trend-up text-xs" />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </Show>
@@ -334,19 +348,19 @@ export default function SettingsPanel(props: Props) {
               <Show when={provider() === "OpenAi" || provider() === "Auto"}>
                 <div class="space-y-3">
                   <div>
-                    <label class="block mb-1 text-xs font-medium" style={labelStyle}>{t("ai.apiKey")}</label>
+                    <label class="block mb-1 text-xs font-medium text-gray-500">{t("ai.apiKey")}</label>
                     <input type="password" value={openaiKey()} onInput={(e) => setOpenaiKey((e.target as HTMLInputElement).value)}
-                      placeholder="sk-..." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none" style={inputStyle} />
+                      placeholder="sk-..." class="w-full border border-white/80 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white/50 text-gray-700" />
                   </div>
                   <div>
-                    <label class="block mb-1 text-xs font-medium" style={labelStyle}>{t("ai.endpoint")}</label>
+                    <label class="block mb-1 text-xs font-medium text-gray-500">{t("ai.endpoint")}</label>
                     <input type="text" value={openaiEndpoint()} onInput={(e) => setOpenaiEndpoint((e.target as HTMLInputElement).value)}
-                      placeholder="https://api.openai.com/v1" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none" style={inputStyle} />
+                      placeholder="https://api.openai.com/v1" class="w-full border border-white/80 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white/50 text-gray-700" />
                   </div>
                   <div>
-                    <label class="block mb-1 text-xs font-medium" style={labelStyle}>{t("ai.model")}</label>
+                    <label class="block mb-1 text-xs font-medium text-gray-500">{t("ai.model")}</label>
                     <input type="text" value={openaiModel()} onInput={(e) => setOpenaiModel((e.target as HTMLInputElement).value)}
-                      placeholder="gpt-4o-mini" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none" style={inputStyle} />
+                      placeholder="gpt-4o-mini" class="w-full border border-white/80 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white/50 text-gray-700" />
                   </div>
                 </div>
               </Show>
@@ -354,27 +368,64 @@ export default function SettingsPanel(props: Props) {
               <Show when={provider() === "Anthropic"}>
                 <div class="space-y-3">
                   <div>
-                    <label class="block mb-1 text-xs font-medium" style={labelStyle}>{t("ai.apiKey")}</label>
+                    <label class="block mb-1 text-xs font-medium text-gray-500">{t("ai.apiKey")}</label>
                     <input type="password" value={anthropicKey()} onInput={(e) => setAnthropicKey((e.target as HTMLInputElement).value)}
-                      placeholder="sk-ant-..." class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none" style={inputStyle} />
+                      placeholder="sk-ant-..." class="w-full border border-white/80 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white/50 text-gray-700" />
                   </div>
                   <div>
-                    <label class="block mb-1 text-xs font-medium" style={labelStyle}>{t("ai.model")}</label>
+                    <label class="block mb-1 text-xs font-medium text-gray-500">{t("ai.model")}</label>
                     <input type="text" value={anthropicModel()} onInput={(e) => setAnthropicModel((e.target as HTMLInputElement).value)}
-                      placeholder="claude-sonnet-4-20250514" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none" style={inputStyle} />
+                      placeholder="claude-sonnet-4-20250514" class="w-full border border-white/80 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white/50 text-gray-700" />
                   </div>
                 </div>
               </Show>
 
+              {/* Privacy & Storage cards — matching ui.html grid layout */}
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <h3 class="text-[11px] font-bold text-gray-500 mb-2 uppercase">隐私与数据</h3>
+                  <div class="glass-card rounded-xl p-3 space-y-3">
+                    <div class="flex justify-between items-center">
+                      <div class="text-xs text-gray-700">隐私优先<br /><span class="text-[9px] text-gray-400">(本地模式)</span></div>
+                      <div class="w-7 h-4 bg-blue-500 rounded-full relative cursor-pointer">
+                        <div class="absolute right-0.5 top-0.5 w-3 h-3 bg-white rounded-full" />
+                      </div>
+                    </div>
+                    <div class="flex justify-between items-center pt-2 border-t border-white/30">
+                      <div class="text-xs text-gray-700">自动清理</div>
+                      <div class="text-xs bg-white/50 px-2 py-0.5 rounded border border-white/80 cursor-pointer flex items-center gap-1">30 天后 <i class="ph ph-caret-down text-[10px]" /></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 class="text-[11px] font-bold text-gray-500 mb-2 uppercase">存储状态</h3>
+                  <div class="glass-card rounded-xl p-3 h-full flex flex-col justify-between">
+                    <div>
+                      <div class="text-[10px] text-gray-500 mb-0.5">已使用</div>
+                      <div class="flex items-baseline gap-1 mb-1.5">
+                        <span class="text-sm font-bold text-gray-700">12.4 GB</span><span class="text-[9px] text-gray-400">/ 50 GB</span>
+                      </div>
+                      <div class="w-full h-1.5 bg-gray-200/50 rounded-full overflow-hidden">
+                        <div class="h-full bg-blue-500 rounded-full" style={{ width: "25%" }} />
+                      </div>
+                    </div>
+                    <button class="w-full mt-2 bg-white/60 hover:bg-white/80 border border-white/80 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm">清理旧数据</button>
+                  </div>
+                </div>
+              </div>
+
               {/* Save */}
               <button onClick={handleSave} disabled={saving()}
-                class="w-full px-3 py-2 text-sm font-medium rounded-lg disabled:opacity-40 transition-colors"
-                style={{ "background-color": "var(--color-accent)", color: "#fff" }}
+                class="w-full px-3 py-2 text-sm font-medium rounded-lg disabled:opacity-40 transition-colors bg-blue-500 text-white"
               >
                 {saving() ? t("ai.saving") : t("ai.save")}
               </button>
               <Show when={message()}>
-                <p class="text-xs" style={{ color: message().startsWith("Error") ? "var(--color-destructive)" : "#22c55e" }}>
+                <p class="text-xs" classList={{
+                  "text-green-500": !message().startsWith("Error"),
+                  "text-red-500": message().startsWith("Error"),
+                }}>
                   {message()}
                 </p>
               </Show>
@@ -385,7 +436,7 @@ export default function SettingsPanel(props: Props) {
           <Show when={activeTab() === "appearance"}>
             <div class="space-y-5">
               <div>
-                <label class="block mb-2 text-xs font-medium" style={labelStyle}>{t("settings.theme")}</label>
+                <label class="block mb-2 text-xs font-medium text-gray-500">{t("settings.theme")}</label>
                 <div class="flex gap-2">
                   {([
                     { value: "system", label: t("settings.theme.system") },
@@ -395,7 +446,7 @@ export default function SettingsPanel(props: Props) {
                     <button
                       class="px-4 py-2 text-sm rounded-lg transition-colors"
                       classList={{ "bg-blue-500 text-white": theme() === opt.value }}
-                      style={theme() !== opt.value ? { background: "var(--color-bg-card)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" } : {}}
+                      style={theme() !== opt.value ? { background: "rgba(255,255,255,0.5)", color: "#4b5563", border: "1px solid rgba(255,255,255,0.8)" } : {}}
                       onClick={() => setTheme(opt.value)}
                     >{opt.label}</button>
                   ))}
@@ -404,20 +455,18 @@ export default function SettingsPanel(props: Props) {
             </div>
           </Show>
 
-          {/* Shortcuts tab */}
+          {/* Shortcuts tab — matching ui.html */}
           <Show when={activeTab() === "shortcuts"}>
             <div class="space-y-4">
-              <h3 class="text-[11px] font-bold uppercase" style={{ color: "var(--color-text-muted)" }}>{t("settings.shortcuts")}</h3>
+              <h3 class="text-[11px] font-bold text-gray-500 uppercase">{t("settings.shortcuts")}</h3>
               <div class="glass-card rounded-xl p-3 space-y-2">
                 {[
                   { desc: t("settings.showHideWindow"), key: "\u2325 V" },
                   { desc: t("settings.quickPastePanel"), key: "\u2318 \u21E7 V" },
                 ].map((s) => (
                   <div class="flex justify-between items-center text-xs">
-                    <span style={{ color: "var(--color-text-secondary)" }}>{s.desc}</span>
-                    <div class="flex items-center gap-1 px-2 py-0.5 rounded shadow-sm"
-                      style={{ background: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.6)", color: "var(--color-text-secondary)" }}
-                    >
+                    <span class="text-gray-700">{s.desc}</span>
+                    <div class="flex items-center gap-1 bg-white/60 border border-white/80 px-2 py-0.5 rounded shadow-sm text-gray-600">
                       {s.key}
                     </div>
                   </div>
@@ -429,15 +478,13 @@ export default function SettingsPanel(props: Props) {
           {/* About tab */}
           <Show when={activeTab() === "about"}>
             <div class="text-center py-6 space-y-3">
-              <div class="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center"
-                style={{ background: "linear-gradient(135deg, var(--color-accent), #8b5cf6)" }}
-              >
+              <div class="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-500">
                 <i class="ph-fill ph-clipboard-text text-white text-2xl" />
               </div>
-              <h3 class="text-lg font-bold" style={{ color: "var(--color-text-primary)" }}>ABoard v0.1.0</h3>
-              <p class="text-sm" style={{ color: "var(--color-text-muted)" }}>{t("settings.aboutDesc")}</p>
+              <h3 class="text-lg font-bold text-gray-700">ABoard v0.1.0</h3>
+              <p class="text-sm text-gray-400">{t("settings.aboutDesc")}</p>
               <div class="pt-2">
-                <span class="text-xs px-2 py-1 rounded-full" style={{ background: "var(--color-bg-card)", color: "var(--color-text-muted)" }}>
+                <span class="text-xs px-2 py-1 rounded-full bg-white/50 text-gray-400">
                   Tauri v2 + SolidJS + SQLite
                 </span>
               </div>

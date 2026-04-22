@@ -39,12 +39,11 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
       >
         <div class="glass-card p-6 max-w-sm mx-auto" style={{ "border-radius": "var(--radius-lg)", "box-shadow": "var(--shadow-elevated)" }}>
           <h2 class="text-lg font-semibold text-white mb-2">{props.title}</h2>
-          <p class="text-sm mb-6" style={{ color: "var(--color-text-muted)" }}>{props.message}</p>
+          <p class="text-sm mb-6 text-gray-400">{props.message}</p>
           <div class="flex justify-end gap-3">
             <button
               ref={cancelButtonRef}
-              class="px-4 py-2 text-sm rounded-[var(--radius-md)] transition-smooth border"
-              style={{ background: "var(--color-bg-card)", color: "var(--color-text-secondary)", "border-color": "var(--color-border)" }}
+              class="px-4 py-2 text-sm rounded-[var(--radius-md)] transition-smooth border bg-white/50 text-gray-600 border-white/80"
               onClick={props.onCancel}
             >
               {props.cancelLabel ?? "Cancel"}

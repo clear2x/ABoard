@@ -117,29 +117,24 @@ export default function AiResultPopup() {
         >
           {/* Title */}
           <h3
-            class="text-base font-semibold tracking-tight mb-3"
-            style={{ color: "var(--color-text-primary)" }}
+            class="text-base font-semibold tracking-tight mb-3 text-gray-700"
           >
             {result() ? t(ACTION_TITLE_KEYS[result()!.actionType] || "ai.result.format") : ""}
           </h3>
 
           {/* Original content */}
           <div
-            class="mb-2 p-2 rounded-[var(--radius-sm)] text-xs max-h-[80px] overflow-y-auto"
-            style={{
-              background: "rgba(255, 255, 255, 0.05)",
-              color: "var(--color-text-muted)",
-            }}
+            class="mb-2 p-2 rounded-lg text-xs max-h-[80px] overflow-y-auto bg-white/5 text-gray-400"
           >
             {result()?.originalContent}
           </div>
 
           {/* Result content */}
           <div
-            class="p-3 rounded-[var(--radius-sm)] max-h-[40vh] overflow-y-auto text-sm whitespace-pre-wrap"
-            style={{
-              background: result()?.actionType === "error" ? "rgba(239, 68, 68, 0.1)" : "rgba(255, 255, 255, 0.05)",
-              color: result()?.actionType === "error" ? "var(--color-destructive)" : "var(--color-text-secondary)",
+            class="p-3 rounded-lg max-h-[40vh] overflow-y-auto text-sm whitespace-pre-wrap"
+            classList={{
+              "bg-red-500/10 text-red-500": result()?.actionType === "error",
+              "bg-white/5 text-gray-600": result()?.actionType !== "error",
             }}
           >
             {result()?.resultText}
@@ -149,11 +144,7 @@ export default function AiResultPopup() {
           <div class="flex gap-2 mt-3">
             <Show when={result()?.actionType === "error"}>
               <button
-                class="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-sm)] transition-smooth hover:opacity-80"
-                style={{
-                  "background-color": "var(--color-accent)",
-                  color: "#fff",
-                }}
+                class="px-3 py-1.5 text-xs font-medium rounded-lg transition-smooth hover:opacity-80 bg-blue-500 text-white"
                 onClick={close}
               >
                 OK
@@ -161,33 +152,19 @@ export default function AiResultPopup() {
             </Show>
             <Show when={result()?.actionType !== "error"}>
               <button
-                class="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-sm)] transition-smooth hover:opacity-80"
-                style={{
-                  "background-color": "var(--color-accent)",
-                  color: "var(--color-text-primary)",
-                }}
+                class="px-3 py-1.5 text-xs font-medium rounded-lg transition-smooth hover:opacity-80 bg-blue-500 text-white"
                 onClick={handleCopy}
               >
                 {t("ai.copyResult")}
               </button>
               <button
-                class="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-sm)] transition-smooth hover:opacity-80 border"
-                style={{
-                  "background-color": "var(--color-bg-card)",
-                  color: "var(--color-text-secondary)",
-                  "border-color": "var(--color-border)",
-                }}
+                class="px-3 py-1.5 text-xs font-medium rounded-lg transition-smooth hover:opacity-80 border border-white/80 bg-white/50 text-gray-600"
                 onClick={handleReplace}
               >
                 {t("ai.replaceOriginal")}
               </button>
               <button
-                class="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-sm)] transition-smooth hover:opacity-80 border"
-                style={{
-                  "background-color": "var(--color-bg-card)",
-                  color: "var(--color-text-secondary)",
-                  "border-color": "var(--color-border)",
-                }}
+                class="px-3 py-1.5 text-xs font-medium rounded-lg transition-smooth hover:opacity-80 border border-white/80 bg-white/50 text-gray-600"
                 onClick={handleAppend}
               >
                 {t("ai.appendNew")}
