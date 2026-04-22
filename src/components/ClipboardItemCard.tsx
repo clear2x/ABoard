@@ -75,7 +75,7 @@ export default function ClipboardItemCard(props: Props) {
   if (props.timeline) {
     return (
       <div
-        class={`glass-card-ref flex-1 p-4 rounded-xl relative cursor-pointer ${props.isSelected ? "ring-2 ring-blue-500/50" : ""}`}
+        class={`glass-card flex-1 p-4 rounded-xl relative cursor-pointer ${props.isSelected ? "ring-2 ring-blue-500/50" : ""}`}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onClick={() => props.onSelect(props.item.id)}

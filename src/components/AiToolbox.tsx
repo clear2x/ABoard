@@ -85,7 +85,7 @@ export default function AiToolbox() {
       <div class="space-y-3 flex-1 overflow-y-auto no-scrollbar pb-10">
         {tools.map((tool) => (
           <button
-            class="glass-card-ref w-full p-3 rounded-xl cursor-pointer flex items-center gap-3 text-left"
+            class="glass-card w-full p-3 rounded-xl cursor-pointer flex items-center gap-3 text-left"
             onClick={tool.action}
             disabled={isProcessing() || !selectedItem()}
             style={{ opacity: isProcessing() || !selectedItem() ? 0.5 : 1 }}
