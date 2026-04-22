@@ -113,14 +113,7 @@ export default function AiResultPopup() {
         />
         {/* Popup body */}
         <div
-          class="relative z-10 w-[500px] max-h-[70vh] p-4 rounded-[var(--radius-lg)] animate-scale-in"
-          style={{
-            background: "var(--glass-bg)",
-            border: "1px solid var(--glass-border)",
-            "box-shadow": "var(--shadow-elevated)",
-            "backdrop-filter": "blur(var(--blur-glass))",
-            "-webkit-backdrop-filter": "blur(var(--blur-glass))",
-          }}
+          class="relative z-10 w-[500px] max-h-[80vh] flex flex-col glass-panel rounded-2xl animate-scale-in"
         >
           {/* Title */}
           <h3

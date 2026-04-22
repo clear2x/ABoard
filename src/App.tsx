@@ -9,6 +9,7 @@ import FloatingPopup from "./components/FloatingPopup";
 import TitleBar from "./components/TitleBar";
 import MainLayout from "./components/MainLayout";
 import SettingsPanel from "./components/SettingsPanel";
+import AiResultPopup from "./components/AiResultPopup";
 
 let currentLabel = "main";
 try {
@@ -106,6 +107,9 @@ export default function App() {
       <Show when={settingsOpen()}>
         <SettingsPanel onClose={() => setSettingsOpen(false)} />
       </Show>
+
+      {/* AI result popup — at root level so it centers on viewport */}
+      <AiResultPopup />
     </div>
   );
 }

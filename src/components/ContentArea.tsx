@@ -22,7 +22,6 @@ import { t } from "../stores/i18n";
 import ClipboardItemCard from "./ClipboardItemCard";
 import ContextMenu from "./ContextMenu";
 import ConfirmDialog from "./ConfirmDialog";
-import AiResultPopup from "./AiResultPopup";
 
 const TIME_FILTERS = [
   { key: "all", labelKey: "filter.all" },
@@ -363,7 +362,6 @@ export default function ContentArea() {
         onConfirm={confirmBatchDelete}
         onCancel={() => setConfirmOpen(false)}
       />
-      <AiResultPopup />
     </div>
   );
 }
