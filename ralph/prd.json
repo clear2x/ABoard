@@ -16,8 +16,8 @@
         "npm run build 通过"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented and build verified"
     },
     {
       "id": "US-102",
@@ -31,8 +31,8 @@
         "npm run build 通过"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented and build verified"
     },
     {
       "id": "US-103",
@@ -48,8 +48,8 @@
         "npm run build 通过"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented and build verified"
     },
     {
       "id": "US-104",
@@ -65,8 +65,8 @@
         "npm run build 通过"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented and build verified"
     },
     {
       "id": "US-105",
@@ -86,8 +86,8 @@
         "npm run build 通过"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented and build verified"
     },
     {
       "id": "US-106",
@@ -124,8 +124,8 @@
         "npm run build 通过"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented and build verified"
     },
     {
       "id": "US-108",
@@ -157,8 +157,8 @@
         "npm run build 通过"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented and build verified"
     },
     {
       "id": "US-110",
@@ -175,8 +175,8 @@
         "npm run build 通过"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented and build verified"
     }
   ]
 }

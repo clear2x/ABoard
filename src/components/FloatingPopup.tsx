@@ -87,38 +87,33 @@ export default function FloatingPopup() {
       style={{ "border-radius": "20px" }}
     >
       {/* Header */}
-      <div class="p-4 pb-2 border-b" style={{ "border-color": "rgba(255,255,255,0.3)" }}>
+      <div class="p-4 pb-2 border-b border-white/40">
         <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center gap-2 font-bold text-lg tracking-tight" style={{ color: "var(--color-text-primary)" }}>
+          <div class="flex items-center gap-2 font-bold text-lg tracking-tight text-gray-700">
             <i class="ph-fill ph-clipboard-text text-blue-600" />
             ABoard
           </div>
-          <div class="flex gap-2" style={{ color: "var(--color-text-muted)" }}>
-            <button class="hover:opacity-70 transition-opacity">
+          <div class="flex gap-2 text-gray-400">
+            <button class="hover:text-gray-700 transition-colors">
               <i class="ph ph-push-pin" />
             </button>
-            <button class="hover:opacity-70 transition-opacity">
+            <button class="hover:text-gray-700 transition-colors">
               <i class="ph ph-gear" />
             </button>
           </div>
         </div>
 
         {/* Search bar */}
-        <div class="relative flex items-center rounded-lg px-3 py-1.5 shadow-sm"
-          style={{ background: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.7)" }}
-        >
-          <i class="ph ph-magnifying-glass text-sm" style={{ color: "var(--color-text-muted)" }} />
+        <div class="relative flex items-center bg-white/60 border border-white/80 rounded-lg px-3 py-1.5 shadow-sm">
+          <i class="ph ph-magnifying-glass text-sm text-gray-400" />
           <input
             type="text"
             placeholder={t("float.search")}
             value={searchText()}
             onInput={(e) => { setSearchText((e.target as HTMLInputElement).value); setSelectedIndex(0); }}
-            class="bg-transparent border-none outline-none text-xs ml-2 w-full"
-            style={{ color: "var(--color-text-primary)" }}
+            class="bg-transparent border-none outline-none text-xs ml-2 w-full text-gray-600 placeholder-gray-400"
           />
-          <span class="text-[10px] px-1.5 rounded shrink-0"
-            style={{ background: "rgba(128,128,128,0.1)", color: "var(--color-text-muted)", border: "1px solid rgba(128,128,128,0.15)" }}
-          >⌘K</span>
+          <span class="text-[10px] bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 shrink-0">⌘K</span>
         </div>
       </div>
 
@@ -144,7 +139,7 @@ export default function FloatingPopup() {
                   const globalIndex = () => filteredItems().indexOf(item);
                   return (
                     <div
-                      class="glass-card-ref p-3 rounded-xl cursor-pointer"
+                      class="glass-card p-3 rounded-xl cursor-pointer"
                       classList={{ "ring-1 ring-blue-500/50": globalIndex() === selectedIndex() }}
                       onClick={() => { setSelectedIndex(globalIndex()); selectAndPaste(item); }}
                     >
@@ -180,7 +175,7 @@ export default function FloatingPopup() {
                   const globalIndex = () => filteredItems().indexOf(item);
                   return (
                     <div
-                      class="glass-card-ref p-3 rounded-xl cursor-pointer relative"
+                      class="glass-card p-3 rounded-xl cursor-pointer relative"
                       classList={{ "ring-1 ring-blue-500/50": globalIndex() === selectedIndex() }}
                       onClick={() => { setSelectedIndex(globalIndex()); selectAndPaste(item); }}
                     >
@@ -216,14 +211,11 @@ export default function FloatingPopup() {
       </div>
 
       {/* Footer */}
-      <div class="p-3 border-t flex items-center justify-between text-xs cursor-pointer hover:bg-white/20 transition-colors"
-        style={{ "border-color": "rgba(255,255,255,0.3)", color: "var(--color-text-muted)" }}
+      <div class="p-3 border-t border-white/40 flex items-center justify-between text-xs text-gray-500 cursor-pointer hover:bg-white/20 transition-colors"
         onClick={openMainWindow}
       >
         <span class="flex items-center gap-1"><i class="ph ph-sidebar-simple" /> {t("float.openMainWindow")}</span>
-        <span class="text-[10px] px-1.5 rounded"
-          style={{ background: "rgba(128,128,128,0.1)", border: "1px solid rgba(128,128,128,0.15)" }}
-        >⌥⌘</span>
+        <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 text-[10px]">⌥⌘</span>
       </div>
     </div>
   );
