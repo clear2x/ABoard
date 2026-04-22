@@ -8,8 +8,16 @@ import {
   summarizeContent,
   rewriteContent,
   processing,
+  setResultPopup,
 } from "../stores/ai-actions";
-import { formatJson, validateJson, formatXml, validateXml } from "../stores/format-tools";
+import {
+  formatJson,
+  formatXml,
+  detectContentFormat,
+  convertFormat,
+  type FormatResult,
+  type FormatError,
+} from "../stores/format-tools";
 import { t } from "../stores/i18n";
 
 interface ToolDef {
@@ -19,6 +27,28 @@ interface ToolDef {
   titleKey: string;
   descKey: string;
   action: () => void;
+}
+
+function showFormatResult(
+  content: string,
+  itemId: string,
+  result: FormatResult | FormatError
+) {
+  if ("result" in result) {
+    setResultPopup({
+      originalContent: content,
+      resultText: result.result,
+      actionType: "format",
+      itemId,
+    });
+  } else {
+    setResultPopup({
+      originalContent: content,
+      resultText: result.error,
+      actionType: "error",
+      itemId,
+    });
+  }
 }
 
 export default function AiToolbox() {
@@ -52,23 +82,62 @@ export default function AiToolbox() {
     const item = selectedItem();
     if (!item) return;
     const content = item.content.trim();
-    if (content.startsWith("{") || content.startsWith("[")) {
-      formatJson(content);
-    } else if (content.startsWith("<")) {
-      formatXml(content);
+    const fmt = detectContentFormat(content);
+
+    if (fmt.isJson) {
+      const result = formatJson(content);
+      showFormatResult(content, item.id, result);
+    } else if (fmt.isXml) {
+      const result = formatXml(content);
+      showFormatResult(content, item.id, result);
+    } else if (fmt.isHtml) {
+      const result = convertFormat(content, "html", "markdown");
+      showFormatResult(content, item.id, result);
+    } else if (fmt.isMarkdown) {
+      const result = convertFormat(content, "markdown", "html");
+      showFormatResult(content, item.id, result);
+    } else {
+      // Try JSON first, then XML
+      const content2 = content;
+      if (content2.startsWith("{") || content2.startsWith("[")) {
+        showFormatResult(content2, item.id, formatJson(content2));
+      } else if (content2.startsWith("<")) {
+        showFormatResult(content2, item.id, formatXml(content2));
+      } else {
+        setResultPopup({
+          originalContent: content,
+          resultText: "无法识别内容格式。支持 JSON、XML、HTML 和 Markdown 格式化。",
+          actionType: "error",
+          itemId: item.id,
+        });
+      }
     }
   };
 
   const handleMarkdown = () => {
-    // Placeholder — future markdown conversion
+    const item = selectedItem();
+    if (!item) return;
+    const content = item.content.trim();
+    const fmt = detectContentFormat(content);
+
+    let result: FormatResult | FormatError;
+    if (fmt.isHtml) {
+      result = convertFormat(content, "html", "markdown");
+    } else if (fmt.isMarkdown) {
+      result = convertFormat(content, "markdown", "html");
+    } else {
+      // Treat as plaintext -> markdown
+      result = convertFormat(content, "plaintext", "markdown");
+    }
+    showFormatResult(content, item.id, result);
   };
 
   const tools: ToolDef[] = [
-    { icon: "ph-translate", iconBg: "bg-blue-100 dark:bg-blue-900/40", iconColor: "text-blue-600 dark:text-blue-400", titleKey: "toolbox.translate", descKey: "toolbox.translateDesc", action: handleTranslate },
-    { icon: "ph-text-align-center", iconBg: "bg-purple-100 dark:bg-purple-900/40", iconColor: "text-purple-600 dark:text-purple-400", titleKey: "toolbox.summarize", descKey: "toolbox.summarizeDesc", action: handleSummarize },
-    { icon: "ph-pencil-simple", iconBg: "bg-indigo-100 dark:bg-indigo-900/40", iconColor: "text-indigo-600 dark:text-indigo-400", titleKey: "toolbox.rewrite", descKey: "toolbox.rewriteDesc", action: handleRewrite },
-    { icon: "ph-brackets-curly", iconBg: "bg-green-100 dark:bg-green-900/40", iconColor: "text-green-600 dark:text-green-400", titleKey: "toolbox.format", descKey: "toolbox.formatDesc", action: handleFormat },
-    { icon: "", iconBg: "bg-orange-100 dark:bg-orange-900/40", iconColor: "text-orange-600 dark:text-orange-400", titleKey: "toolbox.markdown", descKey: "toolbox.markdownDesc", action: handleMarkdown },
+    { icon: "ph-translate", iconBg: "bg-blue-100", iconColor: "text-blue-600", titleKey: "toolbox.translate", descKey: "toolbox.translateDesc", action: handleTranslate },
+    { icon: "ph-text-align-center", iconBg: "bg-purple-100", iconColor: "text-purple-600", titleKey: "toolbox.summarize", descKey: "toolbox.summarizeDesc", action: handleSummarize },
+    { icon: "ph-pencil-simple", iconBg: "bg-indigo-100", iconColor: "text-indigo-600", titleKey: "toolbox.rewrite", descKey: "toolbox.rewriteDesc", action: handleRewrite },
+    { icon: "ph-brackets-curly", iconBg: "bg-green-100", iconColor: "text-green-600", titleKey: "toolbox.format", descKey: "toolbox.formatDesc", action: handleFormat },
+    { icon: "", iconBg: "bg-orange-100", iconColor: "text-orange-600", titleKey: "toolbox.markdown", descKey: "toolbox.markdownDesc", action: handleMarkdown },
   ];
 
   return (
@@ -76,7 +145,7 @@ export default function AiToolbox() {
       style={{ "border-color": "rgba(255,255,255,0.4)" }}
     >
       {/* Header */}
-      <div class="flex items-center gap-2 font-medium px-1 mb-4" style={{ color: "var(--color-text-secondary)" }}>
+      <div class="flex items-center gap-2 font-medium text-gray-600 mb-4 px-1">
         <i class="ph-fill ph-magic-wand text-blue-500" />
         {t("toolbox.title")}
       </div>
@@ -96,10 +165,10 @@ export default function AiToolbox() {
               </Show>
             </div>
             <div>
-              <div class="text-sm font-medium" style={{ color: "var(--color-text-primary)" }}>
+              <div class="text-sm font-medium text-gray-700">
                 {t(tool.titleKey)}
               </div>
-              <div class="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
+              <div class="text-[10px] text-gray-400">
                 {t(tool.descKey)}
               </div>
             </div>
@@ -109,14 +178,14 @@ export default function AiToolbox() {
 
       {/* No selection notice */}
       <Show when={!selectedItem()}>
-        <div class="text-center text-[10px] py-2" style={{ color: "var(--color-text-muted)" }}>
+        <div class="text-center text-[10px] py-2 text-gray-400">
           {t("toolbox.noSelection")}
         </div>
       </Show>
 
       {/* Privacy footer */}
-      <div class="mt-auto pt-4 text-center text-[10px] flex items-center justify-center gap-1"
-        style={{ color: "var(--color-text-muted)", "border-top": "1px solid rgba(255,255,255,0.3)" }}
+      <div class="mt-auto pt-4 text-center text-[10px] flex items-center justify-center gap-1 text-gray-400"
+        style={{ "border-top": "1px solid rgba(255,255,255,0.4)" }}
       >
         <i class="ph ph-shield-check" />
         {t("toolbox.privacyNote")}
