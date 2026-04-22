@@ -33,11 +33,9 @@
         "npm run build 通过"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created embedded.rs with EmbeddedProvider using candle quantized_qwen2. Added candle-core/nn/transformers 0.10.2 + tokenizers 0.22.0 deps. Supports auto-download of Qwen2.5-0.5B Q4_K_M GGUF from HuggingFace. cargo check passes."
     },
-    {
-      "id": "US-203",
       "title": "TitleBar 像素级修复 — 红绿灯容器/搜索栏/图标",
       "description": "逐像素匹配 ui.html 标题栏: 红绿灯容器宽度 160px、搜索栏 bg-white/70 border-white/80 py-1.5、添加 ph-funnel 筛选图标和 ⌘K 标签。",
       "acceptanceCriteria": [

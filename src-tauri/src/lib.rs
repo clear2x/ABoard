@@ -238,6 +238,8 @@ pub fn run() {
             ai::ai_set_config,
             ai::ai_detect_local_provider,
             ai::ai_infer_auto,
+            ai::ai_embedded_load,
+            ai::ai_embedded_download,
             db::update_ai_metadata,
             db::update_item_content,
             db::insert_clipboard_item,

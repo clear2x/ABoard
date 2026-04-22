@@ -1,5 +1,6 @@
 pub mod cloud;
 pub mod config;
+pub mod embedded;
 pub mod local;
 pub mod models;
 pub mod processor;
@@ -110,7 +111,6 @@ pub fn init_ai(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
             Box::new(p)
         }
         ProviderType::Auto => {
-            // Auto mode: default to LocalProvider; actual routing happens in ai_infer_auto
             let local = if let Some(ref model_path) = config.model_path {
                 local::LocalProvider::new(model_path.clone())
             } else {
@@ -119,6 +119,11 @@ pub fn init_ai(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
             Box::new(local)
         }
     };
+
+    // Check for embedded model in models/ directory
+    let app_data_dir = app.path().app_data_dir()?;
+    let models_dir = app_data_dir.join("models");
+    let _embedded_path = embedded::EmbeddedProvider::default_model_exists(&models_dir);
 
     app.manage(AiState {
         provider: Arc::new(Mutex::new(provider)),
@@ -628,4 +633,49 @@ pub async fn ai_infer_auto(
         response: result,
         routing_decision: Some(decision),
     })
+}
+
+/// Load an embedded GGUF model for local inference.
+/// Auto-detects the model file in the models/ directory or uses the provided path.
+#[tauri::command]
+pub async fn ai_embedded_load(
+    state: tauri::State<'_, AiState>,
+) -> Result<String, String> {
+    let app_data_dir = state
+        .app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+
+    let models_dir = app_data_dir.join("models");
+
+    // Find a GGUF file
+    let model_path = embedded::EmbeddedProvider::default_model_exists(&models_dir)
+        .ok_or("No GGUF model file found in models/ directory. Run ai_embedded_download first.")?;
+
+    let provider = embedded::EmbeddedProvider::new(model_path);
+    provider.load_model().await?;
+
+    // Replace the active provider with the embedded one
+    let mut guard = state.provider.lock().await;
+    *guard = Box::new(provider);
+
+    Ok("Embedded model loaded successfully".to_string())
+}
+
+/// Download the default embedded model (Qwen2.5-0.5B Q4_K_M) from HuggingFace.
+#[tauri::command]
+pub async fn ai_embedded_download(
+    state: tauri::State<'_, AiState>,
+) -> Result<String, String> {
+    let app_data_dir = state
+        .app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+
+    let models_dir = app_data_dir.join("models");
+    let model_path = embedded::EmbeddedProvider::download_default_model(&models_dir).await?;
+
+    Ok(format!("Model downloaded to: {}", model_path.display()))
 }

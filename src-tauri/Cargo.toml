@@ -25,6 +25,10 @@ futures-util = "0.3"
 tauri-plugin-dialog = "2.7.0"
 image = { version = "0.25", default-features = false, features = ["png"] }
 base64 = "0.22"
+candle-core = "0.10.2"
+candle-nn = "0.10.2"
+candle-transformers = "0.10.2"
+tokenizers = { version = "0.22.0", default-features = false }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = { version = "0.24" }
