@@ -17,13 +17,14 @@
         "height": 600,
         "resizable": true,
         "transparent": true,
-        "decorations": true
+        "decorations": false,
+        "shadow": true
       },
       {
         "label": "floating",
         "title": "ABoard Quick Paste",
-        "width": 360,
-        "height": 420,
+        "width": 280,
+        "height": 520,
         "resizable": false,
         "transparent": true,
         "decorations": false,
@@ -34,7 +35,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
     },
     "trayIcon": {
       "iconPath": "icons/icon.png",

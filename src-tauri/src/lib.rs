@@ -211,6 +211,13 @@ pub fn run() {
 
             clipboard::start_monitoring(app.handle().clone());
             tray::setup_tray(&app.handle())?;
+
+            // macOS: set up native application menu bar
+            #[cfg(target_os = "macos")]
+            {
+                tray::setup_app_menu(&app.handle())?;
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

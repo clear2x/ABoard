@@ -17,6 +17,7 @@ import {
   convertFormat,
   type FormatType,
 } from "../stores/format-tools";
+import { t } from "../stores/i18n";
 import { onMount, onCleanup, createSignal, Show, createMemo } from "solid-js";
 
 interface Props {
@@ -202,7 +203,7 @@ export default function ContextMenu(props: Props) {
         onClick={handleTranslate}
         disabled={isProcessing()}
       >
-        {processing() === "translate" ? "Translating..." : "\u7ffb\u8bd1 (Translate)"}
+        {processing() === "translate" ? t("ctx.translating") : t("ctx.translate")}
       </button>
       <button
         class={menuItemClass(isProcessing())}
@@ -210,7 +211,7 @@ export default function ContextMenu(props: Props) {
         onClick={handleSummarize}
         disabled={isProcessing()}
       >
-        {processing() === "summarize" ? "Summarizing..." : "\u603b\u7ed3 (Summarize)"}
+        {processing() === "summarize" ? t("ctx.summarizing") : t("ctx.summarize")}
       </button>
 
       {/* Rewrite with sub-menu */}
@@ -224,7 +225,7 @@ export default function ContextMenu(props: Props) {
           style={{ color: "var(--color-text-secondary)" }}
           disabled={isProcessing()}
         >
-          {processing() === "rewrite" ? "Rewriting..." : "\u6539\u5199 (Rewrite)"}
+          {processing() === "rewrite" ? t("ctx.rewriting") : t("ctx.rewrite")}
           <span class="ml-1 text-xs" style={{ color: "var(--color-text-muted)" }}>&#x25b6;</span>
         </button>
 
@@ -240,7 +241,7 @@ export default function ContextMenu(props: Props) {
                 onClick={() => handleRewrite(style)}
                 disabled={isProcessing()}
               >
-                {REWRITE_STYLE_LABELS[style]}
+                {t(`ctx.${style}`)}
               </button>
             ))}
           </div>
@@ -255,21 +256,21 @@ export default function ContextMenu(props: Props) {
           style={{ color: "var(--color-text-secondary)" }}
           onClick={handleFormatJson}
         >
-          \u7f8e\u5316 JSON (Beautify)
+          {t("ctx.beautifyJson")}
         </button>
         <button
           class={menuItemClass()}
           style={{ color: "var(--color-text-secondary)" }}
           onClick={handleMinifyJson}
         >
-          \u538b\u7f29 JSON (Minify)
+          {t("ctx.minifyJson")}
         </button>
         <button
           class={menuItemClass()}
           style={{ color: "var(--color-text-secondary)" }}
           onClick={handleValidateJson}
         >
-          \u6821\u9a8c JSON (Validate)
+          {t("ctx.validateJson")}
         </button>
       </Show>
 
@@ -280,14 +281,14 @@ export default function ContextMenu(props: Props) {
           style={{ color: "var(--color-text-secondary)" }}
           onClick={handleFormatXml}
         >
-          \u683c\u5f0f\u5316 XML
+          {t("ctx.formatXml")}
         </button>
         <button
           class={menuItemClass()}
           style={{ color: "var(--color-text-secondary)" }}
           onClick={handleValidateXml}
         >
-          \u6821\u9a8c XML
+          {t("ctx.validateXml")}
         </button>
       </Show>
 
@@ -301,7 +302,7 @@ export default function ContextMenu(props: Props) {
             class={menuItemClass()}
             style={{ color: "var(--color-text-secondary)" }}
           >
-            \u683c\u5f0f\u8f6c\u6362 (Convert)
+            {t("ctx.convert")}
             <span class="ml-1 text-xs" style={{ color: "var(--color-text-muted)" }}>&#x25b6;</span>
           </button>
           <Show when={showConvertMenu()}>
@@ -355,14 +356,14 @@ export default function ContextMenu(props: Props) {
         style={{ color: "var(--color-text-secondary)" }}
         onClick={handlePin}
       >
-        {props.isPinned ? "Unpin" : "Pin"}
+        {props.isPinned ? t("ctx.unpin") : t("ctx.pin")}
       </button>
       <button
         class="w-full text-left px-3 py-2 text-sm cursor-pointer transition-smooth rounded-[var(--radius-sm)] hover:bg-[var(--color-bg-card-hover)]"
         style={{ color: "var(--color-destructive)" }}
         onClick={handleDelete}
       >
-        Delete
+        {t("ctx.delete")}
       </button>
     </div>
   );

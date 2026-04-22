@@ -1,4 +1,5 @@
 import { searchQuery, setSearchQuery, searchHistory, semanticSearchHistory, loadHistory } from "../stores/clipboard";
+import { t } from "../stores/i18n";
 import { createSignal, onCleanup } from "solid-js";
 
 export default function SearchBar() {
@@ -53,7 +54,7 @@ export default function SearchBar() {
           type="text"
           value={searchQuery()}
           onInput={handleInput}
-          placeholder={semanticMode() ? "Semantic search..." : "Search history..."}
+          placeholder={semanticMode() ? t("search.semantic") : t("search.placeholder")}
           class="glass-subtle w-full border rounded-[var(--radius-md)] pl-9 pr-3 py-2 focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)] transition-smooth"
           style={{ "font-size": "var(--font-body)", color: "var(--color-text-secondary)", "border-color": "var(--color-border)" }}
         />

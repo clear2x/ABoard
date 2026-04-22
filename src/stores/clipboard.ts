@@ -16,12 +16,22 @@ export interface ClipboardItem {
   ai_summary?: string | null;
 }
 
+export type ViewMode = "list" | "grid";
+
 // Reactive signals
 const [items, setItems] = createSignal<ClipboardItem[]>([]);
 const [loading, setLoading] = createSignal(false);
 const [searchQuery, setSearchQuery] = createSignal("");
 const [selectedId, setSelectedId] = createSignal<string | null>(null);
 const [selectedIds, setSelectedIds] = createSignal<Set<string>>(new Set());
+const [viewModeInternal, setViewModeInternal] = createSignal<ViewMode>(
+  (localStorage.getItem("aboard-view-mode") as ViewMode) || "list"
+);
+const [copiedId, setCopiedId] = createSignal<string | null>(null);
+
+// Category and time filters for the new UI
+const [categoryFilter, setCategoryFilter] = createSignal<string>("all");
+const [timeFilter, setTimeFilter] = createSignal<string>("all");
 
 export {
   items,
@@ -33,7 +43,32 @@ export {
   setSelectedId,
   selectedIds,
   setSelectedIds,
+  copiedId,
+  categoryFilter,
+  setCategoryFilter,
+  timeFilter,
+  setTimeFilter,
 };
+
+export function viewMode() { return viewModeInternal(); }
+
+export function setViewMode(mode: ViewMode) {
+  setViewModeInternal(mode);
+  localStorage.setItem("aboard-view-mode", mode);
+}
+
+/// Copy item content to system clipboard. Shows brief "copied" feedback.
+export async function copyItemContent(item: ClipboardItem): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(item.content);
+    setCopiedId(item.id);
+    setTimeout(() => setCopiedId(null), 1500);
+    return true;
+  } catch (e) {
+    console.error("[store] Copy failed:", e);
+    return false;
+  }
+}
 
 export function toggleSelect(id: string) {
   setSelectedIds((prev) => {
@@ -53,7 +88,6 @@ export function selectAll() {
 }
 
 /// Load clipboard history from SQLite via Tauri command.
-/// Called on app startup and after mutations (delete, pin, unpin).
 export async function loadHistory(offset: number = 0, limit: number = 50) {
   setLoading(true);
   try {
@@ -70,7 +104,6 @@ export async function loadHistory(offset: number = 0, limit: number = 50) {
 }
 
 /// Search clipboard history using FTS5 full-text search.
-/// If query is empty, falls back to loadHistory().
 export async function searchHistory(query: string) {
   if (!query.trim()) {
     await loadHistory();
@@ -143,8 +176,6 @@ export async function unpinItem(id: string) {
 }
 
 /// Add item to the reactive signal array for immediate display.
-/// The item was already persisted to SQLite by the Rust clipboard monitor.
-/// Keeps a hash dedup check for the signal array.
 export function addItem(item: ClipboardItem) {
   setItems((prev) => {
     if (prev.some((i) => i.hash === item.hash)) return prev;
@@ -156,14 +187,12 @@ let unlistenFn: (() => void) | null = null;
 let unlistenAiFn: (() => void) | null = null;
 
 /// Start listening to Tauri clipboard events.
-/// Call once from App's onMount. Safe to call multiple times (idempotent).
 export async function startClipboardListener() {
-  if (unlistenFn) return; // Already listening
+  if (unlistenFn) return;
   unlistenFn = await listen<ClipboardItem>("clipboard-update", (event) => {
     addItem(event.payload);
   });
 
-  // Listen for AI processing results and update items in-place
   unlistenAiFn = await listen<{ item_id: string; ai_type: string; ai_tags: string[]; ai_summary?: string | null }>("ai-processed", (event) => {
     setItems(prev => prev.map(item =>
       item.id === event.payload.item_id

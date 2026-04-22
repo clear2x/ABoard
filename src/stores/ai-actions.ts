@@ -5,9 +5,9 @@ import { invoke } from "@tauri-apps/api/core";
 export interface AiActionResult {
   originalContent: string;
   resultText: string;
-  actionType: "translate" | "summarize" | "rewrite" | "format";
+  actionType: "translate" | "summarize" | "rewrite" | "format" | "error";
   itemId: string;
-  isValid?: boolean; // for validation results
+  isValid?: boolean;
 }
 
 /// Inference auto-response mirrors the Rust struct InferenceAutoResponse.
@@ -32,54 +32,76 @@ export { resultPopup, setResultPopup, processing, setProcessing };
 // --- Rewrite style definitions ---
 
 const REWRITE_STYLES: Record<string, string> = {
-  formal:
-    "\u6b63\u5f0f\u98ce\u683c\uff1a\u4f7f\u7528\u4e66\u9762\u8bed\u8a00\uff0c\u907f\u514d\u53e3\u8bed\u5316\u8868\u8fbe",
-  casual:
-    "\u968f\u610f\u98ce\u683c\uff1a\u4f7f\u7528\u8f7b\u677e\u53e3\u8bed\u5316\u8868\u8fbe\uff0c\u50cf\u670b\u53cb\u804a\u5929",
-  concise:
-    "\u7b80\u6d01\u98ce\u683c\uff1a\u53bb\u9664\u5197\u4f59\uff0c\u7528\u6700\u5c11\u7684\u6587\u5b57\u4f20\u8fbe\u6838\u5fc3\u610f\u601d",
-  detailed:
-    "\u8be6\u7ec6\u98ce\u683c\uff1a\u5c55\u5f00\u63cf\u8ff0\uff0c\u589e\u52e0\u7ec6\u8282\u548c\u89e3\u91ca",
-  academic:
-    "\u5b66\u672f\u98ce\u683c\uff1a\u4f7f\u7528\u5b66\u672f\u8bed\u8a00\uff0c\u4e25\u8c28\u7684\u903b\u8f91\u548c\u672f\u8bed",
+  formal: "正式风格：使用书面语言，避免口语化表达",
+  casual: "随意风格：使用轻松口语化表达，像朋友聊天",
+  concise: "简洁风格：去除冗余，用最少的文字传达核心意思",
+  detailed: "详细风格：展开描述，增加细节和解释",
+  academic: "学术风格：使用学术语言，严谨的逻辑和术语",
 };
 
 export { REWRITE_STYLES };
 
 // --- Helper ---
 
-/**
- * Detect if text contains Chinese characters.
- * Used to auto-determine translation direction.
- */
 function containsChinese(text: string): boolean {
   return /[\u4e00-\u9fff]/.test(text);
 }
 
 /**
  * Call the AI inference backend via Tauri command.
+ * Returns the result text, or throws with a user-friendly error.
  */
 async function callInfer(
   prompt: string,
   systemPrompt: string,
   maxTokens: number
 ): Promise<string> {
-  const response = await invoke<InferenceAutoResponse>("ai_infer_auto", {
-    request: {
-      prompt,
-      system_prompt: systemPrompt,
-      max_tokens: maxTokens,
-      temperature: 0.7,
-    },
-  });
-  return response.response.text;
+  try {
+    const response = await invoke<InferenceAutoResponse>("ai_infer_auto", {
+      request: {
+        prompt,
+        system_prompt: systemPrompt,
+        max_tokens: maxTokens,
+        temperature: 0.7,
+      },
+    });
+    return response.response.text;
+  } catch (e: unknown) {
+    const errMsg = String(e);
+
+    // Provide user-friendly error messages
+    if (errMsg.includes("not available")) {
+      throw new Error(
+        containsChinese(prompt)
+          ? "AI 未配置或不可用。请在设置中配置 AI 提供商（如 Ollama）后再试。"
+          : "AI not configured or unavailable. Please set up an AI provider (e.g. Ollama) in Settings."
+      );
+    }
+    if (errMsg.includes("timed out") || errMsg.includes("timeout")) {
+      throw new Error(
+        containsChinese(prompt)
+          ? "AI 请求超时，请检查 AI 服务是否正常运行。"
+          : "AI request timed out. Please check if the AI service is running."
+      );
+    }
+    if (errMsg.includes("connection") || errMsg.includes("ECONNREFUSED")) {
+      throw new Error(
+        containsChinese(prompt)
+          ? "无法连接到 AI 服务。请确认 Ollama 或 llama.cpp 服务已启动。"
+          : "Cannot connect to AI service. Make sure Ollama or llama.cpp is running."
+      );
+    }
+
+    throw new Error(
+      `AI error: ${errMsg}`
+    );
+  }
 }
 
 // --- Public API ---
 
 /**
  * Translate content: auto-detect language direction.
- * Chinese -> English, non-Chinese -> Chinese.
  */
 export async function translateContent(
   content: string,
@@ -89,8 +111,8 @@ export async function translateContent(
   try {
     const isChinese = containsChinese(content);
     const systemPrompt = isChinese
-      ? "\u4f60\u662f\u4e00\u4e2a\u7ffb\u8bd1\u52a9\u624b\u3002\u5c06\u4ee5\u4e0b\u4e2d\u6587\u7ffb\u8bd1\u4e3a\u81ea\u7136\u6d41\u7545\u7684\u82f1\u6587\u3002\u53ea\u8fd4\u56de\u7ffb\u8bd1\u7ed3\u679c\u3002"
-      : "\u4f60\u662f\u4e00\u4e2a\u7ffb\u8bd1\u52a9\u624b\u3002\u5c06\u4ee5\u4e0b\u5185\u5bb9\u7ffb\u8bd1\u4e3a\u81ea\u7136\u6d41\u7545\u7684\u4e2d\u6587\u3002\u53ea\u8fd4\u56de\u7ffb\u8bd1\u7ed3\u679c\u3002";
+      ? "你是一个翻译助手。将以下中文翻译为自然流畅的英文。只返回翻译结果。"
+      : "你是一个翻译助手。将以下内容翻译为自然流畅的中文。只返回翻译结果。";
     const maxTokens = Math.max(content.length * 2, 500);
     const resultText = await callInfer(content, systemPrompt, maxTokens);
     setResultPopup({
@@ -101,6 +123,12 @@ export async function translateContent(
     });
   } catch (e) {
     console.error("[ai-actions] Translate failed:", e);
+    setResultPopup({
+      originalContent: content,
+      resultText: String(e),
+      actionType: "error",
+      itemId,
+    });
   } finally {
     setProcessing(null);
   }
@@ -116,7 +144,7 @@ export async function summarizeContent(
   setProcessing("summarize");
   try {
     const systemPrompt =
-      "\u4f60\u662f\u4e00\u4e2a\u603b\u7ed3\u52a9\u624b\u3002\u5c06\u4ee5\u4e0b\u5185\u5bb9\u603b\u7ed3\u4e3a\u8981\u70b9\u5217\u8868\uff0c\u6bcf\u6761\u4ee5\u6570\u5b57\u7f16\u53f7\u3002\u4fdd\u6301\u7b80\u6d01\u51c6\u786e\u3002";
+      "你是一个总结助手。将以下内容总结为要点列表，每条以数字编号。保持简洁准确。";
     const resultText = await callInfer(content, systemPrompt, 500);
     setResultPopup({
       originalContent: content,
@@ -126,6 +154,12 @@ export async function summarizeContent(
     });
   } catch (e) {
     console.error("[ai-actions] Summarize failed:", e);
+    setResultPopup({
+      originalContent: content,
+      resultText: String(e),
+      actionType: "error",
+      itemId,
+    });
   } finally {
     setProcessing(null);
   }
@@ -133,7 +167,6 @@ export async function summarizeContent(
 
 /**
  * Rewrite content in a specified style.
- * Available styles: formal, casual, concise, detailed, academic.
  */
 export async function rewriteContent(
   content: string,
@@ -144,7 +177,7 @@ export async function rewriteContent(
   try {
     const styleDesc =
       REWRITE_STYLES[style] || REWRITE_STYLES["formal"];
-    const systemPrompt = `\u4f60\u662f\u4e00\u4e2a\u6539\u5199\u52a9\u624b\u3002\u8bf7\u7528${styleDesc}\u6539\u5199\u4ee5\u4e0b\u5185\u5bb9\u3002\u4fdd\u6301\u6838\u5fc3\u610f\u601d\u4e0d\u53d8\u3002\u53ea\u8fd4\u56de\u6539\u5199\u7ed3\u679c\u3002`;
+    const systemPrompt = `你是一个改写助手。请用${styleDesc}改写以下内容。保持核心意思不变。只返回改写结果。`;
     const maxTokens = Math.max(content.length * 2, 500);
     const resultText = await callInfer(content, systemPrompt, maxTokens);
     setResultPopup({
@@ -155,6 +188,12 @@ export async function rewriteContent(
     });
   } catch (e) {
     console.error("[ai-actions] Rewrite failed:", e);
+    setResultPopup({
+      originalContent: content,
+      resultText: String(e),
+      actionType: "error",
+      itemId,
+    });
   } finally {
     setProcessing(null);
   }

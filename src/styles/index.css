@@ -1,35 +1,36 @@
 @import "tailwindcss";
 @import "./design-tokens.css";
 
-/* Glassmorphism utility classes per D-03 (CSS backdrop-filter) */
+/* Glassmorphism utility classes — enhanced frosted glass */
 .glass {
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--blur-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass));
+  backdrop-filter: saturate(1.8) blur(var(--blur-glass));
+  -webkit-backdrop-filter: saturate(1.8) blur(var(--blur-glass));
   border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-inner-glow);
 }
 
 .glass-subtle {
-  background: rgba(17, 24, 39, 0.4);
-  backdrop-filter: blur(var(--blur-subtle));
-  -webkit-backdrop-filter: blur(var(--blur-subtle));
+  background: var(--color-bg-secondary);
+  backdrop-filter: saturate(1.5) blur(var(--blur-subtle));
+  -webkit-backdrop-filter: saturate(1.5) blur(var(--blur-subtle));
   border: 1px solid var(--glass-border);
 }
 
 .glass-card {
   background: var(--color-bg-card);
-  backdrop-filter: blur(var(--blur-glass));
-  -webkit-backdrop-filter: blur(var(--blur-glass));
-  border: 1px solid var(--color-border);
+  backdrop-filter: saturate(1.6) blur(var(--blur-glass));
+  -webkit-backdrop-filter: saturate(1.6) blur(var(--blur-glass));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
 }
 
-/* Window background with glassmorphism */
+/* Window background — true frosted glass */
 .window-bg {
   background: var(--color-bg-dominant);
-  backdrop-filter: blur(40px);
-  -webkit-backdrop-filter: blur(40px);
+  backdrop-filter: saturate(1.8) blur(60px);
+  -webkit-backdrop-filter: saturate(1.8) blur(60px);
 }
 
 /* Smooth transitions utility */
@@ -74,11 +75,181 @@
   animation: scaleIn 200ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fadeIn 200ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
 .hover-lift {
   transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1),
               border-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
-              background 200ms cubic-bezier(0.4, 0, 0.2, 1);
+              background 200ms cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .hover-lift:hover {
   transform: translateY(-1px);
+  box-shadow: var(--shadow-elevated);
+}
+
+/* Settings modal overlay */
+.modal-overlay {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-hover);
+}
+
+/* Image preview */
+.clipboard-image-preview {
+  max-width: 100%;
+  max-height: 120px;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+  border: 1px solid var(--glass-border);
+}
+
+/* Custom title bar — drag region */
+.titlebar {
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+.titlebar button,
+.titlebar a,
+.titlebar input,
+.titlebar select {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* Window control buttons */
+.window-btn {
+  width: 32px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--duration-fast) var(--ease-default);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+.window-btn:hover {
+  background: var(--color-bg-card-hover);
+  color: var(--color-text-primary);
+}
+.window-btn-close:hover {
+  background: var(--color-destructive);
+  color: #fff;
+}
+
+/* AI status banner */
+.ai-banner {
+  background: rgba(59, 130, 246, 0.12);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+/* macOS traffic light buttons */
+.traffic-light {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  line-height: 1;
+  color: transparent;
+  transition: color 100ms ease;
+}
+.traffic-light:hover {
+  color: rgba(0, 0, 0, 0.5);
+}
+.traffic-light-close { background: #ff5f57; }
+.traffic-light-minimize { background: #febc2e; }
+.traffic-light-maximize { background: #28c840; }
+
+/* Hide scrollbar but preserve scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Glass panel (reference-style, lighter) */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* Dark theme glass panel */
+:root:not([data-theme="light"]) .glass-panel {
+  background: rgba(30, 41, 59, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Glass card reference style */
+.glass-card-ref {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s ease;
+}
+.glass-card-ref:hover {
+  background: rgba(255, 255, 255, 0.8);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+:root:not([data-theme="light"]) .glass-card-ref {
+  background: rgba(51, 65, 85, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+:root:not([data-theme="light"]) .glass-card-ref:hover {
+  background: rgba(51, 65, 85, 0.6);
+}
+
+/* Settings slide-in animation */
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.settings-slide-in {
+  animation: slideInRight 300ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes slideOutRight {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+.settings-slide-out {
+  animation: slideOutRight 200ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }

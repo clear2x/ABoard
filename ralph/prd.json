@@ -1,669 +1,180 @@
 {
   "project": "ABoard",
-  "branchName": "ralph/aboard-smart-clipboard",
-  "description": "ABoard - Cross-platform smart clipboard desktop app (Tauri v2 + SolidJS) with local AI integration. Captures clipboard content, provides persistent history, AI-powered classification/tagging/summarization, translation, rewriting, format tools, and semantic search.",
+  "branchName": "ralph/aboard-ui-overhaul",
+  "description": "ABoard UI 完全复刻参考设计(ui.html/ui.png) - 修复用户报告的全部 11 个问题: AI工具箱显示/功能、UI高级感、窗口拖动、设置功能、圆角、深浅色毛玻璃、排版细节、图标、浮窗+完整窗口双模式",
   "userStories": [
     {
-      "id": "US-001",
-      "title": "Scaffold Tauri v2 project with SolidJS frontend",
-      "description": "As a developer, I need the project scaffolded with Tauri v2, SolidJS, TypeScript, TailwindCSS v4, and Vite so that we have a working development environment.",
+      "id": "US-101",
+      "title": "Glass-panel 外层容器 + 圆角窗口修复",
+      "description": "修复 App.tsx 根容器使用正确的毛玻璃样式和 20px 圆角，确保四角圆角可见。Tauri 窗口需 transparent+decorations:false+shadow。CSS glass-panel/glass-card 完全匹配 ui.html 定义。",
       "acceptanceCriteria": [
-        "Create Tauri v2 project with cargo tauri init (or manual setup)",
-        "Configure Vite with vite-plugin-solid for SolidJS",
-        "Add TailwindCSS v4 with @tailwindcss/vite plugin",
-        "Create src/index.tsx entry point rendering App component into #root",
-        "Add tauri.conf.json with product name 'ABoard', identifier 'com.aboard.app'",
-        "npm run dev starts both Vite and Tauri without errors",
-        "cargo check passes in src-tauri/",
-        "npx tsc --noEmit passes"
+        "App.tsx 根 div 使用 glass-panel class，不是 window-bg",
+        "根 div style 中 border-radius 为 20px",
+        "index.css 中 glass-panel CSS 完全匹配: background:rgba(255,255,255,0.75); backdrop-filter:blur(24px) saturate(180%); border:1px solid rgba(255,255,255,0.6); box-shadow:0 25px 50px -12px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.5)",
+        "index.css 中 glass-card CSS 完全匹配: background:rgba(255,255,255,0.5); border:1px solid rgba(255,255,255,0.8); box-shadow:0 2px 4px rgba(0,0,0,0.02); hover:bg rgba(255,255,255,0.8) translateY(-1px) box-shadow 0 4px 6px rgba(0,0,0,0.05)",
+        "tauri.conf.json 中 main window: transparent=true, decorations=false, shadow=true",
+        "npm run build 通过"
       ],
       "priority": 1,
       "passes": false,
       "notes": ""
     },
     {
-      "id": "US-002",
-      "title": "Design system tokens and CSS utilities",
-      "description": "As a developer, I need CSS design tokens and utility classes for a consistent glassmorphism design language across the app.",
+      "id": "US-102",
+      "title": "窗口顶部可拖动",
+      "description": "标题栏需要支持 data-tauri-drag-region 实现窗口拖动，按钮/输入框排除拖动区域。",
       "acceptanceCriteria": [
-        "Create src/styles/design-tokens.css with CSS custom properties for: colors (dark theme), typography, spacing (4px base), border radii, glassmorphism (blur, bg, border), shadows, transitions",
-        "Create src/styles/index.css importing tailwindcss, design-tokens.css, and defining utility classes: .glass, .glass-subtle, .glass-card, .window-bg, .transition-smooth, .transition-spring",
-        "Add keyframe animations: slideIn, contextMenuIn, popupIn, scaleIn with corresponding .animate-* classes",
-        "Add .hover-lift utility class",
-        "Import styles in src/index.tsx",
-        "Typecheck passes"
+        "TitleBar 根 div 具有 data-tauri-drag-region 属性",
+        "titlebar CSS class 中有 -webkit-app-region:drag",
+        "TitleBar 内 button/input/select 通过 -webkit-app-region:no-drag 排除拖动",
+        "双击标题栏触发 appWindow.toggleMaximize()",
+        "npm run build 通过"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-103",
+      "title": "Sidebar 精确复刻参考设计",
+      "description": "左侧边栏 180px 完全匹配 ui.html 中的 Sidebar 样式和交互：Logo、分类导航(带计数)、标签区域、存储用量。",
+      "acceptanceCriteria": [
+        "Sidebar 宽度 w-[180px]，bg-white/20 + border-r border-white/40",
+        "Logo: ph-fill ph-clipboard-text text-blue-600 text-xl + 'ABoard' text-gray-700 font-bold",
+        "分类列表 5 项: 全部(ph-squares-four), 代码(ph-code), 链接(ph-link), 图片(ph-image), 文本(ph-file-text)，每项 px-3 py-1.5 rounded-lg text-sm + 计数",
+        "选中态: bg-blue-500 text-white shadow-sm，未选中: text-gray-600 hover:bg-white/40",
+        "标签区域: text-gray-400 font-medium 标题 + 标签列表 hover:bg-white/40 + ph-plus 新建标签 text-blue-500",
+        "存储用量: text-gray-400 text-[10px] '本地存储' + text-gray-600 font-bold '12.4 GB' / '50 GB' + bg-gray-200/50 进度条",
+        "npm run build 通过"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-104",
+      "title": "ContentArea 时间线卡片精确复刻",
+      "description": "中间内容区的筛选标签栏和剪贴板时间线卡片完全匹配 ui.html 样式。",
+      "acceptanceCriteria": [
+        "筛选标签栏: flex gap-4 px-6 pt-4 pb-2 border-b border-white/30 text-sm bg-white/20 backdrop-blur-md sticky，选中 text-blue-600 font-medium border-b-2 border-blue-600",
+        "时间线卡片使用 glass-card + rounded-xl p-4，不是 glass-card-ref",
+        "文本卡片: w-7 h-7 rounded-full bg-blue-100 text-blue-600 font-bold 'T' 头像 + text-sm text-gray-700 leading-relaxed + AI标签 px-2 py-0.5 bg-gray-100/50 border-gray-200 text-gray-500 text-[10px] rounded-md",
+        "代码卡片: bg-purple-50 text-purple-500 ph-code 头像 + font-mono bg-white/30 p-3 rounded-lg border-white/50 代码块",
+        "链接卡片: bg-blue-50 text-blue-500 border-blue-100 ph-link 头像 + text-blue-600 下划线 URL",
+        "Hover 操作: opacity-0 group-hover:opacity-100 transition-opacity，含 ph-fill ph-star text-yellow-400 + ph-dots-three-vertical",
+        "npm run build 通过"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-105",
+      "title": "AI工具箱完整显示和功能实现",
+      "description": "右侧 AI 工具箱 220px 完全可见且所有 5 个工具功能正常工作（翻译、总结、改写、格式化、Markdown转换）。",
+      "acceptanceCriteria": [
+        "工具箱宽度 w-[220px]，bg-white/20 border-l border-white/40，完整可见不被截断",
+        "标题: ph-fill ph-magic-wand text-blue-500 + 'AI 工具箱' text-gray-600 font-medium",
+        "5个工具卡片用 glass-card + rounded-xl: 翻译(ph-translate bg-blue-100), 总结(ph-text-align-center bg-purple-100), 改写(ph-pencil-simple bg-indigo-100), 格式化(ph-brackets-curly bg-green-100), Markdown(M↓ bg-orange-100)",
+        "翻译功能: 选中项后点击调用 translateContent，结果通过 AiResultPopup 显示",
+        "总结功能: 选中项后点击调用 summarizeContent，结果通过 AiResultPopup 显示",
+        "改写功能: 选中项后点击调用 rewriteContent，结果通过 AiResultPopup 显示",
+        "格式化: 检测 JSON→formatJson, XML→formatXml, 其他→尝试格式化",
+        "Markdown: 调用 convertFormat 进行 Markdown⇌其他格式转换",
+        "无选中项: opacity-0.5 禁用 + 显示 '请先选择一条剪贴板内容' 提示",
+        "隐私底部: ph-shield-check + '所有 AI 处理均在本地完成' text-gray-400 text-[10px]",
+        "npm run build 通过"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-106",
+      "title": "浮动窗口 UI 复刻",
+      "description": "280px 浮动窗口完全匹配 ui.html 中的浮窗设计：Header、搜索栏、已固定/最近复制区域、Footer。",
+      "acceptanceCriteria": [
+        "浮动窗口使用 glass-panel + rounded-[20px]，宽度 280px，高度 520px",
+        "Header: ABoard logo(ph-fill ph-clipboard-text text-blue-600) + ph-push-pin + ph-gear 按钮",
+        "搜索栏: bg-white/60 border-white/80 rounded-lg + ph-magnifying-glass + placeholder + ⌘K 标签(bg-gray-200/50 border-gray-300/50)",
+        "已固定区域: ph-push-pin-fill 标题 + glass-card 列表，每项有类型头像(T/link/code)",
+        "最近复制区域: ph-clock 标题 + 最近8条，每项有时间戳 text-[10px]",
+        "Footer: ph-sidebar-simple '打开主窗口' + ⌥⌘ 快捷键标签",
+        "npm run build 通过"
       ],
       "priority": 2,
       "passes": false,
       "notes": ""
     },
     {
-      "id": "US-003",
-      "title": "SQLite database schema with FTS5",
-      "description": "As a developer, I need the SQLite database layer with clipboard_items table, FTS5 full-text search, indexes, and migration support.",
+      "id": "US-107",
+      "title": "设置面板功能完整实现",
+      "description": "设置面板(380px)从右侧滑入，5个标签页全部功能实现：通用(语言)、AI配置(模式/引擎/模型/参数)、外观(主题)、快捷键、关于。",
       "acceptanceCriteria": [
-        "Create src-tauri/src/db.rs with DbState struct wrapping Mutex<Connection>",
-        "clipboard_items table: id TEXT PK, content_type TEXT NOT NULL, content TEXT NOT NULL, hash TEXT NOT NULL UNIQUE, timestamp INTEGER NOT NULL, metadata TEXT DEFAULT '{}', pinned INTEGER DEFAULT 0, pinned_at INTEGER, ai_type TEXT, ai_tags TEXT, ai_summary TEXT",
-        "model_metadata table: id TEXT PK, name, filename, file_path, file_size, status, downloaded_at, context_length, description",
-        "FTS5 virtual table clipboard_items_fts covering content, ai_tags, ai_summary columns",
-        "INSERT/DELETE/UPDATE triggers keeping FTS in sync",
-        "Indexes on timestamp DESC and (pinned, pinned_at DESC)",
-        "ALTER TABLE migration for ai_type, ai_tags, ai_summary columns (compatible with existing DBs)",
-        "FTS rebuild migration to add ai_tags and ai_summary to existing FTS index",
-        "init_db(app) function creates schema and registers DbState as Tauri managed state",
-        "cargo check passes"
+        "设置面板 glass-panel + rounded-[20px]，宽度 380px，从右侧滑入(fixed positioning)",
+        "标题栏: h-10 flex justify-center text-sm text-gray-700 border-b border-white/40 bg-white/30",
+        "5图标标签: ph-faders(通用), ph-brain(AI), ph-palette(外观), ph-keyboard(快捷键), ph-info(关于)，选中 text-blue-600 + bg-blue-100/50 border-blue-200/50 高亮",
+        "通用标签: 语言切换 zh/en，通过 setLocale() 保存",
+        "AI配置标签: 本地/云端模式双卡片 + 推理引擎 radio(llama.cpp/Ollama) + 模型下拉选择 + 上下文窗口输入 + GPU toggle",
+        "AI配置保存: invoke('ai_set_config') 写入后端",
+        "外观标签: 主题切换 system/dark/light，通过 setTheme() 立即生效",
+        "快捷键标签: 显示 ⌥V(主窗口) ⌘⇧V(浮动面板) 快捷键列表",
+        "关于标签: 版本号 v0.1.0 + 技术栈信息(Tauri v2/SolidJS/SQLite/llama.cpp)",
+        "Escape 键关闭设置面板",
+        "npm run build 通过"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-108",
+      "title": "内嵌本地小模型 Rust 直接加载",
+      "description": "打包时包含默认 GGUF 模型文件，Rust 端直接加载推理，无需外部 Ollama/llama.cpp server。",
+      "acceptanceCriteria": [
+        "Cargo.toml 添加 llama-candle 或等效 Rust-native GGUF 推理依赖",
+        "新增 src-tauri/ai/embedded.rs 实现 EmbeddedProvider：从本地文件加载 GGUF 并推理",
+        "应用启动自动扫描 models/ 目录的 .gguf 文件",
+        "无外部 server 时自动 fallback 到 EmbeddedProvider",
+        "ai_infer 命令能通过 EmbeddedProvider 完成推理",
+        "cargo check 通过"
       ],
       "priority": 3,
       "passes": false,
-      "notes": ""
+      "notes": "此 story 可能需要较大 Rust 工作量，可作为后续迭代"
     },
     {
-      "id": "US-004",
-      "title": "Clipboard monitoring core with SHA256 dedup",
-      "description": "As a developer, I need Rust clipboard monitoring that detects changes, deduplicates via SHA256, persists to SQLite, and emits events to the frontend.",
+      "id": "US-109",
+      "title": "深色模式高级感毛玻璃效果",
+      "description": "深色模式下所有面板/卡片/背景使用半透明+模糊，绝不使用纯色，确保高级感。",
       "acceptanceCriteria": [
-        "Create src-tauri/src/clipboard.rs with ClipboardItem struct (id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary) with serde derive",
-        "ClipboardContent enum: Text(String), Image(String), FilePaths(String)",
-        "compute_hash function using sha2 SHA256 returning hex string",
-        "start_monitoring(app) spawns async polling loop (200ms interval) using tauri_plugin_clipboard_manager",
-        "On clipboard change: compute hash, skip if duplicate (query DB), generate UUID, insert to DB, emit 'clipboard-update' Tauri event",
-        "detect_content_type function distinguishing 'text' and 'file-paths'",
-        "MAX_CONTENT_SIZE = 10MB, content exceeding this is skipped",
-        "toggle_monitoring Tauri command to pause/resume",
-        "Register toggle_monitoring in invoke_handler",
-        "cargo check passes"
+        "深色 glass-panel: background:rgba(30,41,59,0.75); border:rgba(255,255,255,0.1); 含 inset 高光",
+        "深色 glass-card: background:rgba(51,65,85,0.4); border:rgba(255,255,255,0.08); hover:rgba(51,65,85,0.6)",
+        "深色文字: primary=#f1f5f9, secondary=#cbd5e1, muted=#64748b",
+        "深色分隔线: rgba(255,255,255,0.08) 或 rgba(255,255,255,0.1)",
+        "任何主题下背景绝不使用纯色(#000/#fff)，必须带透明度+模糊",
+        "深色选中分类: bg-blue-600 text-white",
+        "npm run build 通过"
       ],
-      "priority": 4,
+      "priority": 2,
       "passes": false,
       "notes": ""
     },
     {
-      "id": "US-005",
-      "title": "System tray with menu items",
-      "description": "As a user, I want the app to run in the system tray with a menu to show the window, pause monitoring, or quit.",
+      "id": "US-110",
+      "title": "排版细节和全局样式打磨",
+      "description": "统一全局字体、间距、圆角、边框样式，确保精致排版。",
       "acceptanceCriteria": [
-        "Create src-tauri/src/tray.rs with setup_tray function",
-        "Tray menu items: 'Show Window', 'Pause/Resume Monitoring' (toggle), 'Quit'",
-        "Left-click tray icon shows main window",
-        "tray-icon feature enabled in Tauri config",
-        "Tray icon configured in tauri.conf.json with iconPath and iconAsTemplate",
-        "Call setup_tray in setup() block of lib.rs run()",
-        "cargo check passes"
+        "全局 font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif",
+        "Sidebar 间距: space-y-1, 统一 px-3 py-1.5",
+        "ContentArea 卡片间距: space-y-4，时间戳 text-[10px] text-gray-400 w-8 text-right",
+        "工具箱卡片间距: space-y-3，图标 w-8 h-8 rounded-lg",
+        "圆角规范: 外层 rounded-[20px], 卡片 rounded-xl(12px), 按钮 rounded-lg(8px), 标签 rounded-md(6px)",
+        "分隔线: 浅色 border-white/40，深色 border-white/10",
+        "标题栏 h-14，搜索栏 bg-white/70 border-white/80 rounded-lg",
+        "npm run build 通过"
       ],
-      "priority": 5,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-006",
-      "title": "Global shortcuts and window management",
-      "description": "As a user, I want Cmd+Shift+V to toggle a floating popup and the main window to hide (not close) on close.",
-      "acceptanceCriteria": [
-        "Register Cmd+Shift+V global shortcut in setup() using tauri_plugin_global_shortcut",
-        "On press: toggle floating window visibility, center on cursor position before showing",
-        "Floating window config in tauri.conf.json: label 'floating', width 360, height 420, no decorations, transparent, alwaysOnTop, initially hidden",
-        "Main window close-to-tray: onMount handler prevents close and calls hide() instead",
-        "Register Cmd+Shift+J global shortcut for quick cycle (placeholder for now)",
-        "CycleState struct in lib.rs: index (usize), last_cycle (Option<Instant>)",
-        "Register CycleState as Tauri managed state",
-        "cargo check passes"
-      ],
-      "priority": 6,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-007",
-      "title": "DB commands for history, pin, delete, and insert",
-      "description": "As a developer, I need Tauri commands for loading history, searching, pinning, deleting, and inserting clipboard items.",
-      "acceptanceCriteria": [
-        "get_history(state, offset, limit): returns Vec<ClipboardItem>, pinned first then by timestamp DESC",
-        "search_history(state, query, offset, limit): FTS5 MATCH search, sanitizes query, wraps in double quotes",
-        "delete_items(state, ids): deletes by IDs with UUID format validation, triggers handle FTS cleanup",
-        "pin_item(state, id): sets pinned=1, pinned_at=now",
-        "unpin_item(state, id): sets pinned=0, pinned_at=NULL",
-        "get_pinned(state): returns all pinned items",
-        "update_item_content(state, id, content): updates content text",
-        "insert_clipboard_item(state, id, content_type, content, hash, timestamp, metadata): INSERT OR IGNORE",
-        "update_ai_metadata(state, id, ai_type, ai_tags, ai_summary): validates ai_type enum, validates ai_tags JSON array",
-        "Register all commands in invoke_handler in lib.rs",
-        "row_to_item helper parses all 11 columns",
-        "cargo check passes"
-      ],
-      "priority": 7,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-008",
-      "title": "Frontend clipboard store with Tauri event listeners",
-      "description": "As a developer, I need a SolidJS reactive store that manages clipboard items and communicates with the Rust backend.",
-      "acceptanceCriteria": [
-        "Create src/stores/clipboard.ts with ClipboardItem interface matching Rust struct",
-        "Signals: items, setItems, loading, searchQuery, setSearchQuery, selectedId, setSelectedId, selectedIds, setSelectedIds",
-        "toggleSelect(id), clearSelection(), selectAll() functions",
-        "loadHistory(offset, limit): calls invoke('get_history')",
-        "searchHistory(query): calls invoke('search_history')",
-        "deleteItems(ids), pinItem(id), unpinItem(id): invoke corresponding commands",
-        "addItem(item): adds to reactive signal with hash dedup",
-        "startClipboardListener(): listens to 'clipboard-update' and 'ai-processed' Tauri events, updates signals reactively",
-        "stopClipboardListener(): unregisters listeners",
-        "Typecheck passes"
-      ],
-      "priority": 8,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-009",
-      "title": "ClipboardItemCard component",
-      "description": "As a user, I want to see each clipboard item as a card showing content preview, type badge, AI tags, timestamp, and pin indicator.",
-      "acceptanceCriteria": [
-        "Create src/components/ClipboardItemCard.tsx",
-        "Props: item, isSelected, showCheckbox, checked, onSelect, onContextMenu",
-        "Card shows: pinned indicator (yellow dot), truncated content (first 80 chars), timestamp, content type badge",
-        "AI type badge: colored per type (code=blue, link=green, json=orange, xml=yellow, image=purple, text=gray)",
-        "AI semantic tags: small pill elements, max 3 shown, '+N' for overflow",
-        "AI summary: gray text below content, max 2 lines with line-clamp-2, shown only when ai_summary exists",
-        "Selected state: accent border highlight",
-        "Checkbox visible in batch mode",
-        "Right-click triggers onContextMenu callback",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 9,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-010",
-      "title": "SearchBar component with debounced search",
-      "description": "As a user, I want to search my clipboard history with a search bar that debounces input.",
-      "acceptanceCriteria": [
-        "Create src/components/SearchBar.tsx",
-        "Search input with magnifying glass icon, glass-subtle styling",
-        "Debounced input (300ms) calls searchHistory from store",
-        "Empty input calls loadHistory() to reset",
-        "Styled with design tokens (border-radius, colors, focus ring)",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 10,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-011",
-      "title": "ConfirmDialog component",
-      "description": "As a developer, I need a reusable confirmation dialog with backdrop blur and modal behavior.",
-      "acceptanceCriteria": [
-        "Create src/components/ConfirmDialog.tsx",
-        "Props: open, title, message, onConfirm, onCancel",
-        "When open: full-screen overlay with backdrop-blur, centered modal card",
-        "Cancel and Confirm buttons, auto-focuses cancel button",
-        "Glass card styling with design tokens",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 11,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-012",
-      "title": "ContextMenu with pin/delete actions",
-      "description": "As a user, I want to right-click a clipboard item to pin or delete it.",
-      "acceptanceCriteria": [
-        "Create src/components/ContextMenu.tsx",
-        "Props: x, y, itemId, isPinned, onClose",
-        "Glass card positioned at (x, y) with animate-context-menu animation",
-        "Pin/Unpin button (toggles based on isPinned)",
-        "Delete button (destructive color)",
-        "Click outside closes menu",
-        "Escape key closes menu",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 12,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-013",
-      "title": "ClipboardList with batch mode",
-      "description": "As a user, I want to browse my clipboard history in a scrollable list with batch select and delete capabilities.",
-      "acceptanceCriteria": [
-        "Create src/components/ClipboardList.tsx",
-        "Renders ClipboardItemCard for each item with slide-in animation",
-        "SearchBar at top, 'Batch' button to enter batch mode",
-        "Batch mode toolbar: Select All, Clear, Delete Selected (with count), Cancel",
-        "ConfirmDialog for batch delete confirmation",
-        "ContextMenu renders on right-click with item data",
-        "Keyboard shortcuts: Delete (delete selected), Cmd+P (pin/unpin), Escape (exit batch)",
-        "Loading state, empty state ('No clipboard items yet. Copy something!')",
-        "onMount loads history",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 13,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-014",
-      "title": "Main window layout with App.tsx",
-      "description": "As a user, I want the main window to have a header, left column with clipboard list, and right panel for AI settings.",
-      "acceptanceCriteria": [
-        "Update src/App.tsx with main layout",
-        "Route: if window label is 'floating' render FloatingPopup, else render main layout",
-        "Header: glass background, clipboard icon, 'ABoard' title, 'Clipboard Manager' subtitle",
-        "Left column: ClipboardList component, flex-1 with overflow hidden",
-        "Right column: hidden on small screens (hidden lg:flex), w-[300px], glass-subtle background",
-        "onMount: hide-on-close handler, startClipboardListener, loadHistory",
-        "Both windows share same URL route ('/')",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 14,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-015",
-      "title": "FloatingPopup with keyboard navigation",
-      "description": "As a user, I want a floating popup that shows recent clipboard items with keyboard navigation for quick paste.",
-      "acceptanceCriteria": [
-        "Create src/components/FloatingPopup.tsx",
-        "Loads top 10 items on mount, auto-focuses window",
-        "Keyboard: ArrowUp/Down navigate, Enter selects and pastes, Escape hides window",
-        "Click on item also selects and pastes",
-        "Calls invoke('paste_to_active') on selection",
-        "Selected item highlighted with accent color border",
-        "Each item shows: pinned dot, truncated content (80 chars), timestamp",
-        "Footer hint: 'Up/Down to navigate · Enter to paste · Esc to close'",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 15,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-016",
-      "title": "paste_to_active command for macOS",
-      "description": "As a developer, I need a Tauri command that writes content to clipboard and simulates Cmd+V keystroke on macOS.",
-      "acceptanceCriteria": [
-        "paste_to_active command in lib.rs: writes content to clipboard via tauri_plugin_clipboard_manager",
-        "On macOS (cfg target_os): uses core_graphics CGEvent to simulate Cmd down, V down, V up, Cmd up",
-        "On other platforms: only writes to clipboard (no keystroke simulation)",
-        "core-graphics dependency only on macOS via cfg(target_os = 'macos')",
-        "Register command in invoke_handler",
-        "cargo check passes"
-      ],
-      "priority": 16,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-017",
-      "title": "InferenceProvider trait and AI module setup",
-      "description": "As a developer, I need the AI module foundation with the InferenceProvider trait, shared types, and config persistence.",
-      "acceptanceCriteria": [
-        "Create src-tauri/src/ai/mod.rs with InferenceProvider async trait (infer, name, is_available)",
-        "InferenceRequest struct: prompt, system_prompt, max_tokens, temperature, top_p",
-        "InferenceResponse struct: text, tokens_used, provider, duration_ms",
-        "InferenceAutoResponse struct: response, routing_decision",
-        "LocalProviderStatus struct: ollama_available, llamacpp_available, detected_models",
-        "AiState struct: provider (Arc<Mutex<Box<dyn InferenceProvider>>>), config, app_handle",
-        "Create src-tauri/src/ai/config.rs with AiConfig (active_provider, model_path, context_length, temperature, top_p, openai/anthropic fields)",
-        "ProviderType enum: Local, OpenAi, Anthropic, Auto",
-        "AiConfig::load(app) reads from app_data_dir/ai-config.json, AiConfig::save persists it",
-        "init_ai(app) loads config, creates provider, registers AiState",
-        "ai_infer command: 60s timeout, 100KB prompt limit",
-        "ai_get_config and ai_set_config commands",
-        "ai_set_config hot-reloads provider on change",
-        "Register all commands in invoke_handler",
-        "cargo check passes"
-      ],
-      "priority": 17,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-018",
-      "title": "Ollama HTTP local provider",
-      "description": "As a developer, I need a local inference provider that communicates with Ollama via HTTP API.",
-      "acceptanceCriteria": [
-        "Create src-tauri/src/ai/local.rs with LocalProvider struct",
-        "Fields: model_path, http client, ollama_endpoint (default localhost:11434), llamacpp_endpoint (default localhost:8080)",
-        "infer method: tries Ollama first (POST /api/chat), falls back to llama.cpp server (POST /v1/chat/completions)",
-        "Availability check: cached 30s TTL, checks Ollama then llama.cpp",
-        "detect_ollama_models: GET /api/tags, returns model name list",
-        "check_llamacpp_standalone: GET /health",
-        "resolve_model_name: extracts model name from .gguf file path",
-        "Implements InferenceProvider trait",
-        "cargo check passes"
-      ],
-      "priority": 18,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-019",
-      "title": "OpenAI and Anthropic cloud providers",
-      "description": "As a developer, I need cloud AI providers for OpenAI and Anthropic APIs.",
-      "acceptanceCriteria": [
-        "Create src-tauri/src/ai/cloud.rs",
-        "OpenAiProvider: configurable endpoint (default api.openai.com/v1), API key, model. POSTs to /chat/completions",
-        "AnthropicProvider: API key, model. POSTs to api.anthropic.com/v1/messages with x-api-key and anthropic-version headers",
-        "Both implement InferenceProvider trait",
-        "Both handle HTTP errors gracefully and return Err with descriptive messages",
-        "cargo check passes"
-      ],
-      "priority": 19,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-020",
-      "title": "Model management backend",
-      "description": "As a developer, I need model CRUD operations with filesystem scanning and download support.",
-      "acceptanceCriteria": [
-        "Create src-tauri/src/ai/models.rs with ModelMetadata and ModelInfo structs",
-        "ModelManager methods: list_models, scan_models_dir (auto-register .gguf files), register_model, delete_model, switch_model",
-        "ai_list_models command: scans models/ dir, cross-validates with DB, marks active model",
-        "ai_download_model command: validates HTTPS URL, streams download with progress events (model-download-progress), registers in DB",
-        "ai_delete_model command: deletes DB record and file on disk",
-        "MAX_MODEL_FILE_SIZE = 5GB validation",
-        "ensure_models_dir in db.rs creates models/ subdirectory",
-        "Register all commands in invoke_handler",
-        "cargo check passes"
-      ],
-      "priority": 20,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-021",
-      "title": "ComplexityRouter and ai_infer_auto",
-      "description": "As a developer, I need intelligent routing that sends simple tasks to local AI and complex tasks to cloud AI.",
-      "acceptanceCriteria": [
-        "Create src-tauri/src/ai/router.rs with Complexity enum (Simple, Medium, Complex)",
-        "RoutingDecision struct: provider, complexity, reason",
-        "ComplexityRouter::route: analyzes prompt length (<200=Simple, 200-1000=Medium, >1000=Complex) and keywords",
-        "Simple+local -> Local, Medium/Complex+cloud -> Cloud, fallback to available provider",
-        "ai_infer_auto command: uses router when provider is Auto, otherwise delegates directly",
-        "ai_detect_local_provider command: probes Ollama and llama.cpp availability",
-        "Register commands in invoke_handler",
-        "cargo check passes"
-      ],
-      "priority": 21,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-022",
-      "title": "AiSettings frontend panel",
-      "description": "As a user, I want to configure AI providers (Local/OpenAI/Anthropic) with API keys, endpoints, and model names.",
-      "acceptanceCriteria": [
-        "Create src/components/AiSettings.tsx",
-        "Provider type selector: Local / OpenAI / Anthropic with radio-style buttons",
-        "Provider-specific fields: Local (model path), OpenAI (API key, endpoint, model), Anthropic (API key, model)",
-        "Detect Local Provider button: shows Ollama/llama.cpp status and detected models",
-        "Save button calls ai_set_provider command",
-        "Loads current config on mount via ai_get_config",
-        "Glass card styling consistent with design system",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 22,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-023",
-      "title": "ModelManager and ModelParams frontend components",
-      "description": "As a user, I want to manage local AI models and adjust inference parameters.",
-      "acceptanceCriteria": [
-        "Create src/components/ModelManager.tsx: lists models with active indicator, download from HTTPS URL with progress bar, delete model, set active model",
-        "Create src/components/ModelParams.tsx: sliders for Temperature (0-2.0), Context Length (512-8192), Top P (0-1.0), auto-saves via ai_set_config",
-        "Both components styled consistently with design system",
-        "Model download shows progress events from model-download-progress",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 23,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-024",
-      "title": "AI auto-processing pipeline with type detection and tags",
-      "description": "As a developer, I need a background processing queue that automatically detects content type and generates semantic tags for each clipboard item.",
-      "acceptanceCriteria": [
-        "Create src-tauri/src/ai/processor.rs with ProcessingJob (item_id, content, content_type) and AiProcessor (MPSC sender)",
-        "start_processor(app): spawns tokio background task with MPSC channel (capacity 100)",
-        "Processing pipeline per job: (1) detect_type_rules (JSON/XML/URL/code patterns, AI fallback), (2) generate_tags via ai_infer_auto (3-5 tags), (3) update_ai_metadata_internal to DB, (4) emit 'ai-processed' event",
-        "enqueue(processor, job): non-blocking send, drops if channel full",
-        "Integration: clipboard.rs calls enqueue after insert_item",
-        "Register AiProcessor as Tauri managed state in setup",
-        "cargo check passes"
-      ],
-      "priority": 24,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-025",
-      "title": "AI type tags and semantic tag chips on cards",
-      "description": "As a user, I want to see AI-detected content type badges and semantic tags on each clipboard card.",
-      "acceptanceCriteria": [
-        "Update ClipboardItem interface in clipboard.ts with ai_type, ai_tags, ai_summary fields",
-        "Listen to 'ai-processed' event in startClipboardListener, update matching item's AI fields reactively",
-        "ClipboardItemCard: show colored AI type badge (code=blue, link=green, json=orange, xml=yellow, image=purple, text=gray)",
-        "Semantic tags: small pill elements next to type badge, max 3 shown, '+N' for overflow",
-        "Tags styled: text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-[var(--color-text-muted)]",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 25,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-026",
-      "title": "Auto summary generation and preview",
-      "description": "As a user, I want long text content to automatically get a short summary preview on each card.",
-      "acceptanceCriteria": [
-        "In processor.rs: after type detection and tags, check content length >200 chars",
-        "For long content: call ai_infer_auto with summary prompt ('1-2 sentence summary, max 100 chars'), max_tokens=150, temperature=0.3, truncate input to 2000 chars",
-        "Update ai_summary in DB and include in 'ai-processed' event payload",
-        "Error in summary does not block type/tags from being saved",
-        "ClipboardItemCard: show summary as gray text-xs below content, line-clamp-2, only when ai_summary exists",
-        "clipboard.ts: update ai_summary field from 'ai-processed' event",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 26,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-027",
-      "title": "AI actions store (translate/summarize/rewrite)",
-      "description": "As a developer, I need frontend functions that call AI inference for translating, summarizing, and rewriting clipboard content.",
-      "acceptanceCriteria": [
-        "Create src/stores/ai-actions.ts with AiActionResult interface (originalContent, resultText, actionType, itemId, isValid?)",
-        "Signals: resultPopup, setResultPopup, processing, setProcessing",
-        "REWRITE_STYLES: Record with 5 styles (formal, casual, concise, detailed, academic) mapped to Chinese descriptions",
-        "translateContent(content, itemId): auto-detect Chinese direction, call ai_infer_auto",
-        "summarizeContent(content, itemId): numbered bullet-point summary",
-        "rewriteContent(content, itemId, style): style-based rewrite",
-        "All functions set processing signal, handle errors, finally clear processing",
-        "Typecheck passes"
-      ],
-      "priority": 27,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-028",
-      "title": "AiResultPopup component",
-      "description": "As a user, I want a glassmorphism popup showing AI results with options to copy, replace, or append.",
-      "acceptanceCriteria": [
-        "Create src/components/AiResultPopup.tsx",
-        "Title shows action type (translate/summarize/rewrite/format) in Chinese",
-        "Original content area (text-xs, max 80px height, scrollable)",
-        "Result content area (text-sm, max 40vh, scrollable, whitespace-pre-wrap)",
-        "Three action buttons: 'Copy Result' (navigator.clipboard), 'Replace Original' (invoke update_item_content), 'Append as New Entry' (invoke insert_clipboard_item)",
-        "ESC key closes popup",
-        "Backdrop click closes popup",
-        "Animate-scale-in entrance animation",
-        "Glass card styling with design tokens",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 28,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-029",
-      "title": "ContextMenu AI action and formatting integration",
-      "description": "As a user, I want to right-click a clipboard item to see AI actions (translate/summarize/rewrite) and conditional formatting options.",
-      "acceptanceCriteria": [
-        "Update ContextMenu props to include content: string",
-        "Add AI actions: Translate, Summarize, Rewrite (with 5-style sub-menu using hover expand)",
-        "Processing state disables buttons with opacity-50",
-        "Create src/stores/format-tools.ts with: detectContentFormat, formatJson, minifyJson, validateJson, formatXml, validateXml, convertFormat, highlightJsonError",
-        "Conditional formatting: JSON items show Beautify/Minify/Validate, XML items show Format/Validate, Markdown/HTML items show Convert sub-menu",
-        "All results use setResultPopup to show in AiResultPopup",
-        "AiResultPopup rendered in ClipboardList",
-        "ClipboardList passes content prop to ContextMenu",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 29,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-030",
-      "title": "npm dependencies for format conversion",
-      "description": "As a developer, I need markdown-it and turndown libraries for Markdown/HTML format conversion.",
-      "acceptanceCriteria": [
-        "npm install markdown-it turndown @types/markdown-it @types/turndown",
-        "format-tools.ts uses markdown-it for Markdown->HTML and turndown for HTML->Markdown",
-        "Content size limit: 1MB for all format operations",
-        "convertFormat handles all 6 directions: md->html, md->text, html->md, html->text, text->html, text->md",
-        "Typecheck passes"
-      ],
-      "priority": 30,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-031",
-      "title": "Enhanced FTS5 and semantic search backend",
-      "description": "As a developer, I need FTS5 to index AI metadata fields and a semantic search command using AI query expansion.",
-      "acceptanceCriteria": [
-        "FTS5 virtual table includes content, ai_tags, ai_summary columns",
-        "UPDATE trigger keeps FTS in sync when content or AI metadata changes",
-        "Migration rebuilds FTS for existing databases",
-        "semantic_search Tauri command: takes natural language query, calls AI to expand to keywords, FTS5 OR search across all indexed columns",
-        "Falls back to original query if AI expansion fails",
-        "Register semantic_search in invoke_handler",
-        "cargo check passes"
-      ],
-      "priority": 31,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-032",
-      "title": "SearchBar AI semantic mode and quick cycle paste",
-      "description": "As a user, I want an AI toggle on the search bar for semantic search, and Cmd+Shift+J to cycle-paste recent items.",
-      "acceptanceCriteria": [
-        "SearchBar: add 'AI' toggle button that switches between keyword and semantic search modes",
-        "Semantic mode: 500ms debounce, calls semanticSearchHistory from clipboard store",
-        "clipboard.ts: add semanticSearchHistory function calling invoke('semantic_search')",
-        "quick_cycle command in lib.rs: tracks cycle index with 2-second auto-reset, gets Nth item from DB, writes to clipboard, simulates Cmd+V on macOS",
-        "Cmd+Shift+J registered as global shortcut calling quick_cycle",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 32,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-033",
-      "title": "Batch export to file",
-      "description": "As a user, I want to export selected clipboard items as JSON, Markdown, or plain text files.",
-      "acceptanceCriteria": [
-        "export_items Tauri command: takes ids, format ('json'|'markdown'|'text'), path",
-        "JSON: pretty-printed serde_json serialization",
-        "Markdown: H2 headings with timestamps, content, pinned indicator",
-        "Text: bracketed timestamps, content, separator lines",
-        "Install tauri-plugin-dialog (cargo add + npm install + register in builder)",
-        "Add 'dialog:allow-open' permission to capabilities/default.json",
-        "ClipboardList batch mode: Export button with dropdown (JSON/Markdown/Text)",
-        "Uses native file save dialog via @tauri-apps/plugin-dialog open()",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 33,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-034",
-      "title": "Light theme CSS variables and theme store",
-      "description": "As a user, I want to switch between dark and light themes with system auto-detection.",
-      "acceptanceCriteria": [
-        "Add light theme CSS variables in design-tokens.css under :root[data-theme='light'] selector",
-        "Light theme: white/near-white backgrounds, dark text colors, lighter shadows",
-        "Create src/stores/theme.ts with ThemeMode type ('system'|'dark'|'light')",
-        "theme signal, setTheme(mode): saves to localStorage, applies data-theme attribute to documentElement",
-        "initTheme(): loads saved preference, listens to prefers-color-scheme media query for system mode",
-        "Typecheck passes"
-      ],
-      "priority": 34,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-035",
-      "title": "Settings page component",
-      "description": "As a user, I want a settings panel with theme switching, keyboard shortcuts reference, and about info.",
-      "acceptanceCriteria": [
-        "Create src/components/Settings.tsx",
-        "Theme section: 3 buttons (System/Dark/Light) using theme store, active button highlighted with accent color",
-        "Shortcuts section: list of keyboard shortcuts with key descriptions (Cmd+Shift+V, Cmd+Shift+J, Cmd+P, Delete)",
-        "About section: app name and version (ABoard v0.1.0)",
-        "Integrate into App.tsx right panel after ModelParams with separator",
-        "Call initTheme() in App.tsx onMount",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 35,
-      "passes": false,
-      "notes": ""
-    },
-    {
-      "id": "US-036",
-      "title": "Cross-platform build configuration",
-      "description": "As a developer, I need the build config verified for macOS, Windows, and Linux with proper platform-specific dependencies.",
-      "acceptanceCriteria": [
-        "Cargo.toml: core-graphics only on macOS via [target.'cfg(target_os = \"macos\")'.dependencies]",
-        "tauri.conf.json: bundle.targets = 'all', correct icon paths for all platforms",
-        "capabilities/default.json: includes all needed permissions (clipboard, global-shortcut, window ops, dialog)",
-        "paste_to_active uses #[cfg(target_os = \"macos\")] for CGEvent simulation, clipboard-only on other platforms",
-        "quick_cycle uses #[cfg(target_os = \"macos\")] for CGEvent simulation",
-        "cargo check passes",
-        "npm run build produces dist/ with index.html, CSS, and JS bundles"
-      ],
-      "priority": 36,
+      "priority": 2,
       "passes": false,
       "notes": ""
     }

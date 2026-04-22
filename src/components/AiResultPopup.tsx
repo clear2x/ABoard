@@ -5,12 +5,14 @@ import {
   setResultPopup,
 } from "../stores/ai-actions";
 import { addItem, type ClipboardItem } from "../stores/clipboard";
+import { t } from "../stores/i18n";
 
-const ACTION_TITLES: Record<string, string> = {
-  translate: "\u7ffb\u8bd1\u7ed3\u679c",
-  summarize: "\u603b\u7ed3\u7ed3\u679c",
-  rewrite: "\u6539\u5199\u7ed3\u679c",
-  format: "\u683c\u5f0f\u5316\u7ed3\u679c",
+const ACTION_TITLE_KEYS: Record<string, string> = {
+  translate: "ai.result.translate",
+  summarize: "ai.result.summarize",
+  rewrite: "ai.result.rewrite",
+  format: "ai.result.format",
+  error: "ai.errorTitle",
 };
 
 export default function AiResultPopup() {
@@ -125,7 +127,7 @@ export default function AiResultPopup() {
             class="text-base font-semibold tracking-tight mb-3"
             style={{ color: "var(--color-text-primary)" }}
           >
-            {result() ? ACTION_TITLES[result()!.actionType] : ""}
+            {result() ? t(ACTION_TITLE_KEYS[result()!.actionType] || "ai.result.format") : ""}
           </h3>
 
           {/* Original content */}
@@ -143,8 +145,8 @@ export default function AiResultPopup() {
           <div
             class="p-3 rounded-[var(--radius-sm)] max-h-[40vh] overflow-y-auto text-sm whitespace-pre-wrap"
             style={{
-              background: "rgba(255, 255, 255, 0.05)",
-              color: "var(--color-text-secondary)",
+              background: result()?.actionType === "error" ? "rgba(239, 68, 68, 0.1)" : "rgba(255, 255, 255, 0.05)",
+              color: result()?.actionType === "error" ? "var(--color-destructive)" : "var(--color-text-secondary)",
             }}
           >
             {result()?.resultText}
@@ -152,38 +154,52 @@ export default function AiResultPopup() {
 
           {/* Action buttons */}
           <div class="flex gap-2 mt-3">
-            <button
-              class="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-sm)] transition-smooth hover:opacity-80"
-              style={{
-                "background-color": "var(--color-accent)",
-                color: "var(--color-text-primary)",
-              }}
-              onClick={handleCopy}
-            >
-              \u590d\u5236\u7ed3\u679c
-            </button>
-            <button
-              class="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-sm)] transition-smooth hover:opacity-80 border"
-              style={{
-                "background-color": "var(--color-bg-card)",
-                color: "var(--color-text-secondary)",
-                "border-color": "var(--color-border)",
-              }}
-              onClick={handleReplace}
-            >
-              \u66ff\u6362\u539f\u5185\u5bb9
-            </button>
-            <button
-              class="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-sm)] transition-smooth hover:opacity-80 border"
-              style={{
-                "background-color": "var(--color-bg-card)",
-                color: "var(--color-text-secondary)",
-                "border-color": "var(--color-border)",
-              }}
-              onClick={handleAppend}
-            >
-              \u8ffd\u52a0\u4e3a\u65b0\u6761\u76ee
-            </button>
+            <Show when={result()?.actionType === "error"}>
+              <button
+                class="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-sm)] transition-smooth hover:opacity-80"
+                style={{
+                  "background-color": "var(--color-accent)",
+                  color: "#fff",
+                }}
+                onClick={close}
+              >
+                OK
+              </button>
+            </Show>
+            <Show when={result()?.actionType !== "error"}>
+              <button
+                class="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-sm)] transition-smooth hover:opacity-80"
+                style={{
+                  "background-color": "var(--color-accent)",
+                  color: "var(--color-text-primary)",
+                }}
+                onClick={handleCopy}
+              >
+                {t("ai.copyResult")}
+              </button>
+              <button
+                class="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-sm)] transition-smooth hover:opacity-80 border"
+                style={{
+                  "background-color": "var(--color-bg-card)",
+                  color: "var(--color-text-secondary)",
+                  "border-color": "var(--color-border)",
+                }}
+                onClick={handleReplace}
+              >
+                {t("ai.replaceOriginal")}
+              </button>
+              <button
+                class="px-3 py-1.5 text-xs font-medium rounded-[var(--radius-sm)] transition-smooth hover:opacity-80 border"
+                style={{
+                  "background-color": "var(--color-bg-card)",
+                  color: "var(--color-text-secondary)",
+                  "border-color": "var(--color-border)",
+                }}
+                onClick={handleAppend}
+              >
+                {t("ai.appendNew")}
+              </button>
+            </Show>
           </div>
         </div>
       </div>

@@ -83,12 +83,21 @@ pub fn start_monitoring<R: Runtime>(app: tauri::AppHandle<R>) {
                 continue;
             }
 
-            // Try to read clipboard text
+            // Try to read clipboard text first
             let text_result = app.clipboard().read_text();
             match text_result {
                 Ok(text) => {
                     let trimmed = text.trim();
                     if trimmed.is_empty() {
+                        // Text is empty, try image
+                        if let Some(img_item) = try_read_image(&app) {
+                            let hash = img_item.hash.clone();
+                            if hash == last_hash {
+                                continue;
+                            }
+                            last_hash = hash;
+                            persist_and_emit(&app, img_item);
+                        }
                         continue;
                     }
 
@@ -126,34 +135,18 @@ pub fn start_monitoring<R: Runtime>(app: tauri::AppHandle<R>) {
                         ai_summary: None,
                     };
 
-                    let db_state = app.state::<DbState>();
-                    if let Err(e) = db::insert_item(&db_state.conn, &item) {
-                        eprintln!("[clipboard] Failed to persist item: {}", e);
-                    }
-
-                    if let Err(e) = app.emit("clipboard-update", &item) {
-                        eprintln!("[clipboard] Failed to emit event: {}", e);
-                    } else {
-                        println!(
-                            "[clipboard] Captured {} ({} bytes, hash: {}...)",
-                            item.content_type,
-                            trimmed.len(),
-                            &item.hash[..8]
-                        );
-                    }
-
-                    // Enqueue AI processing job (async, non-blocking)
-                    let processor = app.state::<crate::ai::processor::AiProcessor>();
-                    crate::ai::processor::enqueue(&processor, crate::ai::processor::ProcessingJob {
-                        item_id: item.id.clone(),
-                        content: item.content.clone(),
-                        content_type: item.content_type.clone(),
-                    });
+                    persist_and_emit(&app, item);
                 }
                 Err(_) => {
                     // Clipboard may contain non-text content (image, etc.)
-                    // For Phase 1, we skip non-text content silently
-                    // Image support will be added in a future phase
+                    if let Some(img_item) = try_read_image(&app) {
+                        let hash = img_item.hash.clone();
+                        if hash == last_hash {
+                            continue;
+                        }
+                        last_hash = hash;
+                        persist_and_emit(&app, img_item);
+                    }
                 }
             }
         }
@@ -170,6 +163,86 @@ fn detect_content_type(text: &str) -> (String, String) {
 
     // Default to plain text
     ("text".to_string(), text.to_string())
+}
+
+/// Try to read an image from the clipboard.
+/// Returns Some(ClipboardItem) with base64-encoded PNG, or None.
+fn try_read_image<R: Runtime>(app: &tauri::AppHandle<R>) -> Option<ClipboardItem> {
+    let img_result = app.clipboard().read_image();
+    match img_result {
+        Ok(tauri_img) => {
+            let rgba = tauri_img.rgba();
+            let w = tauri_img.width();
+            let h = tauri_img.height();
+
+            // Size guard: skip images larger than 5MB raw RGBA
+            if rgba.len() > 5 * 1024 * 1024 {
+                eprintln!("[clipboard] Skipping oversized image ({} bytes)", rgba.len());
+                return None;
+            }
+
+            // Encode RGBA to PNG using the image crate
+            let img_buffer = image::RgbaImage::from_raw(w, h, rgba.to_vec())?;
+            let mut png_buf = std::io::Cursor::new(Vec::new());
+            if img_buffer.write_to(&mut png_buf, image::ImageFormat::Png).is_err() {
+                return None;
+            }
+            let png_data = png_buf.into_inner();
+            let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &png_data);
+            let data_url = format!("data:image/png;base64,{}", b64);
+
+            // Compute hash from PNG bytes (not base64) for consistent dedup
+            let hash = compute_hash(&png_data);
+
+            Some(ClipboardItem {
+                id: Uuid::new_v4().to_string(),
+                content_type: "image".to_string(),
+                content: data_url,
+                hash,
+                timestamp: chrono::Utc::now().timestamp_millis(),
+                metadata: serde_json::json!({
+                    "width": w,
+                    "height": h,
+                    "size": png_data.len(),
+                }),
+                pinned: false,
+                pinned_at: None,
+                ai_type: Some("image".to_string()),
+                ai_tags: None,
+                ai_summary: None,
+            })
+        }
+        Err(_) => None,
+    }
+}
+
+/// Persist a clipboard item to DB, emit event, and enqueue AI processing.
+fn persist_and_emit<R: Runtime>(app: &tauri::AppHandle<R>, item: ClipboardItem) {
+    let db_state = app.state::<DbState>();
+    if let Err(e) = db::insert_item(&db_state.conn, &item) {
+        eprintln!("[clipboard] Failed to persist item: {}", e);
+    }
+
+    if let Err(e) = app.emit("clipboard-update", &item) {
+        eprintln!("[clipboard] Failed to emit event: {}", e);
+    } else {
+        println!(
+            "[clipboard] Captured {} ({} bytes, hash: {}...)",
+            item.content_type,
+            item.content.len(),
+            &item.hash[..8.min(item.hash.len())]
+        );
+    }
+
+    // Enqueue AI processing job (async, non-blocking) — skip for images
+    if item.content_type != "image" {
+        let processor = app.state::<crate::ai::processor::AiProcessor>();
+        crate::ai::processor::enqueue(&processor, crate::ai::processor::ProcessingJob {
+            item_id: item.id.clone(),
+            content: item.content.clone(),
+            content_type: item.content_type.clone(),
+        });
+    }
 }
 
 /// Check if the text content looks like file paths.

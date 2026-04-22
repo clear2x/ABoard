@@ -14,7 +14,11 @@ import {
   toggleSelect,
   clearSelection,
   selectAll,
+  viewMode,
+  setViewMode,
+  type ViewMode,
 } from "../stores/clipboard";
+import { t } from "../stores/i18n";
 import ClipboardItemCard from "./ClipboardItemCard";
 import SearchBar from "./SearchBar";
 import ContextMenu from "./ContextMenu";
@@ -106,8 +110,21 @@ export default function ClipboardList() {
 
   const [showExportMenu, setShowExportMenu] = createSignal(false);
 
+  const handleItemDelete = (id: string) => {
+    deleteItems([id]);
+  };
+
+  const handleItemPin = (id: string, pinned: boolean) => {
+    if (pinned) {
+      unpinItem(id);
+    } else {
+      pinItem(id);
+    }
+  };
+
   const cm = contextMenu();
   const selectedCount = () => selectedIds().size;
+  const isGrid = () => viewMode() === "grid";
 
   return (
     <div
@@ -117,6 +134,37 @@ export default function ClipboardList() {
     >
       <div class="flex items-center gap-2 px-2 pt-2">
         <SearchBar />
+        {/* View mode toggle */}
+        <div class="flex items-center rounded-lg overflow-hidden border flex-shrink-0" style={{ "border-color": "var(--color-border)" }}>
+          <button
+            class="px-2 py-1.5 text-xs transition-smooth flex items-center gap-1"
+            style={{
+              "background-color": !isGrid() ? "var(--color-accent)" : "transparent",
+              color: !isGrid() ? "#fff" : "var(--color-text-muted)",
+            }}
+            onClick={() => setViewMode("list")}
+            title={t("view.list")}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+              <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+            </svg>
+          </button>
+          <button
+            class="px-2 py-1.5 text-xs transition-smooth flex items-center gap-1"
+            style={{
+              "background-color": isGrid() ? "var(--color-accent)" : "transparent",
+              color: isGrid() ? "#fff" : "var(--color-text-muted)",
+            }}
+            onClick={() => setViewMode("grid")}
+            title={t("view.grid")}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+            </svg>
+          </button>
+        </div>
         <Show when={!batchMode()}>
           <button
             class="px-3 py-1.5 text-xs rounded-lg bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-card-hover)] transition-smooth flex-shrink-0"
@@ -124,7 +172,7 @@ export default function ClipboardList() {
             onClick={enterBatchMode}
             title="Batch delete"
           >
-            Batch
+            {t("clipboard.batch")}
           </button>
         </Show>
       </div>
@@ -136,21 +184,21 @@ export default function ClipboardList() {
             style={{ color: "var(--color-text-secondary)" }}
             onClick={selectAll}
           >
-            Select All
+            {t("clipboard.selectAll")}
           </button>
           <button
             class="px-3 py-1.5 text-xs rounded-lg bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-card-hover)] transition-smooth"
             style={{ color: "var(--color-text-secondary)" }}
             onClick={clearSelection}
           >
-            Clear
+            {t("clipboard.clearSel")}
           </button>
           <button
             class="px-3 py-1.5 text-xs rounded-lg bg-[var(--color-destructive)] hover:opacity-80 text-white transition-smooth disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={handleBatchDelete}
             disabled={selectedCount() === 0}
           >
-            Delete Selected ({selectedCount()})
+            {t("clipboard.deleteSelected")} ({selectedCount()})
           </button>
           <div
             class="relative"
@@ -161,7 +209,7 @@ export default function ClipboardList() {
               class="px-3 py-1.5 text-xs rounded-lg bg-[var(--color-accent)] hover:opacity-80 text-white transition-smooth disabled:opacity-40 disabled:cursor-not-allowed"
               disabled={selectedCount() === 0}
             >
-              Export
+              {t("clipboard.export")}
             </button>
             <Show when={showExportMenu() && selectedCount() > 0}>
               <div
@@ -173,21 +221,21 @@ export default function ClipboardList() {
                   style={{ color: "var(--color-text-secondary)" }}
                   onClick={() => handleExport("json")}
                 >
-                  Export as JSON
+                  {t("clipboard.exportJson")}
                 </button>
                 <button
                   class="w-full text-left px-3 py-2 text-xs hover:bg-[var(--color-bg-card-hover)]"
                   style={{ color: "var(--color-text-secondary)" }}
                   onClick={() => handleExport("markdown")}
                 >
-                  Export as Markdown
+                  {t("clipboard.exportMd")}
                 </button>
                 <button
                   class="w-full text-left px-3 py-2 text-xs hover:bg-[var(--color-bg-card-hover)]"
                   style={{ color: "var(--color-text-secondary)" }}
                   onClick={() => handleExport("text")}
                 >
-                  Export as Text
+                  {t("clipboard.exportText")}
                 </button>
               </div>
             </Show>
@@ -198,36 +246,43 @@ export default function ClipboardList() {
             style={{ color: "var(--color-text-secondary)" }}
             onClick={exitBatchMode}
           >
-            Cancel
+            {t("clipboard.cancel")}
           </button>
         </div>
       </Show>
 
-      <div class="flex flex-col overflow-y-auto flex-1 p-2" style={{ gap: "var(--space-sm)" }}>
+      <div
+        class={isGrid()
+          ? "grid grid-cols-2 gap-2 overflow-y-auto flex-1 p-2"
+          : "flex flex-col overflow-y-auto flex-1 p-2"
+        }
+        style={isGrid() ? {} : { gap: "var(--space-sm)" }}
+      >
         <Show
           when={!loading()}
           fallback={
-            <div class="flex items-center justify-center h-32 text-sm" style={{ color: "var(--color-text-muted)" }}>
-              Loading...
+            <div class="flex items-center justify-center h-32 text-sm col-span-2" style={{ color: "var(--color-text-muted)" }}>
+              {t("clipboard.loading")}
             </div>
           }
         >
           <Show
             when={items().length > 0}
             fallback={
-              <div class="flex items-center justify-center h-32 text-sm" style={{ color: "var(--color-text-muted)" }}>
-                No clipboard items yet. Copy something!
+              <div class="flex items-center justify-center h-32 text-sm col-span-2" style={{ color: "var(--color-text-muted)" }}>
+                {t("clipboard.noItems")}
               </div>
             }
           >
             <For each={items()}>
               {(item, index) => (
-                <div class="animate-slide-in" style={{ "animation-delay": `${index() * 30}ms` }}>
+                <div class={isGrid() ? "" : "animate-slide-in"} style={isGrid() ? {} : { "animation-delay": `${index() * 30}ms` }}>
                 <ClipboardItemCard
                   item={item}
                   isSelected={batchMode() ? false : item.id === selectedId()}
                   showCheckbox={batchMode()}
                   checked={selectedIds().has(item.id)}
+                  grid={isGrid()}
                   onSelect={(id) => {
                     if (batchMode()) {
                       toggleSelect(id);
@@ -243,6 +298,8 @@ export default function ClipboardList() {
                       isPinned: pinned,
                     })
                   }
+                  onDelete={handleItemDelete}
+                  onPin={handleItemPin}
                 />
                 </div>
               )}
@@ -267,8 +324,8 @@ export default function ClipboardList() {
       </Show>
       <ConfirmDialog
         open={confirmOpen()}
-        title="Delete Items"
-        message={`Are you sure you want to delete ${selectedCount()} item${selectedCount() !== 1 ? "s" : ""}? This action cannot be undone.`}
+        title={t("clipboard.confirmDelete")}
+        message={t("clipboard.confirmDeleteMsg", { count: String(selectedCount()) })}
         onConfirm={confirmBatchDelete}
         onCancel={() => setConfirmOpen(false)}
       />

@@ -1,6 +1,6 @@
 use tauri::{
-    AppHandle, Manager, Runtime,
-    menu::{Menu, MenuItem},
+    AppHandle, Emitter, Manager, Runtime,
+    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 
@@ -60,6 +60,56 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
             }
         })
         .build(app)?;
+
+    Ok(())
+}
+
+/// Set up the macOS application menu bar (the global menu at the top of the screen).
+/// On macOS only. Includes: ABoard (About / Settings / Hide / Quit) and Edit submenu.
+#[cfg(target_os = "macos")]
+pub fn setup_app_menu<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
+    let about_i = MenuItem::with_id(app, "about", "About ABoard", true, None::<&str>)?;
+    let settings_i = MenuItem::with_id(app, "app-settings", "Settings...", true, Some("Cmd+,"))?;
+    let hide_i = PredefinedMenuItem::hide(app, None)?;
+    let quit_i = PredefinedMenuItem::quit(app, None)?;
+
+    let aboard_menu = Submenu::with_items(
+        app,
+        "ABoard",
+        true,
+        &[&about_i, &settings_i, &PredefinedMenuItem::separator(app)?, &hide_i, &quit_i],
+    )?;
+
+    let edit_menu = Submenu::with_items(
+        app,
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::undo(app, None)?,
+            &PredefinedMenuItem::redo(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::cut(app, None)?,
+            &PredefinedMenuItem::copy(app, None)?,
+            &PredefinedMenuItem::paste(app, None)?,
+            &PredefinedMenuItem::select_all(app, None)?,
+        ],
+    )?;
+
+    let menu = Menu::with_items(app, &[&aboard_menu, &edit_menu])?;
+    app.set_menu(menu)?;
+
+    // Handle menu events
+    app.on_menu_event(move |app, event| {
+        match event.id().as_ref() {
+            "app-settings" => {
+                let _ = app.emit("open-settings", ());
+            }
+            "about" => {
+                let _ = app.emit("open-settings", ());
+            }
+            _ => {}
+        }
+    });
 
     Ok(())
 }
