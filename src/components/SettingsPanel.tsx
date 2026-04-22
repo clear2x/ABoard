@@ -130,13 +130,10 @@ export default function SettingsPanel(props: Props) {
       <div class="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={props.onClose} />
 
       {/* Panel */}
-      <div class="absolute top-0 right-0 h-full settings-slide-in flex flex-col overflow-hidden"
+      <div class="glass-panel absolute top-0 right-0 h-full settings-slide-in flex flex-col overflow-hidden"
         style={{
-          width: "var(--settings-panel-width)",
-          background: "var(--glass-bg)",
-          border: "1px solid var(--glass-border)",
-          "backdrop-filter": "saturate(1.8) blur(var(--blur-glass))",
-          "-webkit-backdrop-filter": "saturate(1.8) blur(var(--blur-glass))",
+          width: "380px",
+          "border-radius": "20px 0 0 20px",
           "box-shadow": "-8px 0 32px rgba(0,0,0,0.15)",
         }}
       >
@@ -250,7 +247,7 @@ export default function SettingsPanel(props: Props) {
 
               {/* Inference config card */}
               <Show when={provider() === "Local" || provider() === "Auto"}>
-                <div class="glass-card-ref rounded-xl p-4 space-y-4">
+                <div class="glass-card rounded-xl p-4 space-y-4">
                   {/* Engine radio */}
                   <div class="flex justify-between items-center text-sm">
                     <span class="font-medium" style={{ color: "var(--color-text-secondary)" }}>{t("settings.inferenceEngine")}</span>
@@ -411,7 +408,7 @@ export default function SettingsPanel(props: Props) {
           <Show when={activeTab() === "shortcuts"}>
             <div class="space-y-4">
               <h3 class="text-[11px] font-bold uppercase" style={{ color: "var(--color-text-muted)" }}>{t("settings.shortcuts")}</h3>
-              <div class="glass-card-ref rounded-xl p-3 space-y-2">
+              <div class="glass-card rounded-xl p-3 space-y-2">
                 {[
                   { desc: t("settings.showHideWindow"), key: "\u2325 V" },
                   { desc: t("settings.quickPastePanel"), key: "\u2318 \u21E7 V" },
