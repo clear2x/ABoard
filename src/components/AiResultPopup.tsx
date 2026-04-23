@@ -4,7 +4,7 @@ import {
   resultPopup,
   setResultPopup,
 } from "../stores/ai-actions";
-import { addItem, type ClipboardItem } from "../stores/clipboard";
+import { addItem } from "../stores/clipboard";
 import { t } from "../stores/i18n";
 
 const ACTION_TITLE_KEYS: Record<string, string> = {
@@ -13,6 +13,14 @@ const ACTION_TITLE_KEYS: Record<string, string> = {
   rewrite: "ai.result.rewrite",
   format: "ai.result.format",
   error: "ai.errorTitle",
+};
+
+const ACTION_ICONS: Record<string, string> = {
+  translate: "ph-translate",
+  summarize: "ph-text-align-center",
+  rewrite: "ph-pencil-simple",
+  format: "ph-brackets-curly",
+  error: "ph-warning",
 };
 
 export default function AiResultPopup() {
@@ -50,7 +58,6 @@ export default function AiResultPopup() {
     try {
       const id = crypto.randomUUID();
       const content = r.resultText;
-      // Compute a simple hash for the new item
       const encoder = new TextEncoder();
       const data = encoder.encode(content);
       const hashBuffer = await crypto.subtle.digest("SHA-256", data);
@@ -69,7 +76,6 @@ export default function AiResultPopup() {
         metadata,
       });
 
-      // Add to reactive signal array for immediate display
       addItem({
         id,
         type: "text",
@@ -90,86 +96,99 @@ export default function AiResultPopup() {
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      close();
-    }
+    if (e.key === "Escape") close();
   };
 
-  onMount(() => {
-    document.addEventListener("keydown", handleKeyDown);
-  });
-
-  onCleanup(() => {
-    document.removeEventListener("keydown", handleKeyDown);
-  });
+  onMount(() => document.addEventListener("keydown", handleKeyDown));
+  onCleanup(() => document.removeEventListener("keydown", handleKeyDown));
 
   return (
     <Show when={result()}>
       <div class="fixed inset-0 z-50 flex items-center justify-center">
         {/* Backdrop */}
-        <div
-          class="absolute inset-0 bg-black/50 backdrop-blur-sm"
-          onClick={close}
-        />
+        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={close} />
+
         {/* Popup body */}
-        <div
-          class="relative z-10 w-[500px] max-h-[80vh] flex flex-col glass-panel rounded-2xl animate-scale-in"
-        >
-          {/* Title */}
-          <h3
-            class="text-base font-semibold tracking-tight mb-3 text-gray-700"
-          >
-            {result() ? t(ACTION_TITLE_KEYS[result()!.actionType] || "ai.result.format") : ""}
-          </h3>
-
-          {/* Original content */}
-          <div
-            class="mb-2 p-2 rounded-lg text-xs max-h-[80px] overflow-y-auto bg-white/5 text-gray-400"
-          >
-            {result()?.originalContent}
+        <div class="relative z-10 w-[500px] max-h-[80vh] flex flex-col glass-panel rounded-2xl animate-scale-in overflow-hidden">
+          {/* Header bar */}
+          <div class="flex items-center justify-between px-5 py-3 border-b border-white/40 bg-white/30">
+            <div class="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <Show when={result()}>
+                <i class={`ph ${ACTION_ICONS[result()!.actionType] || "ph-sparkle"} text-blue-500`} />
+              </Show>
+              {result() ? t(ACTION_TITLE_KEYS[result()!.actionType] || "ai.result.format") : ""}
+            </div>
+            <button
+              class="w-6 h-6 rounded-md flex items-center justify-center hover:bg-white/40 transition-colors text-gray-400 hover:text-gray-600"
+              onClick={close}
+            >
+              <i class="ph ph-x text-sm" />
+            </button>
           </div>
 
-          {/* Result content */}
-          <div
-            class="p-3 rounded-lg max-h-[40vh] overflow-y-auto text-sm whitespace-pre-wrap"
-            classList={{
-              "bg-red-500/10 text-red-500": result()?.actionType === "error",
-              "bg-white/5 text-gray-600": result()?.actionType !== "error",
-            }}
-          >
-            {result()?.resultText}
-          </div>
+          <div class="p-5 space-y-3 overflow-y-auto">
+            {/* Original content */}
+            <div class="p-3 rounded-lg text-xs max-h-[80px] overflow-y-auto bg-white/30 border border-white/50 text-gray-500">
+              <div class="text-[10px] font-medium text-gray-400 mb-1 uppercase">Original</div>
+              {result()?.originalContent}
+            </div>
 
-          {/* Action buttons */}
-          <div class="flex gap-2 mt-3">
-            <Show when={result()?.actionType === "error"}>
-              <button
-                class="px-3 py-1.5 text-xs font-medium rounded-lg transition-smooth hover:opacity-80 bg-blue-500 text-white"
-                onClick={close}
-              >
-                OK
-              </button>
+            {/* Result content */}
+            <div
+              class="p-3 rounded-lg max-h-[40vh] overflow-y-auto text-sm whitespace-pre-wrap"
+              classList={{
+                "bg-red-50/60 border border-red-200/60 text-red-600": result()?.actionType === "error",
+                "bg-white/30 border border-white/50 text-gray-700": result()?.actionType !== "error",
+              }}
+            >
+              {result()?.resultText}
+            </div>
+
+            {/* Inference stats */}
+            <Show when={result()?.durationMs != null && result()?.actionType !== "error"}>
+              <div class="flex items-center gap-3 text-[10px] text-gray-400">
+                <span class="flex items-center gap-1">
+                  <i class="ph ph-clock" />
+                  生成耗时 {(result()?.durationMs! / 1000).toFixed(1)}s
+                </span>
+                <span class="flex items-center gap-1">
+                  <i class="ph ph-hash" />
+                  {result()?.tokensUsed} tokens
+                </span>
+              </div>
             </Show>
-            <Show when={result()?.actionType !== "error"}>
-              <button
-                class="px-3 py-1.5 text-xs font-medium rounded-lg transition-smooth hover:opacity-80 bg-blue-500 text-white"
-                onClick={handleCopy}
-              >
-                {t("ai.copyResult")}
-              </button>
-              <button
-                class="px-3 py-1.5 text-xs font-medium rounded-lg transition-smooth hover:opacity-80 border border-white/80 bg-white/50 text-gray-600"
-                onClick={handleReplace}
-              >
-                {t("ai.replaceOriginal")}
-              </button>
-              <button
-                class="px-3 py-1.5 text-xs font-medium rounded-lg transition-smooth hover:opacity-80 border border-white/80 bg-white/50 text-gray-600"
-                onClick={handleAppend}
-              >
-                {t("ai.appendNew")}
-              </button>
-            </Show>
+
+            {/* Action buttons */}
+            <div class="flex gap-2 pt-1">
+              <Show when={result()?.actionType === "error"}>
+                <button
+                  class="px-4 py-2 text-xs font-medium rounded-lg transition-colors hover:opacity-80 bg-blue-500 text-white shadow-sm"
+                  onClick={close}
+                >
+                  OK
+                </button>
+              </Show>
+              <Show when={result()?.actionType !== "error"}>
+                <button
+                  class="px-4 py-2 text-xs font-medium rounded-lg transition-colors hover:opacity-80 bg-blue-500 text-white shadow-sm"
+                  onClick={handleCopy}
+                >
+                  {t("ai.copyResult")}
+                </button>
+                <button
+                  class="px-4 py-2 text-xs font-medium rounded-lg transition-colors hover:bg-white/50 border border-white/80 bg-white/40 text-gray-600"
+                  onClick={handleReplace}
+                >
+                  {t("ai.replaceOriginal")}
+                </button>
+                <button
+                  class="px-4 py-2 text-xs font-medium rounded-lg transition-colors hover:bg-white/50 border border-white/80 bg-white/40 text-gray-600"
+                  onClick={handleAppend}
+                >
+                  {t("ai.appendNew")}
+                </button>
+              </Show>
+            </div>
           </div>
         </div>
       </div>

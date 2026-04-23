@@ -8,6 +8,8 @@ export interface AiActionResult {
   actionType: "translate" | "summarize" | "rewrite" | "format" | "error";
   itemId: string;
   isValid?: boolean;
+  durationMs?: number;
+  tokensUsed?: number;
 }
 
 /// Inference auto-response mirrors the Rust struct InferenceAutoResponse.
@@ -55,17 +57,21 @@ async function callInfer(
   prompt: string,
   systemPrompt: string,
   maxTokens: number
-): Promise<string> {
+): Promise<{ text: string; duration_ms: number; tokens_used: number }> {
   try {
     const response = await invoke<InferenceAutoResponse>("ai_infer_auto", {
       request: {
         prompt,
         system_prompt: systemPrompt,
         max_tokens: maxTokens,
-        temperature: 0.7,
+        temperature: 0.3,
       },
     });
-    return response.response.text;
+    return {
+      text: response.response.text,
+      duration_ms: response.response.duration_ms,
+      tokens_used: response.response.tokens_used,
+    };
   } catch (e: unknown) {
     const errMsg = String(e);
 
@@ -114,12 +120,14 @@ export async function translateContent(
       ? "你是一个翻译助手。将以下中文翻译为自然流畅的英文。只返回翻译结果。"
       : "你是一个翻译助手。将以下内容翻译为自然流畅的中文。只返回翻译结果。";
     const maxTokens = Math.max(content.length * 2, 500);
-    const resultText = await callInfer(content, systemPrompt, maxTokens);
+    const result = await callInfer(content, systemPrompt, maxTokens);
     setResultPopup({
       originalContent: content,
-      resultText,
+      resultText: result.text,
       actionType: "translate",
       itemId,
+      durationMs: result.duration_ms,
+      tokensUsed: result.tokens_used,
     });
   } catch (e) {
     console.error("[ai-actions] Translate failed:", e);
@@ -145,12 +153,14 @@ export async function summarizeContent(
   try {
     const systemPrompt =
       "你是一个总结助手。将以下内容总结为要点列表，每条以数字编号。保持简洁准确。";
-    const resultText = await callInfer(content, systemPrompt, 500);
+    const result = await callInfer(content, systemPrompt, 500);
     setResultPopup({
       originalContent: content,
-      resultText,
+      resultText: result.text,
       actionType: "summarize",
       itemId,
+      durationMs: result.duration_ms,
+      tokensUsed: result.tokens_used,
     });
   } catch (e) {
     console.error("[ai-actions] Summarize failed:", e);
@@ -179,12 +189,14 @@ export async function rewriteContent(
       REWRITE_STYLES[style] || REWRITE_STYLES["formal"];
     const systemPrompt = `你是一个改写助手。请用${styleDesc}改写以下内容。保持核心意思不变。只返回改写结果。`;
     const maxTokens = Math.max(content.length * 2, 500);
-    const resultText = await callInfer(content, systemPrompt, maxTokens);
+    const result = await callInfer(content, systemPrompt, maxTokens);
     setResultPopup({
       originalContent: content,
-      resultText,
+      resultText: result.text,
       actionType: "rewrite",
       itemId,
+      durationMs: result.duration_ms,
+      tokensUsed: result.tokens_used,
     });
   } catch (e) {
     console.error("[ai-actions] Rewrite failed:", e);

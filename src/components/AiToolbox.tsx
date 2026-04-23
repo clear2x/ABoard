@@ -141,11 +141,11 @@ export default function AiToolbox() {
   ];
 
   return (
-    <div class="w-[220px] bg-white/20 border-l flex flex-col shrink-0 p-4"
+    <div class="w-[200px] min-w-[200px] bg-white/20 border-l flex flex-col shrink-0 p-3 dark:bg-slate-800/30"
       style={{ "border-color": "rgba(255,255,255,0.4)" }}
     >
       {/* Header */}
-      <div class="flex items-center gap-2 font-medium text-gray-600 mb-4 px-1">
+      <div class="flex items-center gap-2 font-medium text-gray-600 dark:text-gray-300 mb-4 px-1">
         <i class="ph-fill ph-magic-wand text-blue-500" />
         {t("toolbox.title")}
       </div>
@@ -160,15 +160,15 @@ export default function AiToolbox() {
             style={{ opacity: isProcessing() || !selectedItem() ? 0.5 : 1 }}
           >
             <div class={`w-8 h-8 rounded-lg ${tool.iconBg} ${tool.iconColor} flex items-center justify-center shrink-0`}>
-              <Show when={tool.icon} fallback={<span class="font-bold text-sm">M↓</span>}>
+              <Show when={tool.icon} fallback={<span class="font-bold text-lg">M↓</span>}>
                 <i class={`ph ${tool.icon} text-lg`} />
               </Show>
             </div>
             <div>
-              <div class="text-sm font-medium text-gray-700">
+              <div class="text-sm font-medium text-gray-700 dark:text-gray-200">
                 {t(tool.titleKey)}
               </div>
-              <div class="text-[10px] text-gray-400">
+              <div class="text-[10px] text-gray-400 dark:text-gray-500">
                 {t(tool.descKey)}
               </div>
             </div>
@@ -184,7 +184,7 @@ export default function AiToolbox() {
       </Show>
 
       {/* Privacy footer */}
-      <div class="mt-auto pt-4 text-center text-[10px] flex items-center justify-center gap-1 text-gray-400"
+      <div class="mt-auto pt-4 text-center text-[10px] flex items-center justify-center gap-1 text-gray-400 dark:text-gray-500"
         style={{ "border-top": "1px solid rgba(255,255,255,0.4)" }}
       >
         <i class="ph ph-shield-check" />

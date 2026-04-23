@@ -42,17 +42,16 @@ export default function App() {
     initTheme();
 
     if (isTauri) {
-      const unlisten = await listen("open-settings", () => {
-        setSettingsOpen(true);
-      });
+      // Load history FIRST — don't block on other setup
+      loadHistory().catch((e) => console.error("[App] loadHistory failed:", e));
 
-      await appWindow!.onCloseRequested(async (event) => {
+      // Start other services in parallel, non-blocking
+      listen("open-settings", () => setSettingsOpen(true)).catch(console.error);
+      appWindow!.onCloseRequested(async (event) => {
         event.preventDefault();
         await appWindow!.hide();
-      });
-
-      await startClipboardListener();
-      await loadHistory();
+      }).catch(console.error);
+      startClipboardListener().catch(console.error);
     }
 
     if (!aiBannerDismissed()) {
@@ -66,27 +65,24 @@ export default function App() {
         }
       } catch {}
     }
-
-    return () => { if (isTauri) { /* unlisten */ } };
   });
 
   const openSettings = () => setSettingsOpen(true);
 
   return (
-    <div class="glass-panel min-h-screen flex flex-col overflow-hidden" style={{ "border-radius": "20px" }}>
+    <div class="glass-panel h-screen flex flex-col overflow-hidden" style={{ "border-radius": "20px" }}>
       {/* Title bar with embedded search */}
       <TitleBar onOpenSettings={openSettings} />
 
       {/* AI detection banner */}
       <Show when={aiBannerVisible() && !aiBannerDismissed()}>
         <div class="ai-banner px-4 py-2 flex items-center justify-between">
-          <span class="text-xs" style={{ color: "var(--color-accent)" }}>
+          <span class="text-xs text-blue-600 dark:text-blue-400">
             {t("ai.notConfigured")} — {t("ai.clickToSetup")}
           </span>
           <div class="flex items-center gap-2">
             <button
-              class="text-xs px-2 py-1 rounded transition-smooth"
-              style={{ background: "var(--color-accent)", color: "#fff" }}
+              class="text-xs px-2 py-1 rounded transition-smooth bg-blue-500 text-white"
               onClick={openSettings}
             >{t("settings.title")}</button>
             <button

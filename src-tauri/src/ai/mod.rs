@@ -86,44 +86,50 @@ pub struct AiState {
 pub fn init_ai(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let config = AiConfig::load(app)?;
 
-    let provider: Box<dyn InferenceProvider> = match config.active_provider {
-        ProviderType::Local => {
-            let local = if let Some(ref model_path) = config.model_path {
-                local::LocalProvider::new(model_path.clone())
-            } else {
-                local::LocalProvider::new(String::new())
-            };
-            Box::new(local)
-        }
-        ProviderType::OpenAi => {
-            let p = cloud::OpenAiProvider::new(
-                config.openai_api_key.clone(),
-                config.openai_endpoint.clone(),
-                config.openai_model.clone(),
-            );
-            Box::new(p)
-        }
-        ProviderType::Anthropic => {
-            let p = cloud::AnthropicProvider::new(
-                config.anthropic_api_key.clone(),
-                config.anthropic_model.clone(),
-            );
-            Box::new(p)
-        }
-        ProviderType::Auto => {
-            let local = if let Some(ref model_path) = config.model_path {
-                local::LocalProvider::new(model_path.clone())
-            } else {
-                local::LocalProvider::new(String::new())
-            };
-            Box::new(local)
-        }
-    };
-
-    // Check for embedded model in models/ directory
     let app_data_dir = app.path().app_data_dir()?;
     let models_dir = app_data_dir.join("models");
-    let _embedded_path = embedded::EmbeddedProvider::default_model_exists(&models_dir);
+
+    // Try embedded model first as default
+    let embedded_path = embedded::EmbeddedProvider::default_model_exists(&models_dir);
+
+    let provider: Box<dyn InferenceProvider> = if embedded_path.is_some() {
+        // Use embedded candle model if GGUF file exists
+        Box::new(embedded::EmbeddedProvider::new(embedded_path.unwrap()))
+    } else {
+        match config.active_provider {
+            ProviderType::Local => {
+                let local = if let Some(ref model_path) = config.model_path {
+                    local::LocalProvider::new(model_path.clone())
+                } else {
+                    local::LocalProvider::new(String::new())
+                };
+                Box::new(local)
+            }
+            ProviderType::OpenAi => {
+                let p = cloud::OpenAiProvider::new(
+                    config.openai_api_key.clone(),
+                    config.openai_endpoint.clone(),
+                    config.openai_model.clone(),
+                );
+                Box::new(p)
+            }
+            ProviderType::Anthropic => {
+                let p = cloud::AnthropicProvider::new(
+                    config.anthropic_api_key.clone(),
+                    config.anthropic_model.clone(),
+                );
+                Box::new(p)
+            }
+            ProviderType::Auto => {
+                let local = if let Some(ref model_path) = config.model_path {
+                    local::LocalProvider::new(model_path.clone())
+                } else {
+                    local::LocalProvider::new(String::new())
+                };
+                Box::new(local)
+            }
+        }
+    };
 
     app.manage(AiState {
         provider: Arc::new(Mutex::new(provider)),

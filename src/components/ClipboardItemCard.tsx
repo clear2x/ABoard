@@ -47,7 +47,7 @@ interface Props {
 
 export default function ClipboardItemCard(props: Props) {
   const [hovered, setHovered] = createSignal(false);
-  const tags = () => props.item.ai_tags || [];
+  const tags = () => (props.item.ai_tags || []).filter((t) => t.length >= 2 && !/^[\s\p{P}\p{S}]+$/u.test(t));
   const justCopied = () => copiedId() === props.item.id;
   const dtype = () => displayType(props.item);
   const avatar = () => typeAvatar(dtype());
@@ -88,7 +88,7 @@ export default function ClipboardItemCard(props: Props) {
         <div class="flex items-start gap-3">
           {/* Type avatar */}
           <Show when={props.showCheckbox} fallback={
-            <div class={`w-7 h-7 rounded-full ${avatar().bg} ${avatar().color} flex items-center justify-center shrink-0 font-bold text-sm`}>
+            <div class={`w-7 h-7 rounded-full ${avatar().bg} ${avatar().color} flex items-center justify-center shrink-0 font-bold text-sm border border-white/50 shadow-sm`}>
               <Show when={avatar().icon} fallback={avatar().letter}>
                 <i class={`ph ${avatar().icon}`} />
               </Show>
@@ -104,18 +104,32 @@ export default function ClipboardItemCard(props: Props) {
 
           {/* Content */}
           <div class="flex-1 min-w-0">
+            {/* Image preview */}
+            <Show when={props.item.type === "image" && props.item.content.startsWith("data:")}>
+              <div class="mt-1">
+                <img
+                  src={props.item.content}
+                  alt="Clipboard image"
+                  class="max-w-full max-h-[120px] rounded-lg object-contain border border-white/50 dark:border-white/10"
+                  loading="lazy"
+                />
+              </div>
+            </Show>
+
             {/* Link content — with preview card matching ui.html */}
             <Show when={dtype() === "link"} fallback={
               <div>
                 <Show
                   when={dtype() === "code"}
                   fallback={
-                    <p class="text-sm text-gray-700 leading-relaxed">
-                      {truncateText(props.item.content)}
-                    </p>
+                    <Show when={!(props.item.type === "image" && props.item.content.startsWith("data:"))}>
+                      <p class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
+                        {truncateText(props.item.content)}
+                      </p>
+                    </Show>
                   }
                 >
-                  <div class="font-mono text-sm text-gray-600 bg-white/30 p-3 rounded-lg border border-white/50">
+                  <div class="font-mono text-sm text-gray-600 bg-white/30 dark:bg-slate-700/30 dark:text-gray-300 p-3 rounded-lg border border-white/50 dark:border-white/10">
                     {truncateText(props.item.content, 200).split("\n").map((line, i) => (
                       <div classList={{ "pl-4": i > 0 && i < (props.item.content.split("\n").length - 1) }}>{line}</div>
                     ))}
@@ -127,7 +141,7 @@ export default function ClipboardItemCard(props: Props) {
                   <div class="flex gap-2 mt-2">
                     <For each={tags().slice(0, 4)}>
                       {(tag) => (
-                        <span class="px-2 py-0.5 bg-gray-100/50 border border-gray-200 text-gray-500 rounded-md text-[10px]">
+                        <span class="px-2 py-0.5 bg-gray-100/50 border border-gray-200 text-gray-500 rounded-md text-[10px] dark:bg-gray-700/30 dark:border-gray-600 dark:text-gray-400">
                           {tag}
                         </span>
                       )}
@@ -138,13 +152,13 @@ export default function ClipboardItemCard(props: Props) {
             }>
               {/* Link card matching ui.html */}
               <div class="flex items-center gap-2 mb-3">
-                <span class="text-sm text-blue-600 truncate">
+                <span class="text-sm text-blue-600 dark:text-blue-400 truncate">
                   {truncateText(props.item.content, 80)}
                 </span>
               </div>
-              <div class="bg-white/40 border border-white/60 rounded-lg p-3 flex gap-3 items-center">
+              <div class="bg-white/40 border border-white/60 rounded-lg p-3 flex gap-3 items-center dark:bg-slate-700/30 dark:border-white/10">
                 <div class="flex-1">
-                  <div class="text-sm font-bold text-gray-800 mb-1">
+                  <div class="text-sm font-bold text-gray-800 dark:text-gray-100 mb-1">
                     {props.item.content.replace(/https?:\/\//, "").split("/")[0]}
                   </div>
                   <div class="text-xs text-gray-500 line-clamp-2">
@@ -155,9 +169,8 @@ export default function ClipboardItemCard(props: Props) {
             </Show>
           </div>
 
-          {/* Hover actions — matching ui.html opacity transition */}
-          <Show when={hovered() && !props.showCheckbox}>
-            <div class="flex items-center gap-2 text-gray-400">
+          {/* Hover actions — CSS opacity transition, always rendered */}
+          <div class={`flex items-center gap-2 text-gray-400 transition-opacity duration-150 ${hovered() && !props.showCheckbox ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
               <button
                 class="transition-colors"
                 onClick={handlePin}
@@ -165,11 +178,13 @@ export default function ClipboardItemCard(props: Props) {
               >
                 <i class={props.item.pinned ? "ph-fill ph-star text-yellow-400" : "ph ph-star hover:text-yellow-400"} />
               </button>
-              <button class="transition-colors hover:text-gray-600" onClick={handleDelete} title={t("ctx.delete")}>
-                <i class="ph ph-dots-three-vertical" />
+              <button class="transition-colors hover:text-blue-500" onClick={handleCopy} title={t("ctx.copy")}>
+                <i class="ph ph-copy" />
               </button>
-            </div>
-          </Show>
+              <button class="transition-colors hover:text-red-500" onClick={handleDelete} title={t("ctx.delete")}>
+                <i class="ph ph-trash" />
+              </button>
+          </div>
         </div>
 
         {/* Copied feedback */}

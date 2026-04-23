@@ -1,11 +1,10 @@
-import { For, Show, onMount, createSignal, createMemo } from "solid-js";
+import { For, Show, createSignal, createMemo } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   items,
   selectedId,
   setSelectedId,
-  loadHistory,
   deleteItems,
   pinItem,
   unpinItem,
@@ -59,10 +58,6 @@ export default function ContentArea() {
 
   const [batchMode, setBatchMode] = createSignal(false);
   const [confirmOpen, setConfirmOpen] = createSignal(false);
-
-  onMount(() => {
-    loadHistory();
-  });
 
   // Filtered items based on category + time filter
   const filteredItems = createMemo(() => {
@@ -179,12 +174,12 @@ export default function ContentArea() {
 
   return (
     <div
-      class="flex-1 flex flex-col bg-white/10 relative"
+      class="flex-1 flex flex-col bg-white/10 relative dark:bg-slate-900/20 min-w-0"
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
       {/* Filter tabs */}
-      <div class="flex gap-4 px-6 pt-4 pb-2 border-b text-sm text-gray-500 sticky top-0 bg-white/20 backdrop-blur-md z-10"
+      <div class="flex flex-nowrap gap-4 px-6 pt-4 pb-2 border-b text-sm text-gray-500 sticky top-0 bg-white/20 backdrop-blur-md z-10 whitespace-nowrap overflow-x-auto no-scrollbar dark:bg-slate-800/30 dark:text-gray-400"
         style={{
           "border-color": "rgba(255,255,255,0.3)",
         }}
@@ -197,7 +192,7 @@ export default function ContentArea() {
                 class="pb-1 cursor-pointer transition-colors"
                 classList={{
                   "text-blue-600 font-medium border-b-2 border-blue-600": isActive(),
-                  "hover:text-gray-800": !isActive(),
+                  "hover:text-gray-800 dark:hover:text-gray-300": !isActive(),
                 }}
                 onClick={() => setTimeFilter(filter.key)}
               >
@@ -274,21 +269,19 @@ export default function ContentArea() {
       {/* Content list — timeline layout */}
       <div class="flex-1 overflow-y-auto no-scrollbar p-6 space-y-4">
         <Show
-          when={!loading()}
+          when={filteredItems().length > 0}
           fallback={
-            <div class="flex items-center justify-center h-32 text-sm text-gray-400">
-              {t("clipboard.loading")}
-            </div>
-          }
-        >
-          <Show
-            when={filteredItems().length > 0}
-            fallback={
+            <Show when={!loading()} fallback={
+              <div class="flex items-center justify-center h-32 text-sm text-gray-400">
+                {t("clipboard.loading")}
+              </div>
+            }>
               <div class="flex items-center justify-center h-32 text-sm text-gray-400">
                 {t("clipboard.noItems")}
               </div>
-            }
-          >
+            </Show>
+          }
+        >
             <For each={filteredItems()}>
               {(item) => {
                 const timeStr = () => new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -325,7 +318,6 @@ export default function ContentArea() {
               }}
             </For>
           </Show>
-        </Show>
       </div>
 
       {/* Context menu */}

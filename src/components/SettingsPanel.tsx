@@ -28,11 +28,11 @@ interface Props {
 }
 
 const TABS = [
-  { key: "general", icon: "ph-faders" },
-  { key: "ai", icon: "ph-fill ph-brain" },
-  { key: "appearance", icon: "ph-palette" },
-  { key: "shortcuts", icon: "ph-keyboard" },
-  { key: "about", icon: "ph-info" },
+  { key: "general", icon: "ph ph-gear-six" },
+  { key: "ai", icon: "ph ph-sparkle" },
+  { key: "appearance", icon: "ph ph-palette" },
+  { key: "shortcuts", icon: "ph ph-keyboard" },
+  { key: "about", icon: "ph ph-info" },
 ] as const;
 
 type Tab = typeof TABS[number]["key"];
@@ -52,8 +52,9 @@ export default function SettingsPanel(props: Props) {
   const [detecting, setDetecting] = createSignal(false);
   const [localStatus, setLocalStatus] = createSignal<LocalProviderStatus | null>(null);
   const [gpuEnabled, setGpuEnabled] = createSignal(true);
-  const [engine, setEngine] = createSignal<"llamacpp" | "ollama">("llamacpp");
-  const [selectedModel, setSelectedModel] = createSignal("llama3.1:8b-instruct-q4_k_m");
+  const [engine, setEngine] = createSignal<"embedded" | "ollama">("embedded");
+  const [selectedModel, setSelectedModel] = createSignal("Qwen2.5-0.5B-Instruct (内置)");
+  const [embeddedStatus, setEmbeddedStatus] = createSignal<"unknown" | "downloading" | "loading" | "ready" | "error">("unknown");
 
   onMount(async () => {
     try {
@@ -126,7 +127,7 @@ export default function SettingsPanel(props: Props) {
         }}
       >
         {/* Header — bg-white/30 matching ui.html */}
-        <div class="h-10 flex justify-center items-center font-medium text-sm text-gray-700 relative border-b border-white/40 bg-white/30">
+        <div class="h-10 flex justify-center items-center font-medium text-sm text-gray-700 dark:text-gray-200 relative border-b border-white/40 bg-white/30 dark:bg-slate-800/50">
           {t("settings.title")}
           <button class="absolute right-3 w-6 h-6 rounded flex items-center justify-center hover:bg-white/20 transition-colors text-gray-400"
             onClick={props.onClose}>
@@ -135,7 +136,7 @@ export default function SettingsPanel(props: Props) {
         </div>
 
         {/* Icon tab bar — bg-white/10 border-white/30 matching ui.html */}
-        <div class="flex justify-around items-center px-6 py-4 border-b border-white/30 bg-white/10">
+        <div class="flex justify-around items-center px-6 py-4 border-b border-white/50 bg-white/25">
           {TABS.map((tab) => {
             const isActive = () => activeTab() === tab.key;
             const tabLabels: Record<string, string> = {
@@ -147,19 +148,21 @@ export default function SettingsPanel(props: Props) {
             };
             return (
               <button
-                class="flex flex-col items-center gap-1.5 cursor-pointer transition-opacity"
-                classList={{ "opacity-50 hover:opacity-100": !isActive() }}
-                style={isActive() ? { color: "#2563eb" } : { color: "#9ca3af" }}
+                class="flex flex-col items-center gap-1.5 cursor-pointer transition-all"
+                classList={{ "opacity-90 hover:opacity-100": !isActive() }}
+                style={isActive() ? { color: "#2563eb" } : { color: "#6b7280" }}
                 onClick={() => setActiveTab(tab.key)}
               >
                 <Show when={isActive()} fallback={
-                  <i class={`${tab.icon} text-xl`} />
+                  <div class="p-1">
+                    <i class={`${tab.icon} text-xl text-gray-500`} />
+                  </div>
                 }>
-                  <div class="bg-blue-100/50 p-1 rounded-md shadow-sm border border-blue-200/50">
+                  <div class="bg-blue-100/80 p-1 rounded-md shadow-sm border border-blue-200/50">
                     <i class={`${tab.icon} text-xl text-blue-600`} />
                   </div>
                 </Show>
-                <span class="text-[10px]" classList={{ "font-medium text-blue-600": isActive() }}>
+                <span class="text-[11px]" classList={{ "font-medium text-blue-600": isActive() }}>
                   {tabLabels[tab.key]}
                 </span>
               </button>
@@ -235,68 +238,54 @@ export default function SettingsPanel(props: Props) {
               {/* Inference config card */}
               <Show when={provider() === "Local" || provider() === "Auto"}>
                 <div class="glass-card rounded-xl p-4 space-y-4">
-                  {/* Engine radio */}
+                  {/* Engine — embedded only */}
                   <div class="flex justify-between items-center text-sm">
                     <span class="font-medium text-gray-700">{t("settings.inferenceEngine")}</span>
-                    <div class="flex gap-4 text-xs">
-                      <label class="flex items-center gap-1.5 cursor-pointer">
-                        <div class="w-3.5 h-3.5 rounded-full border-4 border-blue-500 bg-white outline outline-1 outline-blue-500" />
-                        llama.cpp
-                      </label>
-                      <label class="flex items-center gap-1.5 cursor-pointer text-gray-500">
-                        <div class="w-3.5 h-3.5 rounded-full border border-gray-300" />
-                        Ollama
-                      </label>
+                    <div class="flex items-center gap-1.5 text-xs text-blue-600 font-medium">
+                      <i class="ph ph-cpu" />
+                      内置引擎 (Candle)
                     </div>
                   </div>
 
-                  {/* Model selector — matching ui.html */}
+                  {/* Model selector — embedded model */}
                   <div class="flex justify-between items-center text-sm">
                     <span class="font-medium text-gray-700">{t("ai.model")}</span>
-                    <div class="flex items-center gap-2 bg-white/60 border border-white/80 px-3 py-1.5 rounded-lg text-xs cursor-pointer shadow-sm w-[180px] justify-between">
+                    <div class="flex items-center gap-2 bg-white/60 border border-white/80 px-3 py-1.5 rounded-lg text-xs shadow-sm w-[180px] justify-between">
                       <span class="truncate">{selectedModel()}</span>
-                      <i class="ph ph-caret-down text-gray-400 shrink-0" />
                     </div>
                   </div>
 
-                  {/* Detect local */}
-                  <button onClick={handleDetectLocal} disabled={detecting()}
-                    class="w-full px-3 py-2 text-xs font-medium rounded-lg disabled:opacity-40 border transition-colors bg-white/50 text-gray-700 border-white/80"
+                  {/* Embedded model status & load */}
+                  <button onClick={async () => {
+                    setEmbeddedStatus("loading");
+                    try {
+                      await invoke("ai_embedded_load");
+                      setEmbeddedStatus("ready");
+                    } catch (err) {
+                      // If model not found, try downloading first
+                      try {
+                        setEmbeddedStatus("downloading");
+                        await invoke("ai_embedded_download");
+                        setEmbeddedStatus("loading");
+                        await invoke("ai_embedded_load");
+                        setEmbeddedStatus("ready");
+                      } catch (e2) {
+                        setEmbeddedStatus("error");
+                        setMessage(`模型加载失败: ${e2}`);
+                      }
+                    }
+                  }} disabled={embeddedStatus() === "loading" || embeddedStatus() === "downloading"}
+                    class="w-full px-3 py-2 text-xs font-medium rounded-lg disabled:opacity-40 border transition-colors bg-blue-50/70 text-blue-700 border-blue-200"
                   >
-                    {detecting() ? t("ai.detecting") : t("ai.detectLocal")}
+                    {embeddedStatus() === "loading" ? "加载中..." :
+                     embeddedStatus() === "downloading" ? "下载模型中 (首次约400MB)..." :
+                     embeddedStatus() === "ready" ? "✓ 模型已加载" :
+                     "加载内置模型"}
                   </button>
 
-                  <Show when={localStatus()}>
-                    <div class="rounded-lg p-3 text-xs space-y-1.5 bg-white/50 border border-white/80">
-                      <div class="flex items-center gap-1.5">
-                        <span style={{ color: localStatus()!.ollamaAvailable ? "#22c55e" : "#ef4444" }}>
-                          {localStatus()!.ollamaAvailable ? "\u2713" : "\u2717"}
-                        </span>
-                        <span class="text-gray-700">Ollama</span>
-                        <span class="text-gray-400 text-[11px]">
-                          {localStatus()!.ollamaAvailable ? "(localhost:11434)" : t("ai.notRunning")}
-                        </span>
-                      </div>
-                      <Show when={localStatus()!.ollamaAvailable && localStatus()!.detectedModels.length > 0}>
-                        <div class="ml-4 space-y-0.5">
-                          <span class="block text-gray-400 text-[11px]">{t("ai.detectedModels")}</span>
-                          <For each={localStatus()!.detectedModels}>
-                            {(model) => <span class="block ml-2 text-gray-600 text-[11px]">{model}</span>}
-                          </For>
-                        </div>
-                      </Show>
-                      <div class="flex items-center gap-1.5">
-                        <span style={{ color: localStatus()!.llamacppAvailable ? "#22c55e" : "#ef4444" }}>
-                          {localStatus()!.llamacppAvailable ? "\u2713" : "\u2717"}
-                        </span>
-                        <span class="text-gray-700">llama.cpp server</span>
-                        <span class="text-gray-400 text-[11px]">
-                          {localStatus()!.llamacppAvailable ? "(localhost:8080)" : t("ai.notRunning")}
-                        </span>
-                      </div>
-                      <Show when={!localStatus()!.ollamaAvailable && !localStatus()!.llamacppAvailable}>
-                        <p class="mt-1 text-gray-400 text-[11px]">{t("ai.installHint")}</p>
-                      </Show>
+                  <Show when={embeddedStatus() === "error" && message()}>
+                    <div class="rounded-lg p-2 text-xs text-red-600 bg-red-50 border border-red-200">
+                      {message()}
                     </div>
                   </Show>
 
@@ -322,25 +311,21 @@ export default function SettingsPanel(props: Props) {
                     </button>
                   </div>
 
-                  {/* Model running status card — matching ui.html */}
-                  <div class="bg-[#f0fdf4]/60 border border-green-200/60 p-3 rounded-lg flex items-center justify-between">
-                    <div>
-                      <div class="flex items-center gap-1.5 text-green-700 text-xs font-semibold mb-0.5">
-                        <span class="relative flex h-2 w-2">
-                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                          <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                        </span>
-                        模型运行中
-                      </div>
-                      <div class="text-[9px] text-green-600/70 font-mono">llama.cpp · 线程: 8 · 上下文: 8192</div>
-                    </div>
-                    <div class="text-right flex flex-col items-end">
-                      <div class="text-[10px] text-green-600/70 mb-0.5">Tokens/s</div>
-                      <div class="text-green-600 font-mono font-bold text-sm flex items-center gap-1">
-                        45.2 <i class="ph ph-trend-up text-xs" />
+                  {/* Model running status card */}
+                  <Show when={embeddedStatus() === "ready"}>
+                    <div class="bg-[#f0fdf4]/60 border border-green-200/60 p-3 rounded-lg flex items-center justify-between">
+                      <div>
+                        <div class="flex items-center gap-1.5 text-green-700 text-xs font-semibold mb-0.5">
+                          <span class="relative flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                          </span>
+                          模型运行中
+                        </div>
+                        <div class="text-[9px] text-green-600/70 font-mono">Candle · Qwen2.5-0.5B · Q4_K_M</div>
                       </div>
                     </div>
-                  </div>
+                  </Show>
                 </div>
               </Show>
 

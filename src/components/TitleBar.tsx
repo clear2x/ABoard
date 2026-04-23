@@ -63,38 +63,34 @@ export default function TitleBar(props: Props) {
       } else {
         searchHistory(value);
       }
-    }, semanticMode() ? 500 : 300);
+    }, semanticMode() ? 500 : 200);
   };
 
   return (
     <div
       ref={headerRef}
       data-tauri-drag-region
-      class="flex items-center h-14 px-4 border-b border-white/40 shrink-0 select-none bg-white/30"
+      class="flex items-center h-14 px-4 border-b border-white/40 shrink-0 select-none bg-white/30 dark:bg-slate-800/50"
       onMouseDown={handleMouseDown}
     >
-      {/* macOS traffic lights — w-[160px] matching ui.html */}
+      {/* Spacer for native macOS traffic lights (overlay titleBarStyle) */}
       <Show when={isMac}>
-        <div class="flex gap-2 w-[160px] shrink-0" data-tauri-no-drag>
-          <button class="w-3 h-3 rounded-full bg-red-500 border border-red-600/50 shadow-inner" onClick={handleClose} title="Close" />
-          <button class="w-3 h-3 rounded-full bg-yellow-400 border border-yellow-500/50 shadow-inner" onClick={handleMinimize} title="Minimize" />
-          <button class="w-3 h-3 rounded-full bg-green-500 border border-green-600/50 shadow-inner" onClick={handleMaximize} title={maximized() ? "Restore" : "Maximize"} />
-        </div>
+        <div class="w-[76px] shrink-0" />
       </Show>
 
-      {/* Search bar — matching ui.html exactly */}
-      <div class="flex-1 max-w-xl relative flex items-center bg-white/70 border border-white/80 rounded-lg px-3 py-1.5 shadow-sm" data-tauri-no-drag>
-        <i class="ph ph-magnifying-glass text-gray-400" />
+      {/* Search bar — centered in the title bar */}
+      <div class="flex-1 max-w-xl mx-auto relative flex items-center bg-white/70 border border-white/80 rounded-lg px-3 py-1.5 shadow-sm dark:bg-slate-700/50 dark:border-white/10" data-tauri-no-drag>
+        <i class="ph ph-magnifying-glass text-gray-400 dark:text-gray-500" />
         <input
           type="text"
           value={searchQuery()}
           onInput={handleSearchInput}
           placeholder={semanticMode() ? t("search.semantic") : "搜索剪贴板 (语义搜索 / 正则 / 标签)"}
-          class="bg-transparent border-none outline-none text-sm ml-2 w-full placeholder-gray-400"
+          class="bg-transparent border-none outline-none text-sm ml-2 w-full placeholder-gray-400 text-gray-700 dark:text-gray-200"
         />
         <div class="flex items-center gap-1 shrink-0">
-          <span class="text-[10px] bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50">⌘K</span>
-          <i class="ph ph-funnel text-gray-400 ml-2 hover:text-gray-700 cursor-pointer" />
+          <span class="text-[10px] bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 dark:bg-gray-600/50 dark:text-gray-400 dark:border-gray-500/50">⌘K</span>
+          <i class="ph ph-funnel text-gray-400 ml-2 hover:text-gray-700 cursor-pointer dark:text-gray-500 dark:hover:text-gray-300" />
         </div>
       </div>
 

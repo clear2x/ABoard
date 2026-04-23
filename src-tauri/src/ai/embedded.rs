@@ -5,9 +5,10 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use std::time::Instant;
 
-/// Default GGUF model download URL (Qwen2.5-0.5B-Instruct Q4_K_M, ~400MB)
-const DEFAULT_MODEL_URL: &str = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf";
-const DEFAULT_MODEL_FILENAME: &str = "qwen2.5-0.5b-instruct-q4_k_m.gguf";
+/// Default GGUF model download URL (Qwen2.5-0.5B-Instruct Q4_0, ~400MB)
+/// Note: candle quantized_qwen2 only supports Q4_0 for 0.5B models, NOT Q4_K_M
+const DEFAULT_MODEL_URL: &str = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_0.gguf";
+const DEFAULT_MODEL_FILENAME: &str = "qwen2.5-0.5b-instruct-q4_0.gguf";
 const DEFAULT_TOKENIZER_URL: &str = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer.json";
 const TOKENIZER_FILENAME: &str = "tokenizer.json";
 
@@ -16,7 +17,7 @@ const IM_START: &str = "<|im_start|>";
 const IM_END: &str = "<|im_end|>";
 
 /// Maximum tokens to generate for clipboard operations
-const MAX_GEN_TOKENS: u32 = 512;
+const MAX_GEN_TOKENS: u32 = 256;
 
 /// Embedded model state behind a mutex for thread-safe access.
 struct EmbeddedModel {
@@ -110,27 +111,34 @@ impl EmbeddedProvider {
     }
 
     /// Format prompt using Qwen2 chat template.
+    /// Truncates long system prompts to reduce token overhead.
     fn format_prompt(system: Option<&str>, user: &str) -> String {
         let mut prompt = String::new();
         if let Some(sys) = system {
-            prompt.push_str(&format!("{}system\n{}{}\n", IM_START, sys, IM_END));
+            // Truncate system prompt to 200 chars to reduce token overhead
+            let truncated = if sys.len() > 200 { &sys[..200] } else { sys };
+            prompt.push_str(&format!("{}system\n{}{}\n", IM_START, truncated, IM_END));
         }
         prompt.push_str(&format!("{}user\n{}{}\n{}assistant\n", IM_START, user, IM_END, IM_START));
         prompt
     }
 
     /// Check if the default model file exists in the models directory.
+    /// Only returns Q4_0 variant (Q4_K_M is incompatible with candle quantized_qwen2 for 0.5B).
     pub fn default_model_exists(models_dir: &std::path::Path) -> Option<PathBuf> {
         let default_path = models_dir.join(DEFAULT_MODEL_FILENAME);
         if default_path.exists() {
             return Some(default_path);
         }
-        // Check for any .gguf file
+        // Check for any Q4_0 .gguf file (skip Q4_K_M which is incompatible)
         if let Ok(entries) = std::fs::read_dir(models_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.extension().map_or(false, |ext| ext == "gguf") {
-                    return Some(path);
+                    let name = path.file_name().unwrap_or_default().to_string_lossy();
+                    if name.contains("q4_0") || name.contains("q4_0.") {
+                        return Some(path);
+                    }
                 }
             }
         }
@@ -212,7 +220,7 @@ impl InferenceProvider for EmbeddedProvider {
             &request.prompt,
         );
         let max_tokens = request.max_tokens.unwrap_or(MAX_GEN_TOKENS);
-        let temperature = request.temperature.unwrap_or(0.7) as f64;
+        let temperature = request.temperature.unwrap_or(0.3) as f64;
 
         let result = tokio::task::spawn_blocking(move || -> Result<(String, u32, u64), String> {
             let mut guard = model_arc.blocking_lock();

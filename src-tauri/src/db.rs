@@ -165,13 +165,20 @@ fn row_to_item(row: &rusqlite::Row<'_>) -> Result<ClipboardItem, rusqlite::Error
 /// Get clipboard history with pagination.
 /// Pinned items appear first (ordered by pinned_at DESC), then unpinned (by timestamp DESC).
 #[tauri::command]
-pub fn get_history(
+pub async fn get_history(
     state: tauri::State<'_, DbState>,
     offset: u32,
     limit: u32,
 ) -> Result<Vec<ClipboardItem>, String> {
     let limit = limit.min(MAX_LIMIT).max(1);
-    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    let lock_result = state.conn.lock();
+    let conn = match lock_result {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("[db] get_history: mutex poisoned: {}", e);
+            return Err(format!("DB lock error: {}", e));
+        }
+    };
     let mut stmt = conn
         .prepare(
             "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary
@@ -179,17 +186,32 @@ pub fn get_history(
              ORDER BY pinned DESC, pinned_at DESC, timestamp DESC
              LIMIT ?1 OFFSET ?2",
         )
-        .map_err(|e| format!("Prepare error: {}", e))?;
-    let items = stmt
+        .map_err(|e| {
+            eprintln!("[db] get_history: prepare error: {}", e);
+            format!("Prepare error: {}", e)
+        })?;
+    let items: Vec<ClipboardItem> = stmt
         .query_map(rusqlite::params![limit, offset], row_to_item)
-        .map_err(|e| format!("Query error: {}", e))?
-        .filter_map(|r| r.ok())
+        .map_err(|e| {
+            eprintln!("[db] get_history: query error: {}", e);
+            format!("Query error: {}", e)
+        })?
+        .filter_map(|r| {
+            match r {
+                Ok(item) => Some(item),
+                Err(e) => {
+                    eprintln!("[db] get_history: row parse error: {}", e);
+                    None
+                }
+            }
+        })
         .collect();
+    println!("[db] get_history: returning {} items", items.len());
     Ok(items)
 }
 
 /// Search clipboard history using FTS5 full-text search.
-/// Wraps query in double quotes for phrase matching. Sanitizes special FTS5 syntax.
+/// Splits query into words for OR-based fuzzy matching, with LIKE fallback.
 #[tauri::command]
 pub fn search_history(
     state: tauri::State<'_, DbState>,
@@ -209,7 +231,7 @@ pub fn search_history(
     }
     let limit = limit.min(MAX_LIMIT).max(1);
 
-    // Sanitize: remove FTS5 special characters, wrap in double quotes for phrase matching
+    // Sanitize: remove FTS5 special characters
     let sanitized: String = trimmed
         .chars()
         .filter(|c| !matches!(c, '"' | '*' | '^' | '#' | ':'))
@@ -217,9 +239,17 @@ pub fn search_history(
     if sanitized.trim().is_empty() {
         return Ok(vec![]);
     }
-    let fts_query = format!("\"{}\"", sanitized);
+
+    // Split into words and join with OR for fuzzy matching
+    let words: Vec<&str> = sanitized.split_whitespace().filter(|w| !w.is_empty()).collect();
+    if words.is_empty() {
+        return Ok(vec![]);
+    }
+    let fts_query = words.join(" OR ");
 
     let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+
+    // Try FTS5 search first
     let mut stmt = conn
         .prepare(
             "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary
@@ -233,9 +263,31 @@ pub fn search_history(
              LIMIT ?2 OFFSET ?3",
         )
         .map_err(|e| format!("Prepare error: {}", e))?;
-    let items = stmt
+    let items: Vec<ClipboardItem> = stmt
         .query_map(rusqlite::params![fts_query, limit, offset], row_to_item)
         .map_err(|e| format!("Query error: {}", e))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // If FTS5 found results, return them
+    if !items.is_empty() {
+        return Ok(items);
+    }
+
+    // Fallback: LIKE substring matching for fuzzy search
+    let like_pattern = format!("%{}%", trimmed.replace('%', "\\%").replace('_', "\\_"));
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary
+             FROM clipboard_items
+             WHERE content LIKE ?1 ESCAPE '\\'
+             ORDER BY pinned DESC, pinned_at DESC, timestamp DESC
+             LIMIT ?2 OFFSET ?3",
+        )
+        .map_err(|e| format!("Prepare fallback error: {}", e))?;
+    let items = stmt
+        .query_map(rusqlite::params![like_pattern, limit, offset], row_to_item)
+        .map_err(|e| format!("Fallback query error: {}", e))?
         .filter_map(|r| r.ok())
         .collect();
     Ok(items)
@@ -406,6 +458,33 @@ pub fn update_ai_metadata(
     )
     .map_err(|e| format!("Update AI metadata error: {}", e))?;
     Ok(())
+}
+
+/// Get storage statistics: database file size and item count.
+#[tauri::command]
+pub fn get_storage_stats(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| format!("App data dir error: {}", e))?;
+    let db_path = app_data_dir.join("aboard.db");
+
+    let db_size = if db_path.exists() {
+        std::fs::metadata(&db_path)
+            .map(|m| m.len())
+            .unwrap_or(0)
+    } else {
+        0
+    };
+
+    let state = app.state::<DbState>();
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    let item_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM clipboard_items", [], |row| row.get(0))
+        .unwrap_or(0);
+
+    Ok(serde_json::json!({
+        "db_size_bytes": db_size,
+        "item_count": item_count,
+    }))
 }
 
 /// Export selected clipboard items to a file in JSON, Markdown, or plain text format.

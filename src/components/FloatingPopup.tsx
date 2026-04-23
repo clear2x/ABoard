@@ -129,7 +129,7 @@ export default function FloatingPopup() {
         <Show when={pinnedItems().length > 0}>
           <div>
             <div class="flex justify-between items-center text-xs mb-2 px-1 font-medium text-gray-500">
-              <span class="flex items-center gap-1"><i class="ph ph-push-pin-fill" /> {t("float.pinned")}</span>
+              <span class="flex items-center gap-1"><i class="ph-fill ph-push-pin" /> {t("float.pinned")}</span>
             </div>
             <div class="space-y-2">
               <For each={pinnedItems()}>
@@ -144,7 +144,7 @@ export default function FloatingPopup() {
                       onClick={() => { setSelectedIndex(globalIndex()); selectAndPaste(item); }}
                     >
                       <div class="flex gap-2">
-                        <div class={`w-6 h-6 rounded-full ${icon().bg} ${icon().color} flex items-center justify-center shrink-0 text-xs font-bold`}>
+                        <div class={`w-6 h-6 rounded-full ${icon().bg} ${icon().color} flex items-center justify-center shrink-0 text-xs font-bold border border-white/50 shadow-sm`}>
                           <Show when={icon().icon} fallback={icon().letter}>
                             <i class={`ph ${icon().icon}`} />
                           </Show>
@@ -180,7 +180,7 @@ export default function FloatingPopup() {
                       onClick={() => { setSelectedIndex(globalIndex()); selectAndPaste(item); }}
                     >
                       <div class="flex gap-2">
-                        <div class={`w-6 h-6 rounded-full ${icon().bg} ${icon().color} flex items-center justify-center shrink-0`}>
+                        <div class={`w-6 h-6 rounded-full ${icon().bg} ${icon().color} flex items-center justify-center shrink-0 border border-white/50 shadow-sm`}>
                           <Show when={icon().icon} fallback={icon().letter}>
                             <i class={`ph ${icon().icon}`} />
                           </Show>
@@ -198,7 +198,7 @@ export default function FloatingPopup() {
                           </div>
                         </Show>
                       </div>
-                      <i class="ph ph-star absolute right-3 bottom-3 hover:text-yellow-400 text-gray-300"
+                      <i class="ph ph-push-pin absolute right-3 bottom-3 hover:text-blue-500 text-gray-300 dark:text-gray-500"
                       />
                     </div>
                   );

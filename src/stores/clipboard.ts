@@ -87,19 +87,49 @@ export function selectAll() {
   setSelectedIds(new Set(items().map((i) => i.id)));
 }
 
+/// Normalize a raw item from Rust backend: parse ai_tags from JSON string to array.
+function normalizeItem(raw: Record<string, unknown>): ClipboardItem {
+  let aiTags: string[] | null = null;
+  if (typeof raw.ai_tags === "string") {
+    try { aiTags = JSON.parse(raw.ai_tags as string); } catch { aiTags = null; }
+  } else if (Array.isArray(raw.ai_tags)) {
+    aiTags = raw.ai_tags as string[];
+  }
+  return {
+    id: raw.id as string,
+    type: (raw.type || raw.content_type) as "text" | "image" | "file-paths",
+    content: raw.content as string,
+    hash: raw.hash as string,
+    timestamp: raw.timestamp as number,
+    metadata: (raw.metadata || {}) as Record<string, unknown>,
+    pinned: !!raw.pinned,
+    pinned_at: (raw.pinned_at as number) || null,
+    ai_type: (raw.ai_type as string) || null,
+    ai_tags: aiTags,
+    ai_summary: (raw.ai_summary as string) || null,
+  };
+}
+
 /// Load clipboard history from SQLite via Tauri command.
+/// Includes 5-second timeout to prevent infinite loading.
 export async function loadHistory(offset: number = 0, limit: number = 50) {
+  console.log("[store] loadHistory: starting...");
   setLoading(true);
   try {
-    const result = await invoke<ClipboardItem[]>("get_history", {
-      offset,
-      limit,
-    });
-    setItems(result);
+    const result = await Promise.race([
+      invoke<Record<string, unknown>[]>("get_history", { offset, limit }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("get_history timed out after 5s")), 5000)
+      ),
+    ]);
+    const items = result.map(normalizeItem);
+    console.log("[store] loadHistory: got", items.length, "items");
+    setItems(items);
   } catch (e) {
     console.error("[store] Failed to load history:", e);
   } finally {
     setLoading(false);
+    console.log("[store] loadHistory: done, loading=false, items count:", items().length);
   }
 }
 
@@ -111,12 +141,12 @@ export async function searchHistory(query: string) {
   }
   setLoading(true);
   try {
-    const result = await invoke<ClipboardItem[]>("search_history", {
+    const result = await invoke<Record<string, unknown>[]>("search_history", {
       query,
       offset: 0,
       limit: 50,
     });
-    setItems(result);
+    setItems(result.map(normalizeItem));
   } catch (e) {
     console.error("[store] Search failed:", e);
   } finally {
@@ -132,12 +162,12 @@ export async function semanticSearchHistory(query: string) {
   }
   setLoading(true);
   try {
-    const result = await invoke<ClipboardItem[]>("semantic_search", {
+    const result = await invoke<Record<string, unknown>[]>("semantic_search", {
       query,
       offset: 0,
       limit: 50,
     });
-    setItems(result);
+    setItems(result.map(normalizeItem));
   } catch (e) {
     console.error("[store] Semantic search failed:", e);
   } finally {

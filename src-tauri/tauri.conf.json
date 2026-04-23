@@ -13,11 +13,13 @@
     "windows": [
       {
         "title": "ABoard",
-        "width": 800,
-        "height": 600,
+        "width": 1000,
+        "height": 640,
         "resizable": true,
         "transparent": true,
-        "decorations": false,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
         "shadow": true
       },
       {

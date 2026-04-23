@@ -1,6 +1,7 @@
-import { For, Show, createMemo } from "solid-js";
+import { For, Show, createMemo, createSignal, onMount } from "solid-js";
 import { items, categoryFilter, setCategoryFilter } from "../stores/clipboard";
 import { t } from "../stores/i18n";
+import { invoke } from "@tauri-apps/api/core";
 
 const CATEGORIES = [
   { key: "all", icon: "ph-squares-four", labelKey: "sidebar.all" },
@@ -11,6 +12,24 @@ const CATEGORIES = [
 ] as const;
 
 export default function Sidebar() {
+  const [storageSize, setStorageSize] = createSignal<number>(0);
+  const [itemCount, setItemCount] = createSignal<number>(0);
+
+  const formatSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  };
+
+  onMount(async () => {
+    try {
+      const stats = await invoke<{ db_size_bytes: number; item_count: number }>("get_storage_stats");
+      setStorageSize(stats.db_size_bytes);
+      setItemCount(stats.item_count);
+    } catch {}
+  });
+
   const categoryCounts = createMemo(() => {
     const all = items();
     return {
@@ -22,12 +41,21 @@ export default function Sidebar() {
     };
   });
 
+  const isValidTag = (tag: string) => {
+    if (tag.length < 2) return false;
+    // Filter out punctuation-only tags
+    if (/^[\s\p{P}\p{S}]+$/u.test(tag)) return false;
+    return true;
+  };
+
   const allTags = createMemo(() => {
     const tagMap = new Map<string, number>();
     for (const item of items()) {
       if (item.ai_tags) {
         for (const tag of item.ai_tags) {
-          tagMap.set(tag, (tagMap.get(tag) || 0) + 1);
+          if (isValidTag(tag)) {
+            tagMap.set(tag, (tagMap.get(tag) || 0) + 1);
+          }
         }
       }
     }
@@ -37,9 +65,9 @@ export default function Sidebar() {
   });
 
   return (
-    <div class="w-[180px] bg-white/20 border-r border-white/40 flex flex-col gap-6 overflow-y-auto no-scrollbar shrink-0 p-3">
+    <div class="w-[160px] min-w-[160px] bg-white/20 border-r border-white/40 flex flex-col gap-6 overflow-y-auto no-scrollbar shrink-0 p-3 dark:bg-slate-800/30 dark:border-white/10">
       {/* Logo */}
-      <div class="flex items-center gap-2 font-bold text-gray-700 px-2 pt-2">
+      <div class="flex items-center gap-2 font-bold text-gray-700 dark:text-gray-200 px-2 pt-2">
         <i class="ph-fill ph-clipboard-text text-blue-600 text-xl" />
         <span>ABoard</span>
       </div>
@@ -55,7 +83,7 @@ export default function Sidebar() {
                 class="flex justify-between items-center px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors"
                 classList={{
                   "bg-blue-500 text-white shadow-sm": isActive(),
-                  "text-gray-600 hover:bg-white/40": !isActive(),
+                  "text-gray-600 hover:bg-white/40 dark:text-gray-300 dark:hover:bg-white/10": !isActive(),
                 }}
                 onClick={() => setCategoryFilter(cat.key)}
               >
@@ -75,14 +103,14 @@ export default function Sidebar() {
       {/* Tags section */}
       <Show when={allTags().length > 0}>
         <div>
-          <div class="text-xs text-gray-400 font-medium px-2 mb-2">
+          <div class="text-xs text-gray-400 font-medium px-2 mb-2 dark:text-gray-500">
             {t("sidebar.tags")}
           </div>
           <ul class="space-y-1">
             <For each={allTags()}>
               {([tag, count]) => (
                 <li
-                  class="flex justify-between items-center px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors hover:bg-white/40 text-gray-600"
+                  class="flex justify-between items-center px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors hover:bg-white/40 text-gray-600 dark:text-gray-300 dark:hover:bg-white/10"
                   onClick={() => setCategoryFilter(tag)}
                 >
                   <span>{tag}</span>
@@ -99,15 +127,12 @@ export default function Sidebar() {
 
       {/* Storage usage */}
       <div class="mt-auto px-2 pb-2">
-        <div class="text-[10px] text-gray-400 mb-1 font-medium">
-          {t("sidebar.storage")}
+        <div class="text-[10px] text-gray-400 mb-1 font-medium dark:text-gray-500">
+          剪贴板数据
         </div>
-        <div class="flex items-end gap-1 mb-1.5">
-          <span class="text-xs font-bold text-gray-600">12.4 GB</span>
-          <span class="text-[9px] text-gray-400">/ 50 GB</span>
-        </div>
-        <div class="w-full h-1.5 bg-gray-200/50 rounded-full overflow-hidden">
-          <div class="h-full bg-blue-500 rounded-full" style={{ width: "25%" }} />
+        <div class="flex items-baseline gap-1 mb-1">
+          <span class="text-xs font-bold text-gray-600 dark:text-gray-300">{formatSize(storageSize())}</span>
+          <span class="text-[9px] text-gray-400">{itemCount()} 条记录</span>
         </div>
       </div>
     </div>
