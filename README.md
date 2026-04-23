@@ -18,152 +18,124 @@
 
 ---
 
-**English** | [中文](#中文说明)
+**中文** | [English](docs/README.en.md)
 
-## Screenshots
+## 截图
 
 <p align="center">
-  <img src="docs/images/screenshot.png" alt="ABoard Full Screenshot" width="800">
+  <img src="docs/images/screenshot.png" alt="ABoard 完整截图" width="800">
 </p>
 
 <p align="center">
-  <img src="docs/images/main-ui.png" alt="ABoard Main UI" width="600">
+  <img src="docs/images/main-ui.png" alt="ABoard 主界面" width="600">
 </p>
 
-## Features
+## 核心特性
 
-- **Auto Capture** — Monitors clipboard in real-time, stores everything with deduplication
-- **Local AI** — Built-in Qwen2.5-0.5B via Candle GGUF, runs fully offline
-- **Smart Classify** — Auto-detects content type: code, link, JSON, XML, image, text
-- **AI Actions** — Translate, summarize, rewrite, format with one click
-- **Semantic Search** — Natural language search powered by AI keyword expansion + FTS5
-- **Privacy First** — All processing happens locally by default, no network required
-- **Quick Paste** — `Cmd+Shift+V` floating popup, `Cmd+Shift+J` cycle through history
-- **Dark Mode** — System-aware theme with glassmorphism design
-- **Cross-Platform** — macOS, Windows, Linux via Tauri v2
+- **自动捕获** — 实时监控剪贴板，SHA256 去重存储
+- **本地 AI** — 内置 Qwen2.5-0.5B 模型（Candle GGUF），完全离线运行
+- **智能分类** — 自动识别代码、链接、JSON、XML、图片、文本
+- **AI 工具箱** — 一键翻译、摘要、改写、格式化
+- **语义搜索** — AI 关键词扩展 + FTS5 全文检索
+- **隐私优先** — 默认本地处理，无需联网
+- **快速粘贴** — `Cmd+Shift+V` 浮窗弹窗，`Cmd+Shift+J` 历史循环粘贴
+- **深色模式** — 跟随系统主题，毛玻璃设计
+- **跨平台** — macOS、Windows、Linux
 
-## Download
+## 下载安装
 
-> ABoard is in early development (v0.1.0). Pre-built binaries will be available with the first stable release.
+> ABoard 目前处于早期开发阶段（v0.1.0），可从 [Releases](https://github.com/clear2x/ABoard/releases) 页面下载最新构建版本。
 
-## Quick Start (Development)
+## 快速开始（开发）
 
-### Prerequisites
+### 环境要求
 
 - [Node.js](https://nodejs.org/) >= 18
 - [Rust](https://www.rust-lang.org/tools/install) >= 1.77
-- Platform dependencies per [Tauri v2 guide](https://v2.tauri.app/start/prerequisites/)
+- 平台依赖参考 [Tauri v2 前置条件](https://v2.tauri.app/start/prerequisites/)
 
-### Build & Run
+### 构建与运行
 
 ```bash
-# Clone the repo
+# 克隆仓库
 git clone https://github.com/clear2x/ABoard.git
 cd ABoard
 
-# Install dependencies
+# 安装依赖
 npm install
 
-# Start dev server
+# 启动开发服务器
 npm run tauri dev
 ```
 
-### Build for Production
+### 生产构建
 
 ```bash
 npm run tauri build
 ```
 
-Output: `src-tauri/target/release/bundle/`
+构建产物位于 `src-tauri/target/release/bundle/`
 
-## Keyboard Shortcuts
+## 快捷键
 
-| Shortcut | Action |
-|----------|--------|
-| `Cmd/Ctrl + Shift + V` | Toggle floating quick-paste popup |
-| `Cmd/Ctrl + Shift + J` | Cycle through clipboard history & paste |
-| `Delete` | Delete selected item |
-| `Cmd/Ctrl + P` | Pin/unpin selected item |
-| `Escape` | Exit batch selection mode |
+| 快捷键 | 功能 |
+|--------|------|
+| `Cmd/Ctrl + Shift + V` | 打开/关闭快速粘贴浮窗 |
+| `Cmd/Ctrl + Shift + J` | 循环切换剪贴板历史并粘贴 |
+| `Delete` | 删除选中条目 |
+| `Cmd/Ctrl + P` | 固定/取消固定选中条目 |
+| `Escape` | 退出批量选择模式 |
 
-## AI Configuration
+## AI 配置
 
-ABoard supports multiple AI providers:
+ABoard 支持多种 AI 提供商：
 
-| Provider | Type | Setup |
-|----------|------|-------|
-| **Embedded** (Candle) | Built-in | No setup needed, downloads Qwen2.5-0.5B GGUF |
-| **Ollama** | Local | Install [Ollama](https://ollama.ai), pull a model |
-| **llama.cpp** | Local | Run llama.cpp server locally |
-| **OpenAI** | Cloud | API key required |
-| **Anthropic** | Cloud | API key required |
+| 提供商 | 类型 | 配置方式 |
+|--------|------|----------|
+| **Embedded**（Candle） | 内置 | 无需配置，自动下载 Qwen2.5-0.5B GGUF |
+| **Ollama** | 本地 | 安装 [Ollama](https://ollama.ai)，拉取模型 |
+| **llama.cpp** | 本地 | 本地启动 llama.cpp 服务 |
+| **OpenAI** | 云端 | 需要 API Key |
+| **Anthropic** | 云端 | 需要 API Key |
 
-Configure in **Settings > AI**. Default is `Auto` mode — uses local provider if available, falls back to embedded.
+在 **设置 > AI** 中配置。默认为 `Auto` 模式 — 优先使用本地提供商，不可用时回退到内置模型。
 
-## Tech Stack
+## 技术栈
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | [Tauri v2](https://v2.tauri.app/) (Rust + WebView) |
-| Frontend | [SolidJS](https://www.solidjs.com/) + [Tailwind CSS v4](https://tailwindcss.com/) |
-| Database | [SQLite](https://www.sqlite.org/) via [rusqlite](https://github.com/rusqlite/rusqlite) |
-| Search | [FTS5](https://www.sqlite.org/fts5.html) full-text search |
-| AI (Embedded) | [Candle](https://github.com/huggingface/candle) GGUF inference |
-| AI (Local) | [Ollama](https://ollama.ai) / [llama.cpp](https://github.com/ggerganov/llama.cpp) |
-| Icons | [Phosphor Icons](https://phosphoricons.com/) |
+| 层级 | 技术 |
+|------|------|
+| 框架 | [Tauri v2](https://v2.tauri.app/)（Rust + WebView） |
+| 前端 | [SolidJS](https://www.solidjs.com/) + [Tailwind CSS v4](https://tailwindcss.com/) |
+| 数据库 | [SQLite](https://www.sqlite.org/) via [rusqlite](https://github.com/rusqlite/rusqlite) |
+| 搜索 | [FTS5](https://www.sqlite.org/fts5.html) 全文检索 |
+| AI（内置） | [Candle](https://github.com/huggingface/candle) GGUF 推理 |
+| AI（本地） | [Ollama](https://ollama.ai) / [llama.cpp](https://github.com/ggerganov/llama.cpp) |
+| 图标 | [Phosphor Icons](https://phosphoricons.com/) |
 
-## Project Structure
+## 项目结构
 
 ```
 ABoard/
-├── src/                      # SolidJS frontend
-│   ├── components/           # UI components
-│   ├── stores/               # Reactive state (SolidJS signals)
-│   └── styles/               # CSS & design tokens
-├── src-tauri/                # Rust backend
+├── src/                      # SolidJS 前端
+│   ├── components/           # UI 组件
+│   ├── stores/               # 响应式状态（SolidJS signals）
+│   └── styles/               # CSS 与设计令牌
+├── src-tauri/                # Rust 后端
 │   ├── src/
-│   │   ├── ai/               # AI providers (cloud, local, embedded)
-│   │   ├── clipboard.rs      # Clipboard monitor
-│   │   ├── db.rs             # SQLite storage & FTS5
-│   │   ├── tray.rs           # System tray & macOS menu
-│   │   └── lib.rs            # App entry & command registration
-│   ├── icons/                # App icons (all platforms)
-│   └── tauri.conf.json       # Tauri configuration
-└── tests/                    # Test scripts
+│   │   ├── ai/               # AI 提供商（云端、本地、内置）
+│   │   ├── clipboard.rs      # 剪贴板监控
+│   │   ├── db.rs             # SQLite 存储与 FTS5
+│   │   ├── tray.rs           # 系统托盘与 macOS 菜单
+│   │   └── lib.rs            # 应用入口与命令注册
+│   ├── icons/                # 应用图标（全平台）
+│   └── tauri.conf.json       # Tauri 配置
+└── tests/                    # 测试脚本
 ```
 
-## Contributing
-
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
-
----
-
-<a id="中文说明"></a>
-
-## 中文说明
-
-ABoard 是一款跨平台智能剪贴板桌面应用，由 Tauri v2（Rust + Web UI）驱动。常驻系统托盘，自动捕获剪贴板内容并提供持久化历史管理，内置本地 AI 模型实现智能分类、文本处理、格式化和语义搜索。
-
-### 核心特性
-
-- **自动捕获** — 实时监控剪贴板，SHA256 去重存储
-- **本地 AI** — 内置 Qwen2.5-0.5B 模型，完全离线运行
-- **智能分类** — 自动识别代码、链接、JSON、XML、图片、文本
-- **AI 工具箱** — 一键翻译、摘要、改写、格式化
-- **语义搜索** — AI 关键词扩展 + FTS5 全文检索
-- **隐私优先** — 默认本地处理，无需联网
-- **快速粘贴** — `Cmd+Shift+V` 浮窗，`Cmd+Shift+J` 历史循环粘贴
-- **深色模式** — 跟随系统主题，毛玻璃设计
-- **跨平台** — macOS、Windows、Linux
-
-### 参与贡献
+## 参与贡献
 
 欢迎提交 PR 和 Issue！详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-### 开源协议
+## 开源协议
 
 本项目基于 [MIT 协议](LICENSE) 开源。
