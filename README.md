@@ -20,6 +20,16 @@
 
 **English** | [中文](#中文说明)
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/images/screenshot.png" alt="ABoard Full Screenshot" width="800">
+</p>
+
+<p align="center">
+  <img src="docs/images/main-ui.png" alt="ABoard Main UI" width="600">
+</p>
+
 ## Features
 
 - **Auto Capture** — Monitors clipboard in real-time, stores everything with deduplication
