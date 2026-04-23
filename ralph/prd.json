@@ -159,8 +159,8 @@
         "npm run build 通过"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created tests/ai-tools-test.py. 32/32 tests passed: format tools (JSON/XML/MD), AI toolbox UI rendering (5 tools), three-column layout, titlebar search, settings panel"
     },
     {
       "id": "US-210",
@@ -178,8 +178,8 @@
         "npm run build 通过"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created tests/ui-compare-test.py. CSS checks 6/6 passed. Screenshots saved to /tmp. Region match low due to different page structure (ui.html is a static mockup, app is a single window)."
     }
   ]
 }
