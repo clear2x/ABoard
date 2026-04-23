@@ -2,40 +2,14 @@ name: Build & Release
 
 on:
   push:
-    branches: [main]
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
 
 jobs:
-  # Job 1: Generate a unique tag for this build
-  create-tag:
-    runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ steps.gen.outputs.tag }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Generate tag
-        id: gen
-        run: |
-          TODAY=$(date +%y.%m.%d)
-          # Find today's tags and get the latest batch number
-          LATEST=$(git tag -l "v${TODAY}.*" | sort -V | tail -1)
-          if [ -z "$LATEST" ]; then
-            BATCH=1
-          else
-            LAST=$(echo "$LATEST" | sed "s/v${TODAY}.//")
-            BATCH=$((10#$LAST + 1))
-          fi
-          TAG="v${TODAY}.$(printf '%02d' $BATCH)"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "::notice::Release tag: $TAG"
-
-  # Job 2: Build for all platforms using the tag from Job 1
   build:
-    needs: create-tag
     strategy:
       fail-fast: false
       matrix:
@@ -77,8 +51,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ needs.create-tag.outputs.tag }}
-          releaseName: "ABoard ${{ needs.create-tag.outputs.tag }}"
+          tagName: ${{ github.ref_name }}
+          releaseName: "ABoard ${{ github.ref_name }}"
           releaseBody: "See the assets to download and install this version."
           releaseDraft: false
           prerelease: false
