@@ -1,0 +1,82 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  # Job 1: Generate a unique tag for this build
+  create-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.gen.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generate tag
+        id: gen
+        run: |
+          TODAY=$(date +%y.%m.%d)
+          # Find today's tags and get the latest batch number
+          LATEST=$(git tag -l "v${TODAY}.*" | sort -V | tail -1)
+          if [ -z "$LATEST" ]; then
+            BATCH=1
+          else
+            LAST=$(echo "$LATEST" | sed "s/v${TODAY}.//")
+            BATCH=$((10#$LAST + 1))
+          fi
+          TAG="v${TODAY}.$(printf '%02d' $BATCH)"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "::notice::Release tag: $TAG"
+
+  # Job 2: Build for all platforms using the tag from Job 1
+  build:
+    needs: create-tag
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+          - platform: windows-latest
+            args: ""
+          - platform: ubuntu-22.04
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ needs.create-tag.outputs.tag }}
+          releaseName: "ABoard ${{ needs.create-tag.outputs.tag }}"
+          releaseBody: "See the assets to download and install this version."
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
