@@ -88,17 +88,16 @@ Output: `src-tauri/target/release/bundle/`
 
 ## AI Configuration
 
-ABoard supports multiple AI providers:
+ABoard has a built-in AI engine that works out of the box, with local and cloud extensions.
 
 | Provider | Type | Setup |
 |----------|------|-------|
-| **Embedded** (Candle) | Built-in | No setup needed, downloads Qwen2.5-0.5B GGUF |
-| **Ollama** | Local | Install [Ollama](https://ollama.ai), pull a model |
-| **llama.cpp** | Local | Run llama.cpp server locally |
-| **OpenAI** | Cloud | API key required |
-| **Anthropic** | Cloud | API key required |
+| **Built-in** (Candle) | Built-in | No setup needed, auto-downloads Qwen2.5-0.5B GGUF model (~400MB) on first use |
+| **Ollama** | Local | Install [Ollama](https://ollama.com), pull a model, click "Detect Local Services" in settings |
+| **OpenAI** | Cloud | Enter API Key and Endpoint |
+| **Anthropic** | Cloud | Enter API Key |
 
-Configure in **Settings > AI**. Default is `Auto` mode — uses local provider if available, falls back to embedded.
+Configure in **Settings > AI**. Default uses the built-in engine (Candle), runs fully offline, no network required.
 
 ## Tech Stack
 

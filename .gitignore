@@ -22,6 +22,7 @@ Thumbs.db
 ui.html
 ui.png
 app-icon.svg
+.claude/
 
 # Dev tools
 ralph/

@@ -15,6 +15,35 @@ struct CycleState {
     last_cycle: Option<Instant>,
 }
 
+/// Copy image from base64 data URL to system clipboard as a real image.
+#[tauri::command]
+fn copy_image_to_clipboard(data_url: String, app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+
+    // Strip "data:image/...;base64," prefix
+    let b64 = data_url
+        .find(",base64,")
+        .map(|i| &data_url[i + 8..])
+        .ok_or("Invalid data URL format")?;
+
+    let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
+        .map_err(|e| format!("Base64 decode error: {}", e))?;
+
+    let img = image::load_from_memory(&bytes)
+        .map_err(|e| format!("Image decode error: {}", e))?;
+
+    let rgba = img.to_rgba8();
+    let (w, h) = rgba.dimensions();
+
+    let tauri_img = tauri::image::Image::new_owned(rgba.into_raw(), w, h);
+
+    app.clipboard()
+        .write_image(&tauri_img)
+        .map_err(|e| format!("Clipboard write error: {}", e))?;
+
+    Ok(())
+}
+
 #[tauri::command]
 fn paste_to_active(content: String, app: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -222,6 +251,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             paste_to_active,
+            copy_image_to_clipboard,
             clipboard::toggle_monitoring,
             db::get_history,
             db::search_history,

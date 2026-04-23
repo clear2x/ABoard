@@ -85,7 +85,7 @@ export default function TitleBar(props: Props) {
           type="text"
           value={searchQuery()}
           onInput={handleSearchInput}
-          placeholder={semanticMode() ? t("search.semantic") : "搜索剪贴板 (语义搜索 / 正则 / 标签)"}
+          placeholder={semanticMode() ? t("search.semantic") : t("search.placeholderFull")}
           class="bg-transparent border-none outline-none text-sm ml-2 w-full placeholder-gray-400 text-gray-700 dark:text-gray-200"
         />
         <div class="flex items-center gap-1 shrink-0">

@@ -29,6 +29,10 @@ const [viewModeInternal, setViewModeInternal] = createSignal<ViewMode>(
 );
 const [copiedId, setCopiedId] = createSignal<string | null>(null);
 
+// Storage stats signals
+const [storageSize, setStorageSize] = createSignal<number>(0);
+const [itemCount, setItemCount] = createSignal<number>(0);
+
 // Category and time filters for the new UI
 const [categoryFilter, setCategoryFilter] = createSignal<string>("all");
 const [timeFilter, setTimeFilter] = createSignal<string>("all");
@@ -48,6 +52,8 @@ export {
   setCategoryFilter,
   timeFilter,
   setTimeFilter,
+  storageSize,
+  itemCount,
 };
 
 export function viewMode() { return viewModeInternal(); }
@@ -58,14 +64,33 @@ export function setViewMode(mode: ViewMode) {
 }
 
 /// Copy item content to system clipboard. Shows brief "copied" feedback.
+/// For images, uses Tauri command to write as a real image (not base64 text).
 export async function copyItemContent(item: ClipboardItem): Promise<boolean> {
   try {
-    await navigator.clipboard.writeText(item.content);
+    if (item.type === "image" && item.content.startsWith("data:")) {
+      // Use Tauri backend to write image to clipboard properly
+      await invoke("copy_image_to_clipboard", { dataUrl: item.content });
+    } else {
+      await navigator.clipboard.writeText(item.content);
+    }
     setCopiedId(item.id);
     setTimeout(() => setCopiedId(null), 1500);
     return true;
   } catch (e) {
     console.error("[store] Copy failed:", e);
+    // Fallback: try browser API for images
+    if (item.type === "image" && item.content.startsWith("data:")) {
+      try {
+        const res = await fetch(item.content);
+        const blob = await res.blob();
+        await navigator.clipboard.write([
+          new ClipboardItem({ [blob.type]: blob }),
+        ]);
+        setCopiedId(item.id);
+        setTimeout(() => setCopiedId(null), 1500);
+        return true;
+      } catch {}
+    }
     return false;
   }
 }
@@ -175,11 +200,22 @@ export async function semanticSearchHistory(query: string) {
   }
 }
 
+/// Load storage stats from backend (DB size and item count).
+export async function loadStorageStats() {
+  try {
+    const stats = await invoke<{ db_size_bytes: number; item_count: number }>("get_storage_stats");
+    setStorageSize(stats.db_size_bytes);
+    setItemCount(stats.item_count);
+  } catch (e) {
+    console.error("[store] Failed to load storage stats:", e);
+  }
+}
+
 /// Delete one or more clipboard items by ID, then refresh the list.
 export async function deleteItems(ids: string[]) {
   try {
     await invoke("delete_items", { ids });
-    await loadHistory();
+    await Promise.all([loadHistory(), loadStorageStats()]);
   } catch (e) {
     console.error("[store] Delete failed:", e);
   }
@@ -189,7 +225,7 @@ export async function deleteItems(ids: string[]) {
 export async function pinItem(id: string) {
   try {
     await invoke("pin_item", { id });
-    await loadHistory();
+    await Promise.all([loadHistory(), loadStorageStats()]);
   } catch (e) {
     console.error("[store] Pin failed:", e);
   }
@@ -199,7 +235,7 @@ export async function pinItem(id: string) {
 export async function unpinItem(id: string) {
   try {
     await invoke("unpin_item", { id });
-    await loadHistory();
+    await Promise.all([loadHistory(), loadStorageStats()]);
   } catch (e) {
     console.error("[store] Unpin failed:", e);
   }
@@ -219,8 +255,9 @@ let unlistenAiFn: (() => void) | null = null;
 /// Start listening to Tauri clipboard events.
 export async function startClipboardListener() {
   if (unlistenFn) return;
-  unlistenFn = await listen<ClipboardItem>("clipboard-update", (event) => {
-    addItem(event.payload);
+  unlistenFn = await listen<Record<string, unknown>>("clipboard-update", (event) => {
+    addItem(normalizeItem(event.payload));
+    loadStorageStats(); // Refresh stats after new clipboard capture
   });
 
   unlistenAiFn = await listen<{ item_id: string; ai_type: string; ai_tags: string[]; ai_summary?: string | null }>("ai-processed", (event) => {

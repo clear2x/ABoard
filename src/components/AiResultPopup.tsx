@@ -129,7 +129,7 @@ export default function AiResultPopup() {
           <div class="p-5 space-y-3 overflow-y-auto">
             {/* Original content */}
             <div class="p-3 rounded-lg text-xs max-h-[80px] overflow-y-auto bg-white/30 border border-white/50 text-gray-500">
-              <div class="text-[10px] font-medium text-gray-400 mb-1 uppercase">Original</div>
+              <div class="text-[10px] font-medium text-gray-400 mb-1 uppercase">{t("ai.resultOriginal")}</div>
               {result()?.originalContent}
             </div>
 
@@ -149,7 +149,7 @@ export default function AiResultPopup() {
               <div class="flex items-center gap-3 text-[10px] text-gray-400">
                 <span class="flex items-center gap-1">
                   <i class="ph ph-clock" />
-                  生成耗时 {(result()?.durationMs! / 1000).toFixed(1)}s
+                  {t("ai.generationTime")} {(result()?.durationMs! / 1000).toFixed(1)}s
                 </span>
                 <span class="flex items-center gap-1">
                   <i class="ph ph-hash" />

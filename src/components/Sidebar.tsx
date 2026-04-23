@@ -1,7 +1,6 @@
-import { For, Show, createMemo, createSignal, onMount } from "solid-js";
-import { items, categoryFilter, setCategoryFilter } from "../stores/clipboard";
+import { For, Show, createMemo, onMount } from "solid-js";
+import { items, categoryFilter, setCategoryFilter, storageSize, itemCount, loadStorageStats } from "../stores/clipboard";
 import { t } from "../stores/i18n";
-import { invoke } from "@tauri-apps/api/core";
 
 const CATEGORIES = [
   { key: "all", icon: "ph-squares-four", labelKey: "sidebar.all" },
@@ -12,9 +11,6 @@ const CATEGORIES = [
 ] as const;
 
 export default function Sidebar() {
-  const [storageSize, setStorageSize] = createSignal<number>(0);
-  const [itemCount, setItemCount] = createSignal<number>(0);
-
   const formatSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -22,12 +18,8 @@ export default function Sidebar() {
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   };
 
-  onMount(async () => {
-    try {
-      const stats = await invoke<{ db_size_bytes: number; item_count: number }>("get_storage_stats");
-      setStorageSize(stats.db_size_bytes);
-      setItemCount(stats.item_count);
-    } catch {}
+  onMount(() => {
+    loadStorageStats();
   });
 
   const categoryCounts = createMemo(() => {
@@ -128,11 +120,11 @@ export default function Sidebar() {
       {/* Storage usage */}
       <div class="mt-auto px-2 pb-2">
         <div class="text-[10px] text-gray-400 mb-1 font-medium dark:text-gray-500">
-          剪贴板数据
+          {t("sidebar.clipboardData")}
         </div>
         <div class="flex items-baseline gap-1 mb-1">
           <span class="text-xs font-bold text-gray-600 dark:text-gray-300">{formatSize(storageSize())}</span>
-          <span class="text-[9px] text-gray-400">{itemCount()} 条记录</span>
+          <span class="text-[9px] text-gray-400">{t("sidebar.records", { n: itemCount() })}</span>
         </div>
       </div>
     </div>

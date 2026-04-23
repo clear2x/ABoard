@@ -106,7 +106,7 @@ export default function AiToolbox() {
       } else {
         setResultPopup({
           originalContent: content,
-          resultText: "无法识别内容格式。支持 JSON、XML、HTML 和 Markdown 格式化。",
+          resultText: t("toolbox.unrecognizedFormat"),
           actionType: "error",
           itemId: item.id,
         });

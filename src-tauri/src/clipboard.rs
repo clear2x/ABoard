@@ -279,13 +279,15 @@ fn read_image_file(path: &str) -> Option<ClipboardItem> {
     encode_and_build_item(&rgba, w, h)
 }
 
-/// macOS fallback: read image from clipboard file URL via osascript.
-/// QQ, WeChat, etc. put images as file URLs that Tauri's clipboard plugin can't read.
+/// macOS fallback: read image from clipboard via multiple methods.
+/// 1. Try file URL («class furl») — works for Finder-copied images
+/// 2. Try PNG data («class PNG») — common for QQ, WeChat screenshots
+/// 3. Try TIFF data («class TIFF») — fallback for other apps
 #[cfg(target_os = "macos")]
 fn try_read_image_fallback() -> Option<ClipboardItem> {
     use std::process::Command;
 
-    // Get file URL from clipboard
+    // Method 1: Try file URL from clipboard
     let output = Command::new("osascript")
         .arg("-e")
         .arg("try\nset theClip to the clipboard as «class furl»\nreturn POSIX path of theClip\non error\nreturn \"\"\nend try")
@@ -293,11 +295,62 @@ fn try_read_image_fallback() -> Option<ClipboardItem> {
         .ok()?;
 
     let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if path.is_empty() || !path.starts_with('/') {
-        return None;
+    if !path.is_empty() && path.starts_with('/') {
+        if let Some(item) = read_image_file(&path) {
+            return Some(item);
+        }
     }
 
-    read_image_file(&path)
+    // Method 2: Try reading raw PNG/TIFF data from clipboard and write to temp file
+    let tmp_path = std::env::temp_dir().join("aboard_clip_img.png");
+    let tmp_str = tmp_path.to_str()?;
+
+    // AppleScript: extract PNG data, write to temp file
+    let script_png = format!(
+        "try\nset pngData to the clipboard as «class PNG»\nset theFile to open for access POSIX file \"{}\" with write permission\nset eof of theFile to 0\nwrite pngData to theFile\nclose access theFile\nreturn \"PNG\"\non error\nreturn \"\"\nend try",
+        tmp_str
+    );
+
+    let output_png = Command::new("osascript")
+        .arg("-e")
+        .arg(&script_png)
+        .output()
+        .ok()?;
+
+    let result_png = String::from_utf8_lossy(&output_png.stdout).trim().to_string();
+    if result_png == "PNG" && tmp_path.exists() {
+        if let Some(item) = read_image_file(tmp_str) {
+            let _ = std::fs::remove_file(&tmp_path);
+            return Some(item);
+        }
+        let _ = std::fs::remove_file(&tmp_path);
+    }
+
+    // Method 3: Try TIFF data
+    let tmp_tiff = std::env::temp_dir().join("aboard_clip_img.tiff");
+    let tmp_tiff_str = tmp_tiff.to_str()?;
+
+    let script_tiff = format!(
+        "try\nset tiffData to the clipboard as «class TIFF»\nset theFile to open for access POSIX file \"{}\" with write permission\nset eof of theFile to 0\nwrite tiffData to theFile\nclose access theFile\nreturn \"TIFF\"\non error\nreturn \"\"\nend try",
+        tmp_tiff_str
+    );
+
+    let output_tiff = Command::new("osascript")
+        .arg("-e")
+        .arg(&script_tiff)
+        .output()
+        .ok()?;
+
+    let result_tiff = String::from_utf8_lossy(&output_tiff.stdout).trim().to_string();
+    if result_tiff == "TIFF" && tmp_tiff.exists() {
+        if let Some(item) = read_image_file(tmp_tiff_str) {
+            let _ = std::fs::remove_file(&tmp_tiff);
+            return Some(item);
+        }
+        let _ = std::fs::remove_file(&tmp_tiff);
+    }
+
+    None
 }
 
 /// Windows fallback: read image via PowerShell System.Windows.Forms.

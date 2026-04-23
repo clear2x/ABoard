@@ -29,14 +29,6 @@ interface Props {
   onClose: () => void;
 }
 
-const REWRITE_STYLE_LABELS: Record<string, string> = {
-  formal: "\u6b63\u5f0f",
-  casual: "\u968f\u610f",
-  concise: "\u7b80\u6d01",
-  detailed: "\u8be6\u7ec6",
-  academic: "\u5b66\u672f",
-};
-
 export default function ContextMenu(props: Props) {
   const [showRewriteMenu, setShowRewriteMenu] = createSignal(false);
   const [showConvertMenu, setShowConvertMenu] = createSignal(false);
@@ -72,7 +64,7 @@ export default function ContextMenu(props: Props) {
     if (result.valid) {
       setResultPopup({
         originalContent: props.content,
-        resultText: "JSON \u683c\u5f0f\u6b63\u786e \u2713",
+        resultText: t("ctx.jsonValid"),
         actionType: "format",
         itemId: props.itemId,
         isValid: true,
@@ -80,7 +72,7 @@ export default function ContextMenu(props: Props) {
     } else {
       setResultPopup({
         originalContent: props.content,
-        resultText: `JSON \u683c\u5f0f\u9519\u8bef:\n${result.error}${result.line ? `\n\u7b2c ${result.line} \u884c` : ""}`,
+        resultText: t("ctx.jsonInvalid", { error: `${result.error}${result.line ? `\n${t("json.line", { n: result.line })}` : ""}` }),
         actionType: "format",
         itemId: props.itemId,
         isValid: false,
@@ -106,7 +98,7 @@ export default function ContextMenu(props: Props) {
     if (result.valid) {
       setResultPopup({
         originalContent: props.content,
-        resultText: "XML \u683c\u5f0f\u6b63\u786e \u2713",
+        resultText: t("ctx.xmlValid"),
         actionType: "format",
         itemId: props.itemId,
         isValid: true,
@@ -114,7 +106,7 @@ export default function ContextMenu(props: Props) {
     } else {
       setResultPopup({
         originalContent: props.content,
-        resultText: `XML \u683c\u5f0f\u9519\u8bef:\n${result.error}${result.line ? `\n\u7b2c ${result.line} \u884c` : ""}`,
+        resultText: t("ctx.xmlInvalid", { error: `${result.error}${result.line ? `\n${t("json.line", { n: result.line })}` : ""}` }),
         actionType: "format",
         itemId: props.itemId,
         isValid: false,
@@ -305,13 +297,13 @@ export default function ContextMenu(props: Props) {
                   class={menuItemClass()}
                   onClick={() => handleConvertFormat("markdown", "html")}
                 >
-                  Markdown \u2192 HTML
+                  Markdown → HTML
                 </button>
                 <button
                   class={menuItemClass()}
                   onClick={() => handleConvertFormat("markdown", "plaintext")}
                 >
-                  Markdown \u2192 \u7eaf\u6587\u672c
+                  {t("ctx.markdownToPlaintext")}
                 </button>
               </Show>
               <Show when={contentFormat().isHtml}>
@@ -319,13 +311,13 @@ export default function ContextMenu(props: Props) {
                   class={menuItemClass()}
                   onClick={() => handleConvertFormat("html", "markdown")}
                 >
-                  HTML \u2192 Markdown
+                  HTML → Markdown
                 </button>
                 <button
                   class={menuItemClass()}
                   onClick={() => handleConvertFormat("html", "plaintext")}
                 >
-                  HTML \u2192 \u7eaf\u6587\u672c
+                  {t("ctx.htmlToPlaintext")}
                 </button>
               </Show>
             </div>

@@ -225,6 +225,38 @@ const t_map: Translations = {
   "float.recent": { zh: "最近复制", en: "Recently Copied" },
   "float.clear": { zh: "清空", en: "Clear" },
   "float.openMainWindow": { zh: "打开主窗口", en: "Open Main Window" },
+
+  // Missing translations - Sidebar
+  "sidebar.clipboardData": { zh: "剪贴板数据", en: "Clipboard Data" },
+  "sidebar.records": { zh: "{n} 条记录", en: "{n} records" },
+
+  // ContextMenu - format conversion
+  "ctx.jsonValid": { zh: "JSON 格式正确 ✓", en: "JSON is valid ✓" },
+  "ctx.jsonInvalid": { zh: "JSON 格式错误:\n{error}", en: "JSON format error:\n{error}" },
+  "ctx.xmlValid": { zh: "XML 格式正确 ✓", en: "XML is valid ✓" },
+  "ctx.xmlInvalid": { zh: "XML 格式错误:\n{error}", en: "XML format error:\n{error}" },
+  "ctx.markdownToPlaintext": { zh: "Markdown → 纯文本", en: "Markdown → Plain Text" },
+  "ctx.htmlToPlaintext": { zh: "HTML → 纯文本", en: "HTML → Plain Text" },
+
+  // AiResultPopup
+  "ai.resultOriginal": { zh: "原文", en: "Original" },
+  "ai.generationTime": { zh: "生成耗时", en: "Generation time" },
+
+  // AiToolbox
+  "toolbox.unrecognizedFormat": { zh: "无法识别内容格式。支持 JSON、XML、HTML 和 Markdown 格式化。", en: "Unrecognized content format. Supports JSON, XML, HTML, and Markdown formatting." },
+
+  // Settings Panel - embedded model
+  "settings.builtInEngine": { zh: "内置引擎 (Candle)", en: "Built-in Engine (Candle)" },
+  "settings.modelLoadFailed": { zh: "模型加载失败: {error}", en: "Model load failed: {error}" },
+  "settings.loading": { zh: "加载中...", en: "Loading..." },
+  "settings.downloadingModel": { zh: "下载模型中 (首次约400MB)...", en: "Downloading model (first time ~400MB)..." },
+  "settings.modelLoaded": { zh: "✓ 模型已加载", en: "✓ Model loaded" },
+  "settings.loadModel": { zh: "加载内置模型", en: "Load built-in model" },
+  "settings.modelInfo": { zh: "Candle · Qwen2.5-0.5B · Q4_K_M", en: "Candle · Qwen2.5-0.5B · Q4_K_M" },
+  "settings.defaultModel": { zh: "Qwen2.5-0.5B-Instruct (内置)", en: "Qwen2.5-0.5B-Instruct (Built-in)" },
+
+  // Search
+  "search.placeholderFull": { zh: "搜索剪贴板 (语义搜索 / 正则 / 标签)", en: "Search clipboard (semantic / regex / tags)" },
 };
 
 // --- Translation function ---

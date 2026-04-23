@@ -88,17 +88,16 @@ npm run tauri build
 
 ## AI 配置
 
-ABoard 支持多种 AI 提供商：
+ABoard 内置 AI 引擎，开箱即用，同时支持本地和云端扩展。
 
 | 提供商 | 类型 | 配置方式 |
 |--------|------|----------|
-| **Embedded**（Candle） | 内置 | 无需配置，自动下载 Qwen2.5-0.5B GGUF |
-| **Ollama** | 本地 | 安装 [Ollama](https://ollama.ai)，拉取模型 |
-| **llama.cpp** | 本地 | 本地启动 llama.cpp 服务 |
-| **OpenAI** | 云端 | 需要 API Key |
-| **Anthropic** | 云端 | 需要 API Key |
+| **内置引擎**（Candle） | 内置 | 无需配置，首次使用自动下载 Qwen2.5-0.5B GGUF 模型（约 400MB） |
+| **Ollama** | 本地 | 安装 [Ollama](https://ollama.com)，拉取模型，在设置中点击「检测本地服务」 |
+| **OpenAI** | 云端 | 填写 API Key 和 Endpoint |
+| **Anthropic** | 云端 | 填写 API Key |
 
-在 **设置 > AI** 中配置。默认为 `Auto` 模式 — 优先使用本地提供商，不可用时回退到内置模型。
+在 **设置 > AI** 中配置。默认使用内置引擎（Candle），完全离线运行，无需联网。
 
 ## 技术栈
 

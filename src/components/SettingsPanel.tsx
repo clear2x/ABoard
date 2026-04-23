@@ -53,7 +53,7 @@ export default function SettingsPanel(props: Props) {
   const [localStatus, setLocalStatus] = createSignal<LocalProviderStatus | null>(null);
   const [gpuEnabled, setGpuEnabled] = createSignal(true);
   const [engine, setEngine] = createSignal<"embedded" | "ollama">("embedded");
-  const [selectedModel, setSelectedModel] = createSignal("Qwen2.5-0.5B-Instruct (内置)");
+  const [selectedModel, setSelectedModel] = createSignal(t("settings.defaultModel"));
   const [embeddedStatus, setEmbeddedStatus] = createSignal<"unknown" | "downloading" | "loading" | "ready" | "error">("unknown");
 
   onMount(async () => {
@@ -182,7 +182,7 @@ export default function SettingsPanel(props: Props) {
                     classList={{ "bg-blue-500 text-white": locale() === "zh" }}
                     style={locale() !== "zh" ? { background: "rgba(255,255,255,0.5)", color: "#4b5563", border: "1px solid rgba(255,255,255,0.8)" } : {}}
                     onClick={() => setLocale("zh")}
-                  >中文</button>
+                  >{t("settings.language.zh")}</button>
                   <button class="px-4 py-2 text-sm rounded-lg transition-colors"
                     classList={{ "bg-blue-500 text-white": locale() === "en" }}
                     style={locale() !== "en" ? { background: "rgba(255,255,255,0.5)", color: "#4b5563", border: "1px solid rgba(255,255,255,0.8)" } : {}}
@@ -243,7 +243,7 @@ export default function SettingsPanel(props: Props) {
                     <span class="font-medium text-gray-700">{t("settings.inferenceEngine")}</span>
                     <div class="flex items-center gap-1.5 text-xs text-blue-600 font-medium">
                       <i class="ph ph-cpu" />
-                      内置引擎 (Candle)
+                      {t("settings.builtInEngine")}
                     </div>
                   </div>
 
@@ -271,16 +271,16 @@ export default function SettingsPanel(props: Props) {
                         setEmbeddedStatus("ready");
                       } catch (e2) {
                         setEmbeddedStatus("error");
-                        setMessage(`模型加载失败: ${e2}`);
+                        setMessage(t("settings.modelLoadFailed", { error: String(e2) }));
                       }
                     }
                   }} disabled={embeddedStatus() === "loading" || embeddedStatus() === "downloading"}
                     class="w-full px-3 py-2 text-xs font-medium rounded-lg disabled:opacity-40 border transition-colors bg-blue-50/70 text-blue-700 border-blue-200"
                   >
-                    {embeddedStatus() === "loading" ? "加载中..." :
-                     embeddedStatus() === "downloading" ? "下载模型中 (首次约400MB)..." :
-                     embeddedStatus() === "ready" ? "✓ 模型已加载" :
-                     "加载内置模型"}
+                    {embeddedStatus() === "loading" ? t("settings.loading") :
+                     embeddedStatus() === "downloading" ? t("settings.downloadingModel") :
+                     embeddedStatus() === "ready" ? t("settings.modelLoaded") :
+                     t("settings.loadModel")}
                   </button>
 
                   <Show when={embeddedStatus() === "error" && message()}>
@@ -320,9 +320,9 @@ export default function SettingsPanel(props: Props) {
                             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
                             <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
                           </span>
-                          模型运行中
+                          {t("settings.modelRunning")}
                         </div>
-                        <div class="text-[9px] text-green-600/70 font-mono">Candle · Qwen2.5-0.5B · Q4_K_M</div>
+                        <div class="text-[9px] text-green-600/70 font-mono">{t("settings.modelInfo")}</div>
                       </div>
                     </div>
                   </Show>
@@ -368,26 +368,26 @@ export default function SettingsPanel(props: Props) {
               {/* Privacy & Storage cards — matching ui.html grid layout */}
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <h3 class="text-[11px] font-bold text-gray-500 mb-2 uppercase">隐私与数据</h3>
+                  <h3 class="text-[11px] font-bold text-gray-500 mb-2 uppercase">{t("settings.privacyAndData")}</h3>
                   <div class="glass-card rounded-xl p-3 space-y-3">
                     <div class="flex justify-between items-center">
-                      <div class="text-xs text-gray-700">隐私优先<br /><span class="text-[9px] text-gray-400">(本地模式)</span></div>
+                      <div class="text-xs text-gray-700">{t("settings.privacyFirst")}<br /><span class="text-[9px] text-gray-400">{t("settings.localMode")}</span></div>
                       <div class="w-7 h-4 bg-blue-500 rounded-full relative cursor-pointer">
                         <div class="absolute right-0.5 top-0.5 w-3 h-3 bg-white rounded-full" />
                       </div>
                     </div>
                     <div class="flex justify-between items-center pt-2 border-t border-white/30">
-                      <div class="text-xs text-gray-700">自动清理</div>
-                      <div class="text-xs bg-white/50 px-2 py-0.5 rounded border border-white/80 cursor-pointer flex items-center gap-1">30 天后 <i class="ph ph-caret-down text-[10px]" /></div>
+                      <div class="text-xs text-gray-700">{t("settings.autoCleanup")}</div>
+                      <div class="text-xs bg-white/50 px-2 py-0.5 rounded border border-white/80 cursor-pointer flex items-center gap-1">{t("settings.afterDays", { n: 30 })} <i class="ph ph-caret-down text-[10px]" /></div>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <h3 class="text-[11px] font-bold text-gray-500 mb-2 uppercase">存储状态</h3>
+                  <h3 class="text-[11px] font-bold text-gray-500 mb-2 uppercase">{t("settings.storageStatus")}</h3>
                   <div class="glass-card rounded-xl p-3 h-full flex flex-col justify-between">
                     <div>
-                      <div class="text-[10px] text-gray-500 mb-0.5">已使用</div>
+                      <div class="text-[10px] text-gray-500 mb-0.5">{t("settings.used")}</div>
                       <div class="flex items-baseline gap-1 mb-1.5">
                         <span class="text-sm font-bold text-gray-700">12.4 GB</span><span class="text-[9px] text-gray-400">/ 50 GB</span>
                       </div>
@@ -395,7 +395,7 @@ export default function SettingsPanel(props: Props) {
                         <div class="h-full bg-blue-500 rounded-full" style={{ width: "25%" }} />
                       </div>
                     </div>
-                    <button class="w-full mt-2 bg-white/60 hover:bg-white/80 border border-white/80 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm">清理旧数据</button>
+                    <button class="w-full mt-2 bg-white/60 hover:bg-white/80 border border-white/80 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm">{t("settings.cleanOldData")}</button>
                   </div>
                 </div>
               </div>

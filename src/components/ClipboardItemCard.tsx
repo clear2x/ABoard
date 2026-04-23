@@ -75,7 +75,8 @@ export default function ClipboardItemCard(props: Props) {
   if (props.timeline) {
     return (
       <div
-        class={`glass-card flex-1 p-4 rounded-xl relative cursor-pointer ${props.isSelected ? "ring-2 ring-blue-500/50" : ""}`}
+        class={`glass-card flex-1 p-4 rounded-xl relative cursor-pointer transition-all duration-150
+          ${props.isSelected ? "ring-2 ring-blue-500 bg-blue-50/60 dark:bg-blue-900/20 shadow-sm" : "hover:bg-white/30"}`}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onClick={() => props.onSelect(props.item.id)}
@@ -202,8 +203,8 @@ export default function ClipboardItemCard(props: Props) {
   // Legacy mode (grid / fallback)
   return (
     <div
-      class={`glass-card transition-smooth cursor-pointer hover-lift p-3 relative
-        ${props.isSelected ? "ring-2 ring-blue-500" : ""}
+      class={`glass-card transition-all duration-150 cursor-pointer hover-lift p-3 relative
+        ${props.isSelected ? "ring-2 ring-blue-500 bg-blue-50/60 shadow-sm" : "hover:bg-white/30"}
         ${props.showCheckbox && props.checked ? "bg-blue-500/10 border-blue-500/50" : ""}
       `}
       onMouseEnter={() => setHovered(true)}
