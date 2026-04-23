@@ -91,7 +91,7 @@ const t_map: Translations = {
   "settings.theme.light": { zh: "浅色", en: "Light" },
   "settings.shortcuts": { zh: "快捷键", en: "Shortcuts" },
   "settings.about": { zh: "关于", en: "About" },
-  "settings.aboutVersion": { zh: "ABoard v0.1.0", en: "ABoard v0.1.0" },
+  "settings.aboutVersion": { zh: "ABoard", en: "ABoard" },
   "settings.aboutDesc": { zh: "智能剪贴板管理器，内置 AI", en: "Smart clipboard manager with AI" },
 
   // AI Settings

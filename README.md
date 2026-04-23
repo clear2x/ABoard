@@ -44,7 +44,7 @@
 
 ## 下载安装
 
-> ABoard 目前处于早期开发阶段（v0.1.0），可从 [Releases](https://github.com/clear2x/ABoard/releases) 页面下载最新构建版本。
+> ABoard 目前处于早期开发阶段，可从 [Releases](https://github.com/clear2x/ABoard/releases) 页面下载最新构建版本。
 
 ## 快速开始（开发）
 

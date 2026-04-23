@@ -466,7 +466,7 @@ export default function SettingsPanel(props: Props) {
               <div class="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-500">
                 <i class="ph-fill ph-clipboard-text text-white text-2xl" />
               </div>
-              <h3 class="text-lg font-bold text-gray-700">ABoard v0.1.0</h3>
+              <h3 class="text-lg font-bold text-gray-700">{t("settings.aboutVersion")}</h3>
               <p class="text-sm text-gray-400">{t("settings.aboutDesc")}</p>
               <div class="pt-2">
                 <span class="text-xs px-2 py-1 rounded-full bg-white/50 text-gray-400">

@@ -44,7 +44,7 @@
 
 ## Download
 
-> ABoard is in early development (v0.1.0). Pre-built binaries are available on the [Releases](https://github.com/clear2x/ABoard/releases) page.
+> ABoard is in early development. Pre-built binaries are available on the [Releases](https://github.com/clear2x/ABoard/releases) page.
 
 ## Quick Start (Development)
 
