@@ -21,3 +21,8 @@ Thumbs.db
 
 ui.html
 ui.png
+app-icon.svg
+
+# Dev tools
+ralph/
+.planning/
