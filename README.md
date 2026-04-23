@@ -48,7 +48,7 @@
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-username/ABoard.git
+git clone https://github.com/clear2x/ABoard.git
 cd ABoard
 
 # Install dependencies

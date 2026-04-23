@@ -15,7 +15,7 @@ Thank you for your interest in ABoard! Contributions via Issues and Pull Request
 ### Run / 运行
 
 ```bash
-git clone https://github.com/your-username/ABoard.git
+git clone https://github.com/clear2x/ABoard.git
 cd ABoard
 npm install
 npm run tauri dev
