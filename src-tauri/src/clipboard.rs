@@ -11,6 +11,10 @@ use uuid::Uuid;
 /// Content exceeding this limit is silently skipped to prevent DoS.
 const MAX_CONTENT_SIZE: usize = 10 * 1024 * 1024;
 
+/// Maximum image size (raw RGBA) to process (15 MB).
+/// Limits decoded image data to prevent excessive memory usage.
+const MAX_IMAGE_SIZE: usize = 15 * 1024 * 1024;
+
 /// Polling interval in milliseconds for clipboard change detection.
 const POLL_INTERVAL_MS: u64 = 200;
 
@@ -83,21 +87,31 @@ pub fn start_monitoring<R: Runtime>(app: tauri::AppHandle<R>) {
                 continue;
             }
 
-            // Try to read clipboard text first
+            // Check image FIRST — many apps (QQ, WeChat, etc.) put both text and
+            // image in the clipboard. If we check text first, the image is missed.
+            if let Some(img_item) = try_read_image(&app) {
+                let hash = img_item.hash.clone();
+                if hash != last_hash {
+                    last_hash = hash;
+                    persist_and_emit(&app, img_item);
+                }
+                continue;
+            }
+
+            // No image — fall back to text
             let text_result = app.clipboard().read_text();
+            if let Ok(ref t) = text_result {
+                if !t.trim().is_empty() {
+                    println!("[clipboard] read_text OK: {} chars, preview: {:?}",
+                        t.len(), &t.chars().take(80).collect::<String>());
+                }
+            } else if let Err(ref e) = text_result {
+                println!("[clipboard] read_text ERR: {:?}", e);
+            }
             match text_result {
                 Ok(text) => {
                     let trimmed = text.trim();
                     if trimmed.is_empty() {
-                        // Text is empty, try image
-                        if let Some(img_item) = try_read_image(&app) {
-                            let hash = img_item.hash.clone();
-                            if hash == last_hash {
-                                continue;
-                            }
-                            last_hash = hash;
-                            persist_and_emit(&app, img_item);
-                        }
                         continue;
                     }
 
@@ -137,17 +151,7 @@ pub fn start_monitoring<R: Runtime>(app: tauri::AppHandle<R>) {
 
                     persist_and_emit(&app, item);
                 }
-                Err(_) => {
-                    // Clipboard may contain non-text content (image, etc.)
-                    if let Some(img_item) = try_read_image(&app) {
-                        let hash = img_item.hash.clone();
-                        if hash == last_hash {
-                            continue;
-                        }
-                        last_hash = hash;
-                        persist_and_emit(&app, img_item);
-                    }
-                }
+                Err(_) => {}
             }
         }
     });
@@ -166,54 +170,196 @@ fn detect_content_type(text: &str) -> (String, String) {
 }
 
 /// Try to read an image from the clipboard.
-/// Returns Some(ClipboardItem) with base64-encoded PNG, or None.
+/// First tries Tauri's clipboard plugin, then falls back to macOS native methods.
 fn try_read_image<R: Runtime>(app: &tauri::AppHandle<R>) -> Option<ClipboardItem> {
+    // Method 1: Tauri clipboard plugin (works for most apps)
     let img_result = app.clipboard().read_image();
     match img_result {
         Ok(tauri_img) => {
             let rgba = tauri_img.rgba();
             let w = tauri_img.width();
             let h = tauri_img.height();
+            println!("[clipboard] read_image OK: {}x{} ({} bytes RGBA)", w, h, rgba.len());
 
-            // Size guard: skip images larger than 5MB raw RGBA
-            if rgba.len() > 5 * 1024 * 1024 {
+            // Size guard
+            if rgba.len() > MAX_IMAGE_SIZE {
                 eprintln!("[clipboard] Skipping oversized image ({} bytes)", rgba.len());
                 return None;
             }
 
-            // Encode RGBA to PNG using the image crate
-            let img_buffer = image::RgbaImage::from_raw(w, h, rgba.to_vec())?;
-            let mut png_buf = std::io::Cursor::new(Vec::new());
-            if img_buffer.write_to(&mut png_buf, image::ImageFormat::Png).is_err() {
-                return None;
-            }
-            let png_data = png_buf.into_inner();
-            let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &png_data);
-            let data_url = format!("data:image/png;base64,{}", b64);
-
-            // Compute hash from PNG bytes (not base64) for consistent dedup
-            let hash = compute_hash(&png_data);
-
-            Some(ClipboardItem {
-                id: Uuid::new_v4().to_string(),
-                content_type: "image".to_string(),
-                content: data_url,
-                hash,
-                timestamp: chrono::Utc::now().timestamp_millis(),
-                metadata: serde_json::json!({
-                    "width": w,
-                    "height": h,
-                    "size": png_data.len(),
-                }),
-                pinned: false,
-                pinned_at: None,
-                ai_type: Some("image".to_string()),
-                ai_tags: None,
-                ai_summary: None,
-            })
+            return encode_and_build_item(&rgba, w, h);
         }
-        Err(_) => None,
+        Err(e) => {
+            println!("[clipboard] read_image ERR: {:?}, trying fallback...", e);
+        }
     }
+
+    // Method 2: Platform-specific fallback for apps that Tauri can't read
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(item) = try_read_image_fallback() {
+            return Some(item);
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(item) = try_read_image_fallback() {
+            return Some(item);
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(item) = try_read_image_fallback() {
+            return Some(item);
+        }
+    }
+
+    None
+}
+
+/// Encode raw RGBA data to PNG and build a ClipboardItem.
+fn encode_and_build_item(rgba: &[u8], w: u32, h: u32) -> Option<ClipboardItem> {
+    let img_buffer = image::RgbaImage::from_raw(w, h, rgba.to_vec())?;
+    let mut png_buf = std::io::Cursor::new(Vec::new());
+    img_buffer.write_to(&mut png_buf, image::ImageFormat::Png).ok()?;
+    let png_data = png_buf.into_inner();
+    let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &png_data);
+    let data_url = format!("data:image/png;base64,{}", b64);
+    let hash = compute_hash(&png_data);
+
+    Some(ClipboardItem {
+        id: Uuid::new_v4().to_string(),
+        content_type: "image".to_string(),
+        content: data_url,
+        hash,
+        timestamp: chrono::Utc::now().timestamp_millis(),
+        metadata: serde_json::json!({
+            "width": w,
+            "height": h,
+            "size": png_data.len(),
+        }),
+        pinned: false,
+        pinned_at: None,
+        ai_type: Some("image".to_string()),
+        ai_tags: None,
+        ai_summary: None,
+    })
+}
+
+/// Read an image file from disk and convert to a ClipboardItem.
+fn read_image_file(path: &str) -> Option<ClipboardItem> {
+    let file_path = std::path::Path::new(path);
+    if !file_path.exists() {
+        println!("[clipboard] File does not exist: {}", path);
+        return None;
+    }
+
+    // Check extension
+    let ext = file_path.extension()?.to_str()?.to_lowercase();
+    if !["png", "jpg", "jpeg", "gif", "bmp", "tiff", "tif", "webp", "avif"].contains(&ext.as_str()) {
+        return None;
+    }
+
+    let file_data = std::fs::read(file_path).ok()?;
+    if file_data.len() > MAX_IMAGE_SIZE {
+        eprintln!("[clipboard] Skipping oversized image file ({} bytes)", file_data.len());
+        return None;
+    }
+
+    let img = image::io::Reader::new(std::io::Cursor::new(&file_data))
+        .with_guessed_format()
+        .ok()?
+        .decode()
+        .ok()?;
+
+    let rgba = img.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    println!("[clipboard] Read image from file: {} ({}x{})", path, w, h);
+
+    encode_and_build_item(&rgba, w, h)
+}
+
+/// macOS fallback: read image from clipboard file URL via osascript.
+/// QQ, WeChat, etc. put images as file URLs that Tauri's clipboard plugin can't read.
+#[cfg(target_os = "macos")]
+fn try_read_image_fallback() -> Option<ClipboardItem> {
+    use std::process::Command;
+
+    // Get file URL from clipboard
+    let output = Command::new("osascript")
+        .arg("-e")
+        .arg("try\nset theClip to the clipboard as «class furl»\nreturn POSIX path of theClip\non error\nreturn \"\"\nend try")
+        .output()
+        .ok()?;
+
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if path.is_empty() || !path.starts_with('/') {
+        return None;
+    }
+
+    read_image_file(&path)
+}
+
+/// Windows fallback: read image via PowerShell System.Windows.Forms.
+#[cfg(target_os = "windows")]
+fn try_read_image_fallback() -> Option<ClipboardItem> {
+    use std::process::Command;
+
+    let tmp = std::env::temp_dir().join("aboard_clip.png");
+    let tmp_str = tmp.to_str()?;
+
+    let script = format!(
+        r#"
+Add-Type -AssemblyName System.Windows.Forms
+$img = [System.Windows.Forms.Clipboard]::GetImage()
+if ($img) {{
+    $img.Save('{}', [System.Drawing.Imaging.ImageFormat]::Png)
+    Write-Output 'OK'
+}}"#,
+        tmp_str.replace('\\', "\\\\")
+    );
+
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .output()
+        .ok()?;
+
+    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if result != "OK" || !tmp.exists() {
+        return None;
+    }
+
+    let item = read_image_file(tmp_str)?;
+    // Clean up temp file
+    let _ = std::fs::remove_file(tmp);
+    Some(item)
+}
+
+/// Linux fallback: read image via xclip.
+#[cfg(target_os = "linux")]
+fn try_read_image_fallback() -> Option<ClipboardItem> {
+    use std::process::Command;
+
+    let output = Command::new("xclip")
+        .args(["-selection", "clipboard", "-t", "image/png", "-o"])
+        .output()
+        .ok()?;
+
+    if output.stdout.is_empty() {
+        return None;
+    }
+
+    // Decode PNG data directly
+    let img = image::io::Reader::new(std::io::Cursor::new(&output.stdout))
+        .with_guessed_format()
+        .ok()?
+        .decode()
+        .ok()?;
+
+    let rgba = img.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    println!("[clipboard] Read image via xclip fallback: {}x{}", w, h);
+    encode_and_build_item(&rgba, w, h)
 }
 
 /// Persist a clipboard item to DB, emit event, and enqueue AI processing.
