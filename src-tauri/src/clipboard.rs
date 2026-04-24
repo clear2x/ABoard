@@ -55,6 +55,9 @@ pub struct ClipboardItem {
     /// AI-generated summary
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ai_summary: Option<String>,
+    /// Relative file path in the data directory (for binary content)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_path: Option<String>,
 }
 
 /// Compute SHA256 hash of the given byte slice.
@@ -65,12 +68,19 @@ pub fn compute_hash(content: &[u8]) -> String {
 }
 
 /// Toggle clipboard monitoring on/off.
-/// Returns the new paused state: true = paused, false = active.
+/// Returns the new monitoring state: true = monitoring active, false = paused.
 #[tauri::command]
 pub fn toggle_monitoring() -> bool {
     let current = MONITORING_PAUSED.load(Ordering::SeqCst);
     MONITORING_PAUSED.store(!current, Ordering::SeqCst);
-    !current
+    !current // return true = active (was not paused → now paused means we return the previous paused state inverted)
+}
+
+/// Query current monitoring state.
+/// Returns true if monitoring is active, false if paused.
+#[tauri::command]
+pub fn get_monitoring_state() -> bool {
+    !MONITORING_PAUSED.load(Ordering::SeqCst)
 }
 
 /// Start the clipboard monitoring loop.
@@ -85,6 +95,19 @@ pub fn start_monitoring<R: Runtime>(app: tauri::AppHandle<R>) {
 
             // Check if monitoring is paused
             if MONITORING_PAUSED.load(Ordering::SeqCst) {
+                continue;
+            }
+
+            // Check for multi-file clipboard (Finder copy of multiple files)
+            let multi_files = try_read_file_list_multi(&app);
+            if !multi_files.is_empty() {
+                let first_hash = multi_files[0].hash.clone();
+                if first_hash != last_hash {
+                    last_hash = first_hash;
+                    for item in multi_files {
+                        persist_and_emit(&app, item);
+                    }
+                }
                 continue;
             }
 
@@ -146,6 +169,7 @@ pub fn start_monitoring<R: Runtime>(app: tauri::AppHandle<R>) {
                         ai_type: None,
                         ai_tags: None,
                         ai_summary: None,
+                        file_path: None,
                     };
 
                     persist_and_emit(&app, item);
@@ -171,6 +195,8 @@ fn detect_content_type(text: &str) -> (String, String) {
 /// Check the pasteboard for file references (Finder/Explorer file copies).
 /// Uses arboard's native API which properly resolves .file/id= reference URLs
 /// on macOS via NSPasteboardURLReadingFileURLsOnlyKey.
+/// Returns the first image found (for the main loop), and any additional files
+/// are processed separately.
 fn try_read_image_file_list() -> Option<ClipboardItem> {
     let mut clipboard = ArboardClipboard::new().ok()?;
     let files = clipboard.get().file_list().ok()?;
@@ -181,6 +207,74 @@ fn try_read_image_file_list() -> Option<ClipboardItem> {
         }
     }
     None
+}
+
+/// Maximum number of files to process from a single multi-file clipboard capture.
+const MAX_FILES_PER_PASTE: usize = 20;
+
+/// Process multiple files from clipboard (for multi-file copy support).
+/// Returns all created items, or empty vec if no files found.
+fn try_read_file_list_multi<R: Runtime>(app: &tauri::AppHandle<R>) -> Vec<ClipboardItem> {
+    let mut clipboard = match ArboardClipboard::new() {
+        Ok(cb) => cb,
+        Err(_) => return vec![],
+    };
+    let files = match clipboard.get().file_list() {
+        Ok(f) => f,
+        Err(_) => return vec![],
+    };
+
+    if files.is_empty() {
+        return vec![];
+    }
+
+    let mut items = Vec::new();
+    for path in files.iter().take(MAX_FILES_PER_PASTE) {
+        let path_str = path.to_string_lossy().to_string();
+
+        // Check if it's an image file
+        if let Some(item) = read_image_file(&path_str) {
+            items.push(item);
+            continue;
+        }
+
+        // For other files, create a file-paths entry with metadata
+        let file_name = path.file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let extension = path.extension()
+            .map(|e| e.to_string_lossy().to_lowercase())
+            .unwrap_or_default();
+
+        // Check if video
+        let content_type = match extension.as_str() {
+            "mp4" | "mov" | "avi" | "mkv" | "webm" => "video",
+            _ => "file-paths",
+        };
+
+        let id = Uuid::new_v4().to_string();
+        let hash = compute_hash(path_str.as_bytes());
+
+        items.push(ClipboardItem {
+            id,
+            content_type: content_type.to_string(),
+            content: path_str.clone(),
+            hash,
+            timestamp: chrono::Utc::now().timestamp_millis(),
+            metadata: serde_json::json!({
+                "filename": file_name,
+                "extension": extension,
+            }),
+            pinned: false,
+            pinned_at: None,
+            ai_type: None,
+            ai_tags: None,
+            ai_summary: None,
+            file_path: None,
+        });
+    }
+
+    items
 }
 
 /// Try to read an image from the clipboard.
@@ -264,6 +358,7 @@ fn encode_and_build_item(rgba: &[u8], w: u32, h: u32) -> Option<ClipboardItem> {
         ai_type: Some("image".to_string()),
         ai_tags: None,
         ai_summary: None,
+        file_path: None,
     })
 }
 
@@ -526,7 +621,45 @@ fn percent_decode_path(encoded: &str) -> String {
 }
 
 /// Persist a clipboard item to DB, emit event, and enqueue AI processing.
-fn persist_and_emit<R: Runtime>(app: &tauri::AppHandle<R>, item: ClipboardItem) {
+fn persist_and_emit<R: Runtime>(app: &tauri::AppHandle<R>, mut item: ClipboardItem) {
+    // For image items: save binary data as file instead of base64 in DB
+    if item.content_type == "image" && item.content.starts_with("data:image") {
+        if let Ok(app_data_dir) = app.path().app_data_dir() {
+            let data_dir = app_data_dir.join("data");
+            let _ = std::fs::create_dir_all(&data_dir);
+
+            // Extract binary data from base64 data URL
+            if let Some(b64_start) = item.content.find(",base64,") {
+                let b64 = &item.content[b64_start + 8..];
+                if let Ok(bytes) = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64) {
+                    let file_name = format!("{}.png", item.id);
+                    let file_path = data_dir.join(&file_name);
+                    if std::fs::write(&file_path, &bytes).is_ok() {
+                        let relative = format!("data/{}", file_name);
+                        item.file_path = Some(relative);
+                        // Keep the base64 content for the event payload (frontend uses it for immediate display)
+                        // but clear it for DB storage to save space
+                        let event_content = item.content.clone();
+                        item.content = String::new(); // Don't store huge base64 in DB
+
+                        let db_state = app.state::<DbState>();
+                        if let Err(e) = db::insert_item(&db_state.conn, &item) {
+                            eprintln!("[clipboard] Failed to persist item: {}", e);
+                        }
+
+                        // Emit with the full content for immediate frontend display
+                        let mut emit_item = item.clone();
+                        emit_item.content = event_content;
+                        if let Err(e) = app.emit("clipboard-update", &emit_item) {
+                            eprintln!("[clipboard] Failed to emit event: {}", e);
+                        }
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     let db_state = app.state::<DbState>();
     if let Err(e) = db::insert_item(&db_state.conn, &item) {
         eprintln!("[clipboard] Failed to persist item: {}", e);

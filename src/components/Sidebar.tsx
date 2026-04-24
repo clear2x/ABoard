@@ -7,6 +7,7 @@ const CATEGORIES = [
   { key: "code", icon: "ph-code", labelKey: "sidebar.code" },
   { key: "link", icon: "ph-link", labelKey: "sidebar.links" },
   { key: "image", icon: "ph-image", labelKey: "sidebar.images" },
+  { key: "video", icon: "ph-video-camera", labelKey: "sidebar.videos" },
   { key: "text", icon: "ph-file-text", labelKey: "sidebar.text" },
 ] as const;
 
@@ -29,6 +30,7 @@ export default function Sidebar() {
       code: all.filter((i) => (i.ai_type || i.type) === "code").length,
       link: all.filter((i) => (i.ai_type || i.type) === "link").length,
       image: all.filter((i) => (i.ai_type || i.type) === "image").length,
+      video: all.filter((i) => (i.ai_type || i.type) === "video").length,
       text: all.filter((i) => (i.ai_type || i.type) === "text").length,
     };
   });

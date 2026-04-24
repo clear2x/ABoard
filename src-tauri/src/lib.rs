@@ -350,6 +350,7 @@ pub fn run() {
             show_main_window,
             emit_open_settings,
             clipboard::toggle_monitoring,
+            clipboard::get_monitoring_state,
             db::get_history,
             db::search_history,
             db::delete_items,
@@ -374,6 +375,7 @@ pub fn run() {
             db::semantic_search,
             db::export_items,
             db::get_storage_stats,
+            db::read_data_file,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
