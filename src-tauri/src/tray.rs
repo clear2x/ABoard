@@ -4,11 +4,14 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Mutex;
 
 /// Global flag indicating whether screen recording is in progress.
 static RECORDING_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// Stored locale: 0 = zh, 1 = en
+static STORED_LOCALE: AtomicU8 = AtomicU8::new(0);
 
 // ---------------------------------------------------------------------------
 // Type-erased menu item handle — stores a set_text closure to avoid generics
@@ -209,6 +212,7 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
 struct TrayTexts {
     screenshot: &'static str,
     screen_recording: &'static str,
+    stop_recording: &'static str,
     quick_paste: &'static str,
     show_window: &'static str,
     pause_monitoring: &'static str,
@@ -219,6 +223,7 @@ struct TrayTexts {
 const TEXTS_ZH: TrayTexts = TrayTexts {
     screenshot: "截图",
     screen_recording: "录屏",
+    stop_recording: "停止录屏",
     quick_paste: "快速粘贴",
     show_window: "显示窗口",
     pause_monitoring: "暂停监听",
@@ -229,6 +234,7 @@ const TEXTS_ZH: TrayTexts = TrayTexts {
 const TEXTS_EN: TrayTexts = TrayTexts {
     screenshot: "Screenshot",
     screen_recording: "Screen Recording",
+    stop_recording: "Stop Recording",
     quick_paste: "Quick Paste",
     show_window: "Show Window",
     pause_monitoring: "Pause Monitoring",
@@ -248,6 +254,7 @@ fn get_text(key: &str, locale: &str) -> String {
     match key {
         "screenshot" => texts.screenshot.to_string(),
         "screen_recording" => texts.screen_recording.to_string(),
+        "stop_recording" => texts.stop_recording.to_string(),
         "quick_paste" => texts.quick_paste.to_string(),
         "show_window" => texts.show_window.to_string(),
         "pause_monitoring" => texts.pause_monitoring.to_string(),
@@ -257,16 +264,22 @@ fn get_text(key: &str, locale: &str) -> String {
     }
 }
 
-/// Read stored locale from app data dir config.
+/// Read stored locale from global atomic state.
 fn get_stored_locale() -> String {
-    // Default to zh since the app defaults to Chinese
-    "zh".to_string()
+    if STORED_LOCALE.load(Ordering::Relaxed) == 1 {
+        "en".to_string()
+    } else {
+        "zh".to_string()
+    }
 }
 
 /// Tauri command: update tray menu texts for the given locale.
 /// Called from frontend when locale changes.
 #[tauri::command]
 pub fn update_tray_locale(app: tauri::AppHandle, locale: String) -> Result<(), String> {
+    // Sync global locale for background threads
+    STORED_LOCALE.store(if locale == "en" { 1 } else { 0 }, Ordering::Relaxed);
+
     let state = app.state::<TrayMenuState>();
     let texts = get_texts(&locale);
 
@@ -378,8 +391,22 @@ fn start_screen_recording<R: Runtime>(app: AppHandle<R>, record_item: MenuItem<R
         }
     }
 
+    // Check screen recording permission via CoreGraphics API
+    {
+        use core_graphics::access::ScreenCaptureAccess;
+        let access = ScreenCaptureAccess::default();
+        if !access.preflight() {
+            // Permission not granted — request it (opens System Settings)
+            access.request();
+            return;
+        }
+    }
+
     RECORDING_ACTIVE.store(true, Ordering::SeqCst);
-    let _ = record_item.set_text("Stop Recording");
+
+    // Use locale-aware "Stop Recording" text
+    let stop_text = get_text("stop_recording", &get_stored_locale());
+    let _ = record_item.set_text(&stop_text);
 
     let app_data_dir = match app.path().app_data_dir() {
         Ok(dir) => dir,
@@ -401,7 +428,8 @@ fn start_screen_recording<R: Runtime>(app: AppHandle<R>, record_item: MenuItem<R
             .status();
 
         RECORDING_ACTIVE.store(false, Ordering::SeqCst);
-        let _ = record_item_clone.set_text("Screen Recording");
+        let resume_text = get_text("screen_recording", &get_stored_locale());
+        let _ = record_item_clone.set_text(&resume_text);
 
         if let Ok(status) = status {
             if status.success() && dest_path.exists() {
