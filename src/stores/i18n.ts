@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { invoke } from "@tauri-apps/api/core";
 
 export type Locale = "zh" | "en";
 
@@ -10,6 +11,8 @@ export { locale };
 export function setLocale(lang: Locale) {
   setLocaleInternal(lang);
   localStorage.setItem(STORAGE_KEY, lang);
+  // Sync tray menu texts with the new locale
+  invoke("update_tray_locale", { locale: lang }).catch(() => {});
 }
 
 export function initLocale() {
@@ -17,6 +20,9 @@ export function initLocale() {
   if (saved === "zh" || saved === "en") {
     setLocaleInternal(saved);
   }
+  // Sync tray menu on startup
+  const current = saved || "zh";
+  invoke("update_tray_locale", { locale: current }).catch(() => {});
 }
 
 // --- Translation map ---
@@ -241,6 +247,7 @@ const t_map: Translations = {
   "ctx.xmlInvalid": { zh: "XML 格式错误:\n{error}", en: "XML format error:\n{error}" },
   "ctx.markdownToPlaintext": { zh: "Markdown → 纯文本", en: "Markdown → Plain Text" },
   "ctx.htmlToPlaintext": { zh: "HTML → 纯文本", en: "HTML → Plain Text" },
+  "ctx.revealInFolder": { zh: "在文件夹中显示", en: "Show in Folder" },
 
   // AiResultPopup
   "ai.resultOriginal": { zh: "原文", en: "Original" },

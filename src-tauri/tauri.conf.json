@@ -43,11 +43,6 @@
     ],
     "security": {
       "csp": "default-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.github.com"
-    },
-    "trayIcon": {
-      "iconPath": "icons/icon.png",
-      "iconAsTemplate": true,
-      "id": "main-tray"
     }
   },
   "bundle": {
@@ -59,6 +54,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "targets": "all"
+    "targets": "all",
+    "macOS": {
+      "entitlements": "entitlements.plist",
+      "minimumSystemVersion": "14.0",
+      "infoPlist": "Info.plist"
+    }
   }
 }

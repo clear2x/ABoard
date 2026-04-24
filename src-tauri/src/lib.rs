@@ -106,6 +106,42 @@ end if
     }
 }
 
+/// Reveal a file in the system file manager (Finder / Explorer / file manager).
+/// Accepts a relative path from the app data directory (e.g. "data/xxx.mp4").
+#[tauri::command]
+fn reveal_in_folder(app: tauri::AppHandle, file_path: String) -> Result<(), String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| format!("{:?}", e))?;
+    let full_path = app_data_dir.join(&file_path);
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&full_path)
+            .spawn()
+            .map_err(|e| format!("Failed to open Finder: {}", e))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg("/select,")
+            .arg(&full_path)
+            .spawn()
+            .map_err(|e| format!("Failed to open Explorer: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // Open the parent folder (xdg-open doesn't support file selection)
+        let parent = full_path.parent().unwrap_or(&full_path);
+        std::process::Command::new("xdg-open")
+            .arg(parent)
+            .spawn()
+            .map_err(|e| format!("Failed to open file manager: {}", e))?;
+    }
+
+    Ok(())
+}
+
 /// Emit "open-settings" event to the main window so it opens the settings panel.
 #[tauri::command]
 fn emit_open_settings(app: tauri::AppHandle) -> Result<(), String> {
@@ -351,6 +387,7 @@ pub fn run() {
             emit_open_settings,
             clipboard::toggle_monitoring,
             clipboard::get_monitoring_state,
+            tray::update_tray_locale,
             db::get_history,
             db::search_history,
             db::delete_items,
@@ -376,6 +413,7 @@ pub fn run() {
             db::export_items,
             db::get_storage_stats,
             db::read_data_file,
+            reveal_in_folder,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

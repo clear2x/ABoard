@@ -20,7 +20,7 @@ const MAX_IMAGE_SIZE: usize = 15 * 1024 * 1024;
 const POLL_INTERVAL_MS: u64 = 200;
 
 /// Global flag for pausing/resuming clipboard monitoring.
-static MONITORING_PAUSED: AtomicBool = AtomicBool::new(false);
+pub(crate) static MONITORING_PAUSED: AtomicBool = AtomicBool::new(false);
 
 /// The type of content stored in the clipboard.
 #[derive(Debug, Clone, Serialize, Deserialize)]

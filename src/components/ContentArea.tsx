@@ -409,6 +409,7 @@ export default function ContentArea() {
               itemId={cm.itemId}
               isPinned={cm.isPinned}
               content={currentItem?.content || ""}
+              filePath={currentItem?.file_path}
               onClose={() => setContextMenu(null)}
             />
           );
