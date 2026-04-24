@@ -257,6 +257,16 @@ const t_map: Translations = {
 
   // Search
   "search.placeholderFull": { zh: "搜索剪贴板 (语义搜索 / 正则 / 标签)", en: "Search clipboard (semantic / regex / tags)" },
+
+  // Update check
+  "settings.checkUpdate": { zh: "检查更新", en: "Check for Updates" },
+  "settings.checking": { zh: "正在检查...", en: "Checking..." },
+  "settings.upToDate": { zh: "已是最新版本", en: "You're up to date" },
+  "settings.newVersion": { zh: "发现新版本: {version}", en: "New version available: {version}" },
+  "settings.downloadUpdate": { zh: "前往下载", en: "Download" },
+  "settings.updateError": { zh: "检查失败，请稍后重试", en: "Check failed, please try again later" },
+  "settings.author": { zh: "作者", en: "Author" },
+  "settings.homepage": { zh: "主页", en: "Homepage" },
 };
 
 // --- Translation function ---

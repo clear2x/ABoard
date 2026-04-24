@@ -68,8 +68,8 @@ export function setViewMode(mode: ViewMode) {
 export async function copyItemContent(item: ClipboardItem): Promise<boolean> {
   try {
     if (item.type === "image" && item.content.startsWith("data:")) {
-      // Use Tauri backend to write image to clipboard properly
-      await invoke("copy_image_to_clipboard", { dataUrl: item.content });
+      // Use Tauri backend: pass item ID, Rust reads image from DB
+      await invoke("copy_image_to_clipboard", { itemId: item.id });
     } else {
       await navigator.clipboard.writeText(item.content);
     }
@@ -78,19 +78,6 @@ export async function copyItemContent(item: ClipboardItem): Promise<boolean> {
     return true;
   } catch (e) {
     console.error("[store] Copy failed:", e);
-    // Fallback: try browser API for images
-    if (item.type === "image" && item.content.startsWith("data:")) {
-      try {
-        const res = await fetch(item.content);
-        const blob = await res.blob();
-        await navigator.clipboard.write([
-          new ClipboardItem({ [blob.type]: blob }),
-        ]);
-        setCopiedId(item.id);
-        setTimeout(() => setCopiedId(null), 1500);
-        return true;
-      } catch {}
-    }
     return false;
   }
 }
@@ -211,31 +198,34 @@ export async function loadStorageStats() {
   }
 }
 
-/// Delete one or more clipboard items by ID, then refresh the list.
+/// Delete one or more clipboard items by ID. Optimistically removes from local state.
 export async function deleteItems(ids: string[]) {
   try {
     await invoke("delete_items", { ids });
-    await Promise.all([loadHistory(), loadStorageStats()]);
+    setItems((prev) => prev.filter((i) => !ids.includes(i.id)));
+    loadStorageStats();
   } catch (e) {
     console.error("[store] Delete failed:", e);
   }
 }
 
-/// Pin a clipboard item, then refresh the list.
+/// Pin a clipboard item. Optimistically updates local state.
 export async function pinItem(id: string) {
   try {
     await invoke("pin_item", { id });
-    await Promise.all([loadHistory(), loadStorageStats()]);
+    setItems((prev) => prev.map((i) => i.id === id ? { ...i, pinned: true } : i));
+    loadStorageStats();
   } catch (e) {
     console.error("[store] Pin failed:", e);
   }
 }
 
-/// Unpin a clipboard item, then refresh the list.
+/// Unpin a clipboard item. Optimistically updates local state.
 export async function unpinItem(id: string) {
   try {
     await invoke("unpin_item", { id });
-    await Promise.all([loadHistory(), loadStorageStats()]);
+    setItems((prev) => prev.map((i) => i.id === id ? { ...i, pinned: false } : i));
+    loadStorageStats();
   } catch (e) {
     console.error("[store] Unpin failed:", e);
   }
@@ -246,6 +236,17 @@ export function addItem(item: ClipboardItem) {
   setItems((prev) => {
     if (prev.some((i) => i.hash === item.hash)) return prev;
     return [item, ...prev];
+  });
+}
+
+/// Reorder items by moving an item from fromIndex to toIndex.
+export function reorderItems(fromIndex: number, toIndex: number) {
+  setItems((prev) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return prev;
+    const next = [...prev];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    return next;
   });
 }
 

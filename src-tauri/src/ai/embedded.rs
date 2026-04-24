@@ -196,9 +196,6 @@ impl EmbeddedProvider {
         Ok(target_path)
     }
 
-    pub fn is_loaded(&self) -> bool {
-        self.loaded.load(Ordering::Relaxed)
-    }
 }
 
 #[async_trait::async_trait]

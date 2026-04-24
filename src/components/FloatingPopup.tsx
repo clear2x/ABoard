@@ -1,7 +1,7 @@
 import { createSignal, onMount, onCleanup, For, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { items, loadHistory, type ClipboardItem } from "../stores/clipboard";
+import { items, loadHistory, type ClipboardItem, copyItemContent, pinItem, unpinItem, deleteItems, copiedId, reorderItems } from "../stores/clipboard";
 import { initLocale, t } from "../stores/i18n";
 import { initTheme } from "../stores/theme";
 
@@ -26,6 +26,28 @@ export default function FloatingPopup() {
   const [selectedIndex, setSelectedIndex] = createSignal(0);
   const [popupItems, setPopupItems] = createSignal<ClipboardItem[]>([]);
   const [searchText, setSearchText] = createSignal("");
+  const [hoveredId, setHoveredId] = createSignal<string | null>(null);
+  const [windowPinned, setWindowPinned] = createSignal(false);
+  const [dragItemId, setDragItemId] = createSignal<string | null>(null);
+  const [dropTargetId, setDropTargetId] = createSignal<string | null>(null);
+
+  function handlePopupDrop(fromId: string, toId: string) {
+    if (fromId === toId) return;
+    // Reorder popupItems locally
+    const list = popupItems();
+    const fromIdx = list.findIndex((i) => i.id === fromId);
+    const toIdx = list.findIndex((i) => i.id === toId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const next = [...list];
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    setPopupItems(next);
+    // Also sync global store
+    const allItems = items();
+    const gFrom = allItems.findIndex((i) => i.id === fromId);
+    const gTo = allItems.findIndex((i) => i.id === toId);
+    if (gFrom !== -1 && gTo !== -1) reorderItems(gFrom, gTo);
+  }
 
   onMount(async () => {
     initLocale();
@@ -54,6 +76,15 @@ export default function FloatingPopup() {
     };
     document.addEventListener("keydown", handler);
     onCleanup(() => document.removeEventListener("keydown", handler));
+
+    // Auto-hide on blur when not pinned
+    const blurHandler = () => {
+      if (!windowPinned()) {
+        getCurrentWindow().hide();
+      }
+    };
+    window.addEventListener("blur", blurHandler);
+    onCleanup(() => window.removeEventListener("blur", blurHandler));
   });
 
   const filteredItems = () => {
@@ -75,6 +106,30 @@ export default function FloatingPopup() {
     await getCurrentWindow().hide();
   }
 
+  async function handleCopy(e: MouseEvent, item: ClipboardItem) {
+    e.stopPropagation();
+    await copyItemContent(item);
+  }
+
+  async function handlePin(e: MouseEvent, id: string) {
+    e.stopPropagation();
+    const item = popupItems().find((i) => i.id === id);
+    if (!item) return;
+    if (item.pinned) {
+      await unpinItem(id);
+      setPopupItems((prev) => prev.map((i) => (i.id === id ? { ...i, pinned: false } : i)));
+    } else {
+      await pinItem(id);
+      setPopupItems((prev) => prev.map((i) => (i.id === id ? { ...i, pinned: true } : i)));
+    }
+  }
+
+  async function handleDelete(e: MouseEvent, id: string) {
+    e.stopPropagation();
+    await deleteItems([id]);
+    setPopupItems((prev) => prev.filter((i) => i.id !== id));
+  }
+
   async function openMainWindow() {
     try {
       await invoke("show_main_window");
@@ -82,22 +137,71 @@ export default function FloatingPopup() {
     await getCurrentWindow().hide();
   }
 
+  async function openSettings() {
+    try {
+      await invoke("show_main_window");
+      // Give main window a moment to show, then emit settings event
+      setTimeout(async () => {
+        try {
+          await invoke("emit_open_settings");
+        } catch {}
+      }, 100);
+    } catch {}
+    await getCurrentWindow().hide();
+  }
+
+  function ItemActions(props: { item: ClipboardItem }) {
+    return (
+      <div class="flex items-center gap-1 text-gray-400 shrink-0 ml-2">
+        <button
+          class="transition-colors hover:text-yellow-400"
+          onClick={(e) => handlePin(e, props.item.id)}
+          title={props.item.pinned ? t("ctx.unpin") : t("ctx.pin")}
+        >
+          <i class={`ph ${props.item.pinned ? "ph-fill ph-star text-yellow-400" : "ph ph-star"}`} />
+        </button>
+        <button
+          class="transition-colors hover:text-blue-500"
+          onClick={(e) => handleCopy(e, props.item)}
+          title={t("ctx.copy")}
+        >
+          <i class={copiedId() === props.item.id ? "ph-fill ph-check text-blue-500" : "ph ph-copy"} />
+        </button>
+        <button
+          class="transition-colors hover:text-red-500"
+          onClick={(e) => handleDelete(e, props.item.id)}
+          title={t("ctx.delete")}
+        >
+          <i class="ph ph-trash" />
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div class="glass-panel min-h-screen flex flex-col overflow-hidden select-none animate-popup-in"
-      style={{ "border-radius": "20px" }}
+    <div
+      class="glass-panel h-screen flex flex-col overflow-hidden select-none animate-popup-in"
     >
-      {/* Header */}
-      <div class="p-4 pb-2 border-b border-white/40">
+      {/* Header — drag region */}
+      <div class="titlebar px-4 pt-1 pb-2 border-b border-white/40" data-tauri-drag-region>
         <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center gap-2 font-bold text-lg tracking-tight text-gray-700">
+          <div class="flex items-center gap-2 font-bold text-lg tracking-tight text-gray-700 pl-14">
             <i class="ph-fill ph-clipboard-text text-blue-600" />
             ABoard
           </div>
           <div class="flex gap-2 text-gray-400">
-            <button class="hover:text-gray-700 transition-colors">
-              <i class="ph ph-push-pin" />
+            <button
+              class="transition-colors hover:text-amber-500"
+              onClick={() => setWindowPinned((p) => !p)}
+              title={windowPinned() ? "Unpin window" : "Pin window"}
+            >
+              <i class={`ph ${windowPinned() ? "ph-fill ph-push-pin text-amber-500" : "ph ph-push-pin"}`} />
             </button>
-            <button class="hover:text-gray-700 transition-colors">
+            <button
+              class="hover:text-gray-700 transition-colors"
+              onClick={openSettings}
+              title={t("settings.title")}
+            >
               <i class="ph ph-gear" />
             </button>
           </div>
@@ -133,25 +237,40 @@ export default function FloatingPopup() {
             </div>
             <div class="space-y-2">
               <For each={pinnedItems()}>
-                {(item, index) => {
+                {(item) => {
                   const dtype = () => displayType(item);
                   const icon = () => typeIcon(dtype());
                   const globalIndex = () => filteredItems().indexOf(item);
                   return (
                     <div
-                      class="glass-card p-3 rounded-xl cursor-pointer"
-                      classList={{ "ring-1 ring-blue-500/50": globalIndex() === selectedIndex() }}
+                      class="glass-card p-3 rounded-xl cursor-pointer relative transition-opacity"
+                      classList={{
+                        "ring-1 ring-blue-500/50": globalIndex() === selectedIndex(),
+                        "opacity-40": dragItemId() === item.id,
+                        "border-t-2 border-blue-400": dropTargetId() === item.id,
+                      }}
+                      draggable={true}
+                      onDragStart={(e) => { setDragItemId(item.id); e.dataTransfer!.effectAllowed = "move"; }}
+                      onDragOver={(e) => { e.preventDefault(); setDropTargetId(item.id); }}
+                      onDragLeave={() => { if (dropTargetId() === item.id) setDropTargetId(null); }}
+                      onDrop={(e) => { e.preventDefault(); const from = dragItemId(); if (from) handlePopupDrop(from, item.id); setDragItemId(null); setDropTargetId(null); }}
+                      onDragEnd={() => { setDragItemId(null); setDropTargetId(null); }}
+                      onMouseEnter={() => setHoveredId(item.id)}
+                      onMouseLeave={() => setHoveredId(null)}
                       onClick={() => { setSelectedIndex(globalIndex()); selectAndPaste(item); }}
                     >
-                      <div class="flex gap-2">
+                      <div class="flex items-center gap-2">
                         <div class={`w-6 h-6 rounded-full ${icon().bg} ${icon().color} flex items-center justify-center shrink-0 text-xs font-bold border border-white/50 shadow-sm`}>
                           <Show when={icon().icon} fallback={icon().letter}>
                             <i class={`ph ${icon().icon}`} />
                           </Show>
                         </div>
-                        <div class="text-xs text-gray-600 leading-tight truncate">
+                        <div class="text-xs text-gray-600 leading-tight truncate flex-1 min-w-0">
                           {item.content.slice(0, 80)}
                         </div>
+                        <Show when={hoveredId() === item.id}>
+                          <ItemActions item={item} />
+                        </Show>
                       </div>
                     </div>
                   );
@@ -175,11 +294,23 @@ export default function FloatingPopup() {
                   const globalIndex = () => filteredItems().indexOf(item);
                   return (
                     <div
-                      class="glass-card p-3 rounded-xl cursor-pointer relative"
-                      classList={{ "ring-1 ring-blue-500/50": globalIndex() === selectedIndex() }}
+                      class="glass-card p-3 rounded-xl cursor-pointer relative transition-opacity"
+                      classList={{
+                        "ring-1 ring-blue-500/50": globalIndex() === selectedIndex(),
+                        "opacity-40": dragItemId() === item.id,
+                        "border-t-2 border-blue-400": dropTargetId() === item.id,
+                      }}
+                      draggable={true}
+                      onDragStart={(e) => { setDragItemId(item.id); e.dataTransfer!.effectAllowed = "move"; }}
+                      onDragOver={(e) => { e.preventDefault(); setDropTargetId(item.id); }}
+                      onDragLeave={() => { if (dropTargetId() === item.id) setDropTargetId(null); }}
+                      onDrop={(e) => { e.preventDefault(); const from = dragItemId(); if (from) handlePopupDrop(from, item.id); setDragItemId(null); setDropTargetId(null); }}
+                      onDragEnd={() => { setDragItemId(null); setDropTargetId(null); }}
+                      onMouseEnter={() => setHoveredId(item.id)}
+                      onMouseLeave={() => setHoveredId(null)}
                       onClick={() => { setSelectedIndex(globalIndex()); selectAndPaste(item); }}
                     >
-                      <div class="flex gap-2">
+                      <div class="flex items-center gap-2">
                         <div class={`w-6 h-6 rounded-full ${icon().bg} ${icon().color} flex items-center justify-center shrink-0 border border-white/50 shadow-sm`}>
                           <Show when={icon().icon} fallback={icon().letter}>
                             <i class={`ph ${icon().icon}`} />
@@ -188,18 +319,19 @@ export default function FloatingPopup() {
                         <Show
                           when={dtype() === "code"}
                           fallback={
-                            <div class="text-xs text-gray-600 leading-tight truncate">
+                            <div class="text-xs text-gray-600 leading-tight truncate flex-1 min-w-0">
                               {item.content.slice(0, 80)}
                             </div>
                           }
                         >
-                          <div class="text-xs font-mono text-gray-600 leading-tight">
+                          <div class="text-xs font-mono text-gray-600 leading-tight flex-1 min-w-0 truncate">
                             {item.content.slice(0, 100)}
                           </div>
                         </Show>
+                        <Show when={hoveredId() === item.id}>
+                          <ItemActions item={item} />
+                        </Show>
                       </div>
-                      <i class="ph ph-push-pin absolute right-3 bottom-3 hover:text-blue-500 text-gray-300 dark:text-gray-500"
-                      />
                     </div>
                   );
                 }}
@@ -209,12 +341,17 @@ export default function FloatingPopup() {
         </Show>
       </div>
 
-      {/* Footer */}
-      <div class="p-3 border-t border-white/40 flex items-center justify-between text-xs text-gray-500 cursor-pointer hover:bg-white/20 transition-colors"
+      {/* Footer — expand to main window */}
+      <div
+        class="p-3 border-t border-white/40 flex items-center justify-between text-xs text-gray-500 cursor-pointer hover:bg-white/20 transition-colors"
         onClick={openMainWindow}
       >
-        <span class="flex items-center gap-1"><i class="ph ph-sidebar-simple" /> {t("float.openMainWindow")}</span>
-        <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 text-[10px]">⌥⌘</span>
+        <span class="flex items-center gap-1">
+          <i class="ph ph-arrows-out-simple" /> {t("float.openMainWindow")}
+        </span>
+        <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 text-[10px]">
+          ⌘⌥O
+        </span>
       </div>
     </div>
   );

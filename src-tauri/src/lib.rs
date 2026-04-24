@@ -7,7 +7,7 @@ mod tray;
 
 use std::sync::Mutex;
 use std::time::Instant;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 /// State for quick-switch cycling through clipboard history.
 struct CycleState {
@@ -16,31 +16,110 @@ struct CycleState {
 }
 
 /// Copy image from base64 data URL to system clipboard as a real image.
+/// Open a URL in the system's default browser.
 #[tauri::command]
-fn copy_image_to_clipboard(data_url: String, app: tauri::AppHandle) -> Result<(), String> {
-    use tauri_plugin_clipboard_manager::ClipboardExt;
+fn open_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open").arg(&url).spawn().map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd").args(["/c", "start", &url]).spawn().map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open").arg(&url).spawn().map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+    Ok(())
+}
+
+/// Copy image from clipboard item ID to system clipboard as a real image.
+/// Reads image data from the database to avoid large IPC payloads.
+#[tauri::command]
+fn copy_image_to_clipboard(item_id: String, app: tauri::AppHandle) -> Result<(), String> {
+    // Read item content from DB
+    let db_state = app.state::<crate::db::DbState>();
+    let content: String = {
+        let conn = db_state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+        conn.query_row(
+            "SELECT content FROM clipboard_items WHERE id = ?1",
+            rusqlite::params![item_id],
+            |row| row.get(0),
+        ).map_err(|e| format!("Item not found: {}", e))?
+    };
 
     // Strip "data:image/...;base64," prefix
-    let b64 = data_url
+    let b64 = content
         .find(",base64,")
-        .map(|i| &data_url[i + 8..])
+        .map(|i| &content[i + 8..])
         .ok_or("Invalid data URL format")?;
 
     let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
         .map_err(|e| format!("Base64 decode error: {}", e))?;
 
-    let img = image::load_from_memory(&bytes)
-        .map_err(|e| format!("Image decode error: {}", e))?;
+    // macOS: write PNG to temp file, use AppleScriptObjC to set clipboard
+    #[cfg(target_os = "macos")]
+    {
+        let tmp = std::env::temp_dir().join("aboard_copy_img.png");
+        std::fs::write(&tmp, &bytes).map_err(|e| format!("Write temp file error: {}", e))?;
+        let tmp_str = tmp.to_str().ok_or("Invalid temp path")?.replace('\\', "\\\\");
+        let script = format!(r#"
+use framework "AppKit"
+set pb to current application's NSPasteboard's generalPasteboard()
+pb's clearContents()
+set imgData to current application's NSImage's alloc()'s initWithContentsOfFile:"{path}"
+if imgData is not missing value then
+    pb's writeObjects:{{imgData}}
+    return "OK"
+else
+    return "ERR"
+end if
+"#, path = tmp_str);
+        let output = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(&script)
+            .output();
+        let _ = std::fs::remove_file(&tmp);
+        let out = output.map_err(|e| format!("osascript error: {}", e))?;
+        let result = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if result != "OK" {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            return Err(format!("osascript failed: {} ({})", result, stderr.trim()));
+        }
+        return Ok(());
+    }
 
-    let rgba = img.to_rgba8();
-    let (w, h) = rgba.dimensions();
+    // Windows / Linux: use Tauri clipboard plugin
+    #[cfg(not(target_os = "macos"))]
+    {
+        use tauri_plugin_clipboard_manager::ClipboardExt;
+        let img = image::load_from_memory(&bytes)
+            .map_err(|e| format!("Image decode error: {}", e))?;
+        let rgba = img.to_rgba8();
+        let (w, h) = rgba.dimensions();
+        let tauri_img = tauri::image::Image::new_owned(rgba.into_raw(), w, h);
+        app.clipboard()
+            .write_image(&tauri_img)
+            .map_err(|e| format!("Clipboard write error: {}", e))?;
+        Ok(())
+    }
+}
 
-    let tauri_img = tauri::image::Image::new_owned(rgba.into_raw(), w, h);
+/// Emit "open-settings" event to the main window so it opens the settings panel.
+#[tauri::command]
+fn emit_open_settings(app: tauri::AppHandle) -> Result<(), String> {
+    let _ = app.emit("open-settings", ());
+    Ok(())
+}
 
-    app.clipboard()
-        .write_image(&tauri_img)
-        .map_err(|e| format!("Clipboard write error: {}", e))?;
-
+/// Show the main window (called from floating popup footer button).
+#[tauri::command]
+fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(webview_window) = app.get_webview_window("main") {
+        let _ = webview_window.show();
+        let _ = webview_window.set_focus();
+    }
     Ok(())
 }
 
@@ -190,21 +269,36 @@ pub fn run() {
                                         if webview_window.is_visible().unwrap_or(false) {
                                             let _ = webview_window.hide();
                                         } else {
-                                            // Center floating window on cursor before showing
-                                            if let Ok(pos) = webview_window.cursor_position() {
-                                                if let Ok(size) = webview_window.inner_size() {
-                                                    let new_x =
-                                                        pos.x as f64 - size.width as f64 / 2.0;
-                                                    let new_y =
-                                                        pos.y as f64 - size.height as f64 / 2.0;
-                                                    let _ = webview_window.set_position(
-                                                        tauri::Position::Logical(
-                                                            tauri::LogicalPosition::new(
-                                                                new_x, new_y,
-                                                            ),
+                                            // Position floating window on right side, vertically centered
+                                            let monitor = app.primary_monitor()
+                                                .ok()
+                                                .flatten()
+                                                .or_else(|| {
+                                                    app.available_monitors()
+                                                        .ok()
+                                                        .and_then(|m| m.into_iter().next())
+                                                });
+                                            if let Some(monitor) = monitor {
+                                                let scale = monitor.scale_factor();
+                                                let mon_size = monitor.size();
+                                                let win_size = webview_window.inner_size().unwrap_or_else(|_| {
+                                                    tauri::PhysicalSize::new(280, 520)
+                                                });
+                                                // Convert physical → logical coordinates
+                                                let mon_w = mon_size.width as f64 / scale;
+                                                let win_w = win_size.width as f64 / scale;
+                                                let mon_h = mon_size.height as f64 / scale;
+                                                let win_h = win_size.height as f64 / scale;
+                                                let new_x = mon_w - win_w - 20.0; // 20px margin from right edge
+                                                let new_y = (mon_h - win_h) / 2.0; // vertically centered
+                                                let _ = webview_window.set_position(
+                                                    tauri::Position::Logical(
+                                                        tauri::LogicalPosition::new(
+                                                            new_x.max(0.0),
+                                                            new_y.max(0.0),
                                                         ),
-                                                    );
-                                                }
+                                                    ),
+                                                );
                                             }
                                             let _ = webview_window.show();
                                             let _ = webview_window.set_focus();
@@ -251,7 +345,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             paste_to_active,
+            open_url,
             copy_image_to_clipboard,
+            show_main_window,
+            emit_open_settings,
             clipboard::toggle_monitoring,
             db::get_history,
             db::search_history,

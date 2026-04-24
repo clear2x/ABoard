@@ -94,19 +94,27 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
 
              CREATE TRIGGER IF NOT EXISTS clipboard_items_ai AFTER INSERT ON clipboard_items BEGIN
                  INSERT INTO clipboard_items_fts(rowid, content, ai_tags, ai_summary)
-                 VALUES (new.rowid, new.content, new.ai_tags, new.ai_summary);
+                 VALUES (new.rowid,
+                     CASE WHEN new.content_type = 'image' THEN '' ELSE new.content END,
+                     new.ai_tags, new.ai_summary);
              END;
 
              CREATE TRIGGER IF NOT EXISTS clipboard_items_ad AFTER DELETE ON clipboard_items BEGIN
                  INSERT INTO clipboard_items_fts(clipboard_items_fts, rowid, content, ai_tags, ai_summary)
-                 VALUES('delete', old.rowid, old.content, old.ai_tags, old.ai_summary);
+                 VALUES('delete', old.rowid,
+                     CASE WHEN old.content_type = 'image' THEN '' ELSE old.content END,
+                     old.ai_tags, old.ai_summary);
              END;
 
              CREATE TRIGGER IF NOT EXISTS clipboard_items_au AFTER UPDATE ON clipboard_items BEGIN
                  INSERT INTO clipboard_items_fts(clipboard_items_fts, rowid, content, ai_tags, ai_summary)
-                 VALUES('delete', old.rowid, old.content, old.ai_tags, old.ai_summary);
+                 VALUES('delete', old.rowid,
+                     CASE WHEN old.content_type = 'image' THEN '' ELSE old.content END,
+                     old.ai_tags, old.ai_summary);
                  INSERT INTO clipboard_items_fts(rowid, content, ai_tags, ai_summary)
-                 VALUES (new.rowid, new.content, new.ai_tags, new.ai_summary);
+                 VALUES (new.rowid,
+                     CASE WHEN new.content_type = 'image' THEN '' ELSE new.content END,
+                     new.ai_tags, new.ai_summary);
              END;
 
              INSERT INTO clipboard_items_fts(clipboard_items_fts) VALUES('rebuild');
