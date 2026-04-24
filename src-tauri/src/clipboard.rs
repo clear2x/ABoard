@@ -279,77 +279,90 @@ fn read_image_file(path: &str) -> Option<ClipboardItem> {
     encode_and_build_item(&rgba, w, h)
 }
 
-/// macOS fallback: read image from clipboard via multiple methods.
-/// 1. Try file URL («class furl») — works for Finder-copied images
-/// 2. Try PNG data («class PNG») — common for QQ, WeChat screenshots
-/// 3. Try TIFF data («class TIFF») — fallback for other apps
+/// macOS fallback: read image from clipboard via AppleScriptObjC + NSPasteboard.
+/// Uses UTI types (public.png, public.tiff, public.file-url) which work on all macOS versions.
 #[cfg(target_os = "macos")]
 fn try_read_image_fallback() -> Option<ClipboardItem> {
     use std::process::Command;
 
-    // Method 1: Try file URL from clipboard
+    let tmp_png = std::env::temp_dir().join("aboard_clip_img.png");
+    let tmp_tiff = std::env::temp_dir().join("aboard_clip_img.tiff");
+    let tmp_png_str = tmp_png.to_str()?.to_string();
+    let tmp_tiff_str = tmp_tiff.to_str()?.to_string();
+
+    // Single AppleScriptObjC script that tries PNG → TIFF → file-url
+    let script = format!(r#"
+use framework "AppKit"
+use framework "Foundation"
+set pb to current application's NSPasteboard's generalPasteboard()
+
+-- Try PNG data
+set pngData to pb's dataForType:"public.png"
+if pngData is not missing value then
+    pngData's writeToFile:"{tmp_png}" atomically:true
+    return "PNG"
+end if
+
+-- Try TIFF data
+set tiffData to pb's dataForType:"public.tiff"
+if tiffData is not missing value then
+    tiffData's writeToFile:"{tmp_tiff}" atomically:true
+    return "TIFF"
+end if
+
+-- Try file URL (e.g. Finder copied file)
+set urlData to pb's dataForType:"public.file-url"
+if urlData is not missing value then
+    set urlStr to (current application's NSString's alloc()'s initWithData:urlData encoding:4) as text
+    if urlStr starts with "file://" then
+        set posixPath to text 8 thru -1 of urlStr
+        -- Decode percent encoding
+        set decodedPath to (current application's NSString's stringWithString:posixPath)'s stringByReplacingPercentEscapesUsingEncoding:4
+        return "FILE:" & (decodedPath as text)
+    end if
+end if
+
+return ""
+"#, tmp_png = tmp_png_str, tmp_tiff = tmp_tiff_str);
+
     let output = Command::new("osascript")
         .arg("-e")
-        .arg("try\nset theClip to the clipboard as «class furl»\nreturn POSIX path of theClip\non error\nreturn \"\"\nend try")
+        .arg(&script)
         .output()
         .ok()?;
 
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if !path.is_empty() && path.starts_with('/') {
-        if let Some(item) = read_image_file(&path) {
+    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    println!("[clipboard] macOS NSPasteboard fallback result: {:?}", result);
+
+    if result == "PNG" && tmp_png.exists() {
+        let size = tmp_png.metadata().map(|m| m.len()).unwrap_or(0);
+        println!("[clipboard] Got PNG from pasteboard: {} bytes", size);
+        if let Some(item) = read_image_file(&tmp_png_str) {
+            let _ = std::fs::remove_file(&tmp_png);
             return Some(item);
         }
+        let _ = std::fs::remove_file(&tmp_png);
     }
 
-    // Method 2: Try reading raw PNG/TIFF data from clipboard and write to temp file
-    let tmp_path = std::env::temp_dir().join("aboard_clip_img.png");
-    let tmp_str = tmp_path.to_str()?;
-
-    // AppleScript: extract PNG data, write to temp file
-    let script_png = format!(
-        "try\nset pngData to the clipboard as «class PNG»\nset theFile to open for access POSIX file \"{}\" with write permission\nset eof of theFile to 0\nwrite pngData to theFile\nclose access theFile\nreturn \"PNG\"\non error\nreturn \"\"\nend try",
-        tmp_str
-    );
-
-    let output_png = Command::new("osascript")
-        .arg("-e")
-        .arg(&script_png)
-        .output()
-        .ok()?;
-
-    let result_png = String::from_utf8_lossy(&output_png.stdout).trim().to_string();
-    if result_png == "PNG" && tmp_path.exists() {
-        if let Some(item) = read_image_file(tmp_str) {
-            let _ = std::fs::remove_file(&tmp_path);
-            return Some(item);
-        }
-        let _ = std::fs::remove_file(&tmp_path);
-    }
-
-    // Method 3: Try TIFF data
-    let tmp_tiff = std::env::temp_dir().join("aboard_clip_img.tiff");
-    let tmp_tiff_str = tmp_tiff.to_str()?;
-
-    let script_tiff = format!(
-        "try\nset tiffData to the clipboard as «class TIFF»\nset theFile to open for access POSIX file \"{}\" with write permission\nset eof of theFile to 0\nwrite tiffData to theFile\nclose access theFile\nreturn \"TIFF\"\non error\nreturn \"\"\nend try",
-        tmp_tiff_str
-    );
-
-    let output_tiff = Command::new("osascript")
-        .arg("-e")
-        .arg(&script_tiff)
-        .output()
-        .ok()?;
-
-    let result_tiff = String::from_utf8_lossy(&output_tiff.stdout).trim().to_string();
-    if result_tiff == "TIFF" && tmp_tiff.exists() {
-        if let Some(item) = read_image_file(tmp_tiff_str) {
+    if result == "TIFF" && tmp_tiff.exists() {
+        let size = tmp_tiff.metadata().map(|m| m.len()).unwrap_or(0);
+        println!("[clipboard] Got TIFF from pasteboard: {} bytes", size);
+        if let Some(item) = read_image_file(&tmp_tiff_str) {
             let _ = std::fs::remove_file(&tmp_tiff);
             return Some(item);
         }
         let _ = std::fs::remove_file(&tmp_tiff);
     }
 
+    if result.starts_with("FILE:") {
+        let path = &result[5..];
+        println!("[clipboard] Got file URL from pasteboard: {}", path);
+        if let Some(item) = read_image_file(path) {
+            return Some(item);
+        }
+    }
+
+    println!("[clipboard] macOS fallback: all methods failed");
     None
 }
 

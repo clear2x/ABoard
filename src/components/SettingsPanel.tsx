@@ -1,5 +1,6 @@
-import { createSignal, onMount, onCleanup, Show, For } from "solid-js";
+import { createSignal, onMount, onCleanup, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { theme, setTheme, type ThemeMode } from "../stores/theme";
 import { locale, setLocale, t } from "../stores/i18n";
 import type { Locale } from "../stores/i18n";
@@ -56,7 +57,48 @@ export default function SettingsPanel(props: Props) {
   const [selectedModel, setSelectedModel] = createSignal(t("settings.defaultModel"));
   const [embeddedStatus, setEmbeddedStatus] = createSignal<"unknown" | "downloading" | "loading" | "ready" | "error">("unknown");
 
+  // Update check state
+  const [appVersion, setAppVersion] = createSignal("");
+  const [updateStatus, setUpdateStatus] = createSignal<"idle" | "checking" | "up-to-date" | "available" | "error">("idle");
+  const [latestVersion, setLatestVersion] = createSignal("");
+
+  const checkForUpdate = async () => {
+    setUpdateStatus("checking");
+    try {
+      // Get current version (fallback to "0.0.0" if unavailable)
+      let current = appVersion();
+      if (!current) {
+        try { current = await getVersion(); setAppVersion(current); } catch { current = "0.0.0"; }
+      }
+
+      const res = await fetch("https://api.github.com/repos/clear2x/ABoard/releases/latest", {
+        headers: { "Accept": "application/vnd.github+json" },
+      });
+      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      const data = await res.json();
+      const remoteTag: string = data.tag_name || "";
+      console.log("[update] current:", current, "remote:", remoteTag);
+
+      // Strip leading 'v' for comparison
+      const remote = remoteTag.replace(/^v/, "");
+      if (remote && remote !== current) {
+        setLatestVersion(remoteTag);
+        setUpdateStatus("available");
+      } else {
+        setUpdateStatus("up-to-date");
+      }
+    } catch (e) {
+      console.error("[update] check failed:", e);
+      setUpdateStatus("error");
+    }
+  };
+
   onMount(async () => {
+    try {
+      const ver = await getVersion();
+      setAppVersion(ver);
+    } catch {}
+
     try {
       const config = await invoke<AiConfig>("ai_get_config");
       setProvider(config.active_provider || "Local");
@@ -467,11 +509,67 @@ export default function SettingsPanel(props: Props) {
                 <i class="ph-fill ph-clipboard-text text-white text-2xl" />
               </div>
               <h3 class="text-lg font-bold text-gray-700">{t("settings.aboutVersion")}</h3>
+              <Show when={appVersion()}>
+                <p class="text-xs text-gray-400">v{appVersion()}</p>
+              </Show>
               <p class="text-sm text-gray-400">{t("settings.aboutDesc")}</p>
               <div class="pt-2">
                 <span class="text-xs px-2 py-1 rounded-full bg-white/50 text-gray-400">
                   Tauri v2 + SolidJS + SQLite
                 </span>
+              </div>
+
+              {/* Check for updates */}
+              <div class="pt-4 space-y-2">
+                <button
+                  onClick={checkForUpdate}
+                  disabled={updateStatus() === "checking"}
+                  class="px-4 py-2 text-xs font-medium rounded-lg transition-colors disabled:opacity-40 bg-blue-500 text-white shadow-sm hover:bg-blue-600"
+                >
+                  {updateStatus() === "checking" ? t("settings.checking") : t("settings.checkUpdate")}
+                </button>
+
+                <Show when={updateStatus() === "up-to-date"}>
+                  <div class="flex items-center justify-center gap-1.5 text-xs text-green-600">
+                    <i class="ph ph-check-circle" />
+                    {t("settings.upToDate")}
+                  </div>
+                </Show>
+
+                <Show when={updateStatus() === "available"}>
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-center gap-1.5 text-xs text-orange-500">
+                      <i class="ph ph-arrow-up-circle" />
+                      {t("settings.newVersion", { version: latestVersion() })}
+                    </div>
+                    <button
+                      onClick={() => invoke("open_url", { url: "https://github.com/clear2x/ABoard/releases/latest" })}
+                      class="inline-block px-4 py-1.5 text-xs font-medium rounded-lg bg-green-500 text-white shadow-sm hover:bg-green-600 transition-colors"
+                    >
+                      {t("settings.downloadUpdate")}
+                    </button>
+                  </div>
+                </Show>
+
+                <Show when={updateStatus() === "error"}>
+                  <div class="text-xs text-red-400">{t("settings.updateError")}</div>
+                </Show>
+              </div>
+
+              {/* Author & Links */}
+              <div class="pt-6 space-y-2 text-xs text-gray-400">
+                <div class="flex items-center justify-center gap-1.5">
+                  <i class="ph ph-user-circle" />
+                  <span>{t("settings.author")}：突然冷风吹</span>
+                </div>
+                <div class="flex items-center justify-center gap-1.5">
+                  <i class="ph ph-github-logo" />
+                  <button onClick={() => invoke("open_url", { url: "https://github.com/clear2x/ABoard" })} class="text-blue-500 hover:underline">GitHub</button>
+                </div>
+                <div class="flex items-center justify-center gap-1.5">
+                  <i class="ph ph-chats-circle" />
+                  <span>QQ：1483782149</span>
+                </div>
               </div>
             </div>
           </Show>

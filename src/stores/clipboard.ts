@@ -68,8 +68,8 @@ export function setViewMode(mode: ViewMode) {
 export async function copyItemContent(item: ClipboardItem): Promise<boolean> {
   try {
     if (item.type === "image" && item.content.startsWith("data:")) {
-      // Use Tauri backend to write image to clipboard properly
-      await invoke("copy_image_to_clipboard", { dataUrl: item.content });
+      // Use Tauri backend: pass item ID, Rust reads image from DB
+      await invoke("copy_image_to_clipboard", { itemId: item.id });
     } else {
       await navigator.clipboard.writeText(item.content);
     }
@@ -78,19 +78,6 @@ export async function copyItemContent(item: ClipboardItem): Promise<boolean> {
     return true;
   } catch (e) {
     console.error("[store] Copy failed:", e);
-    // Fallback: try browser API for images
-    if (item.type === "image" && item.content.startsWith("data:")) {
-      try {
-        const res = await fetch(item.content);
-        const blob = await res.blob();
-        await navigator.clipboard.write([
-          new ClipboardItem({ [blob.type]: blob }),
-        ]);
-        setCopiedId(item.id);
-        setTimeout(() => setCopiedId(null), 1500);
-        return true;
-      } catch {}
-    }
     return false;
   }
 }

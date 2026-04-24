@@ -37,7 +37,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      "csp": "default-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.github.com"
     },
     "trayIcon": {
       "iconPath": "icons/icon.png",
