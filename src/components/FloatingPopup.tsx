@@ -1,7 +1,8 @@
 import { createSignal, onMount, onCleanup, For, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { items, loadHistory, type ClipboardItem, copyItemContent, pinItem, unpinItem, deleteItems, copiedId, reorderItems } from "../stores/clipboard";
+import { items, loadHistory, type ClipboardItem, copyItemContent, pinItem, unpinItem, deleteItems, copiedId, reorderItems, startClipboardListener } from "../stores/clipboard";
 import { initLocale, t } from "../stores/i18n";
 import { initTheme } from "../stores/theme";
 
@@ -54,6 +55,13 @@ export default function FloatingPopup() {
     initTheme();
     await loadHistory(0, 20);
     setPopupItems(items().slice(0, 20));
+
+    // Listen for clipboard updates to refresh popup content
+    const unlisten = await listen("clipboard-update", async () => {
+      await loadHistory(0, 20);
+      setPopupItems(items().slice(0, 20));
+    });
+    onCleanup(() => unlisten());
 
     await getCurrentWindow().setFocus();
 

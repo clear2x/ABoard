@@ -63,6 +63,7 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
         "ALTER TABLE clipboard_items ADD COLUMN ai_type TEXT",
         "ALTER TABLE clipboard_items ADD COLUMN ai_tags TEXT",
         "ALTER TABLE clipboard_items ADD COLUMN ai_summary TEXT",
+        "ALTER TABLE clipboard_items ADD COLUMN file_path TEXT",
     ];
     for sql in &migrations {
         // Ignore error if column already exists
@@ -143,8 +144,8 @@ pub fn insert_item(conn: &Mutex<rusqlite::Connection>, item: &ClipboardItem) -> 
     let conn = conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
     let metadata_str = serde_json::to_string(&item.metadata).unwrap_or_else(|_| "{}".to_string());
     conn.execute(
-        "INSERT OR IGNORE INTO clipboard_items (id, content_type, content, hash, timestamp, metadata) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        rusqlite::params![item.id, item.content_type, item.content, item.hash, item.timestamp, metadata_str],
+        "INSERT OR IGNORE INTO clipboard_items (id, content_type, content, hash, timestamp, metadata, file_path) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        rusqlite::params![item.id, item.content_type, item.content, item.hash, item.timestamp, metadata_str, item.file_path],
     ).map_err(|e| format!("Insert error: {}", e))?;
     Ok(())
 }
@@ -167,6 +168,7 @@ fn row_to_item(row: &rusqlite::Row<'_>) -> Result<ClipboardItem, rusqlite::Error
         ai_type: row.get(8)?,
         ai_tags: row.get(9)?,
         ai_summary: row.get(10)?,
+        file_path: row.get(11)?,
     })
 }
 
@@ -189,7 +191,7 @@ pub async fn get_history(
     };
     let mut stmt = conn
         .prepare(
-            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary
+            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary, file_path
              FROM clipboard_items
              ORDER BY pinned DESC, pinned_at DESC, timestamp DESC
              LIMIT ?1 OFFSET ?2",
@@ -260,7 +262,7 @@ pub fn search_history(
     // Try FTS5 search first
     let mut stmt = conn
         .prepare(
-            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary
+            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary, file_path
              FROM clipboard_items
              WHERE id IN (
                  SELECT rowid FROM clipboard_items_fts
@@ -286,7 +288,7 @@ pub fn search_history(
     let like_pattern = format!("%{}%", trimmed.replace('%', "\\%").replace('_', "\\_"));
     let mut stmt = conn
         .prepare(
-            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary
+            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary, file_path
              FROM clipboard_items
              WHERE content LIKE ?1 ESCAPE '\\'
              ORDER BY pinned DESC, pinned_at DESC, timestamp DESC
@@ -306,6 +308,7 @@ pub fn search_history(
 #[tauri::command]
 pub fn delete_items(
     state: tauri::State<'_, DbState>,
+    app: tauri::AppHandle,
     ids: Vec<String>,
 ) -> Result<(), String> {
     if ids.is_empty() {
@@ -319,11 +322,84 @@ pub fn delete_items(
     }
 
     let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+
+    // Collect file paths to clean up after deletion
+    let file_paths: Vec<String> = ids.iter().filter_map(|id| {
+        conn.query_row(
+            "SELECT file_path FROM clipboard_items WHERE id = ?1",
+            rusqlite::params![id],
+            |row| row.get(0),
+        ).ok()
+    }).collect();
+
     for id in &ids {
         conn.execute("DELETE FROM clipboard_items WHERE id = ?1", rusqlite::params![id])
             .map_err(|e| format!("Delete error: {}", e))?;
     }
+    // Reclaim disk space after deletion
+    let _ = conn.execute("VACUUM", []);
+    drop(conn);
+
+    // Clean up associated files from data directory
+    if !file_paths.is_empty() {
+        if let Ok(app_data_dir) = app.path().app_data_dir() {
+            for rel_path in file_paths {
+                if !rel_path.is_empty() {
+                    let full_path = app_data_dir.join(&rel_path);
+                    let _ = std::fs::remove_file(full_path);
+                }
+            }
+        }
+    }
+
     Ok(())
+}
+
+/// Delete unpinned items older than N days. Returns count of deleted items.
+#[tauri::command]
+pub fn clean_old_items(
+    state: tauri::State<'_, DbState>,
+    app: tauri::AppHandle,
+    days: u32,
+) -> Result<u64, String> {
+    let cutoff = chrono::Utc::now()
+        .checked_sub_signed(chrono::Duration::days(days as i64))
+        .ok_or("Invalid days value")?
+        .timestamp_millis();
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+
+    // Collect file paths to clean up
+    let file_paths: Vec<String> = {
+        let mut stmt = conn.prepare(
+            "SELECT file_path FROM clipboard_items WHERE pinned = 0 AND timestamp < ?1 AND file_path IS NOT NULL AND file_path != ''"
+        ).map_err(|e| format!("Prepare error: {}", e))?;
+        let rows = stmt.query_map(rusqlite::params![cutoff], |row| row.get(0)).ok();
+        rows.map(|r| r.filter_map(|v| v.ok()).collect()).unwrap_or_default()
+    };
+
+    let count = conn
+        .execute(
+            "DELETE FROM clipboard_items WHERE pinned = 0 AND timestamp < ?1",
+            rusqlite::params![cutoff],
+        )
+        .map_err(|e| format!("Clean error: {}", e))?;
+    // Reclaim disk space if items were deleted
+    if count > 0 {
+        let _ = conn.execute("VACUUM", []);
+    }
+    drop(conn);
+
+    // Clean up associated files
+    if !file_paths.is_empty() {
+        if let Ok(app_data_dir) = app.path().app_data_dir() {
+            for rel_path in file_paths {
+                let full_path = app_data_dir.join(&rel_path);
+                let _ = std::fs::remove_file(full_path);
+            }
+        }
+    }
+
+    Ok(count as u64)
 }
 
 /// Pin a clipboard item. Sets pinned=1 and pinned_at to current time.
@@ -369,7 +445,7 @@ pub fn get_pinned(state: tauri::State<'_, DbState>) -> Result<Vec<ClipboardItem>
     let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary
+            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary, file_path
              FROM clipboard_items
              WHERE pinned = 1
              ORDER BY pinned_at DESC",
@@ -468,6 +544,40 @@ pub fn update_ai_metadata(
     Ok(())
 }
 
+/// Read a file from the data directory and return it as a base64 data URL.
+/// Used by the frontend to display images stored as files.
+#[tauri::command]
+pub fn read_data_file(app: tauri::AppHandle, relative_path: String) -> Result<String, String> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| format!("App data dir error: {}", e))?;
+    let full_path = app_data_dir.join(&relative_path);
+
+    // Security: ensure the path doesn't escape the data directory
+    let canonical_data = app_data_dir.join("data").canonicalize()
+        .unwrap_or_else(|_| app_data_dir.join("data"));
+    if let Ok(canonical_file) = full_path.canonicalize() {
+        if !canonical_file.starts_with(&canonical_data) && !canonical_file.starts_with(&app_data_dir) {
+            return Err("Path traversal not allowed".to_string());
+        }
+    }
+
+    let bytes = std::fs::read(&full_path)
+        .map_err(|e| format!("Read error: {}", e))?;
+
+    let mime_type = match full_path.extension().and_then(|e| e.to_str()) {
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("webp") => "image/webp",
+        Some("mp4") => "video/mp4",
+        Some("mov") => "video/quicktime",
+        _ => "application/octet-stream",
+    };
+
+    let b64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes);
+    Ok(format!("data:{};base64,{}", mime_type, b64))
+}
+
 /// Get storage statistics: database file size and item count.
 #[tauri::command]
 pub fn get_storage_stats(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
@@ -515,7 +625,7 @@ pub async fn export_items(
     let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
     let placeholders: Vec<String> = ids.iter().map(|_| "?".to_string()).collect();
     let sql = format!(
-        "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary
+        "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary, file_path
          FROM clipboard_items WHERE id IN ({})
          ORDER BY pinned DESC, pinned_at DESC, timestamp DESC",
         placeholders.join(",")
@@ -624,7 +734,7 @@ pub async fn semantic_search(
     let conn = db_state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary
+            "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary, file_path
              FROM clipboard_items
              WHERE id IN (
                  SELECT rowid FROM clipboard_items_fts

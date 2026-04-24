@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { theme, setTheme, type ThemeMode } from "../stores/theme";
 import { locale, setLocale, t } from "../stores/i18n";
-import { storageSize, itemCount, loadStorageStats } from "../stores/clipboard";
+import { storageSize, itemCount, loadStorageStats, loadHistory } from "../stores/clipboard";
 import type { Locale } from "../stores/i18n";
 
 interface AiConfig {
@@ -65,10 +65,17 @@ export default function SettingsPanel(props: Props) {
   const [selectedModel, setSelectedModel] = createSignal(t("settings.defaultModel"));
   const [embeddedStatus, setEmbeddedStatus] = createSignal<"unknown" | "downloading" | "loading" | "ready" | "error">("unknown");
 
+  // Privacy & storage state
+  const [monitoringEnabled, setMonitoringEnabled] = createSignal(true);
+  const [cleanupDays, setCleanupDays] = createSignal(30);
+  const [showCleanupDropdown, setShowCleanupDropdown] = createSignal(false);
+
   // Update check state
   const [appVersion, setAppVersion] = createSignal("");
   const [updateStatus, setUpdateStatus] = createSignal<"idle" | "checking" | "up-to-date" | "available" | "error">("idle");
   const [latestVersion, setLatestVersion] = createSignal("");
+  const [cleaning, setCleaning] = createSignal(false);
+  const [cleanMessage, setCleanMessage] = createSignal("");
 
   const checkForUpdate = async () => {
     setUpdateStatus("checking");
@@ -108,6 +115,11 @@ export default function SettingsPanel(props: Props) {
     } catch {}
 
     loadStorageStats();
+
+    try {
+      const monitoring = await invoke<boolean>("get_monitoring_state");
+      setMonitoringEnabled(monitoring);
+    } catch {}
 
     try {
       const config = await invoke<AiConfig>("ai_get_config");
@@ -423,14 +435,43 @@ export default function SettingsPanel(props: Props) {
                   <h3 class="text-[11px] font-bold text-gray-500 mb-2 uppercase">{t("settings.privacyAndData")}</h3>
                   <div class="glass-card rounded-xl p-3 space-y-3">
                     <div class="flex justify-between items-center">
-                      <div class="text-xs text-gray-700">{t("settings.privacyFirst")}<br /><span class="text-[9px] text-gray-400">{t("settings.localMode")}</span></div>
-                      <div class="w-7 h-4 bg-blue-500 rounded-full relative cursor-pointer">
-                        <div class="absolute right-0.5 top-0.5 w-3 h-3 bg-white rounded-full" />
-                      </div>
+                      <div class="text-xs text-gray-700">{t("settings.privacyFirst")}<br /><span class="text-[9px] text-gray-400">{monitoringEnabled() ? t("settings.localMode") : "Monitoring paused"}</span></div>
+                      <button
+                        class="w-7 h-4 rounded-full relative cursor-pointer transition-colors"
+                        classList={{ "bg-blue-500": monitoringEnabled(), "bg-gray-300": !monitoringEnabled() }}
+                        onClick={async () => {
+                          try {
+                            const active = await invoke<boolean>("toggle_monitoring");
+                            setMonitoringEnabled(active);
+                          } catch {}
+                        }}
+                      >
+                        <div class="absolute top-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform"
+                          style={{ left: monitoringEnabled() ? "14px" : "2px" }}
+                        />
+                      </button>
                     </div>
-                    <div class="flex justify-between items-center pt-2 border-t border-white/30">
+                    <div class="flex justify-between items-center pt-2 border-t border-white/30 relative">
                       <div class="text-xs text-gray-700">{t("settings.autoCleanup")}</div>
-                      <div class="text-xs bg-white/50 px-2 py-0.5 rounded border border-white/80 cursor-pointer flex items-center gap-1">{t("settings.afterDays", { n: 30 })} <i class="ph ph-caret-down text-[10px]" /></div>
+                      <button
+                        class="text-xs bg-white/50 px-2 py-0.5 rounded border border-white/80 cursor-pointer flex items-center gap-1"
+                        onClick={() => setShowCleanupDropdown((v) => !v)}
+                      >
+                        {t("settings.afterDays", { n: cleanupDays() })} <i class="ph ph-caret-down text-[10px]" />
+                      </button>
+                      <Show when={showCleanupDropdown()}>
+                        <div class="absolute right-0 top-7 z-50 bg-white/95 backdrop-blur-sm border border-white/80 rounded-lg shadow-lg py-1 min-w-[80px]">
+                          {[7, 14, 30, 60, 90].map((d) => (
+                            <button
+                              class="w-full text-left px-3 py-1 text-xs hover:bg-blue-50 transition-colors"
+                              classList={{ "text-blue-600 font-medium": cleanupDays() === d, "text-gray-600": cleanupDays() !== d }}
+                              onClick={() => { setCleanupDays(d); setShowCleanupDropdown(false); }}
+                            >
+                              {d} days
+                            </button>
+                          ))}
+                        </div>
+                      </Show>
                     </div>
                   </div>
                 </div>
@@ -442,12 +483,36 @@ export default function SettingsPanel(props: Props) {
                       <div class="text-[10px] text-gray-500 mb-0.5">{t("settings.used")}</div>
                       <div class="flex items-baseline gap-1 mb-1.5">
                         <span class="text-sm font-bold text-gray-700">{formatSize(storageSize())}</span>
+                        <span class="text-[10px] text-gray-400">{itemCount()} items</span>
                       </div>
                       <div class="w-full h-1.5 bg-gray-200/50 rounded-full overflow-hidden">
                         <div class="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, (storageSize() / (50 * 1024 * 1024 * 1024)) * 100)}%` }} />
                       </div>
                     </div>
-                    <button class="w-full mt-2 bg-white/60 hover:bg-white/80 border border-white/80 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm">{t("settings.cleanOldData")}</button>
+                    <button class="w-full mt-2 bg-white/60 hover:bg-white/80 border border-white/80 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm disabled:opacity-40"
+                      disabled={cleaning()}
+                      onClick={async () => {
+                        setCleaning(true);
+                        setCleanMessage("");
+                        try {
+                          const count = await invoke<number>("clean_old_items", { days: cleanupDays() });
+                          setCleanMessage(count > 0 ? t("settings.cleaned", { n: String(count) }) : t("settings.noOldItems"));
+                          await loadStorageStats();
+                          await loadHistory();
+                          setTimeout(() => setCleanMessage(""), 3000);
+                        } catch (e) {
+                          setCleanMessage(`Error: ${e}`);
+                        } finally {
+                          setCleaning(false);
+                        }
+                      }}
+                    >{cleaning() ? t("settings.cleaning") : t("settings.cleanOldData")}</button>
+                    <Show when={cleanMessage()}>
+                      <p class="text-[10px] mt-1 text-center" classList={{
+                        "text-green-500": !cleanMessage().startsWith("Error"),
+                        "text-red-500": cleanMessage().startsWith("Error"),
+                      }}>{cleanMessage()}</p>
+                    </Show>
                   </div>
                 </div>
               </div>

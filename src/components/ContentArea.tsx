@@ -22,6 +22,7 @@ import { t } from "../stores/i18n";
 import ClipboardItemCard from "./ClipboardItemCard";
 import ContextMenu from "./ContextMenu";
 import ConfirmDialog from "./ConfirmDialog";
+import ImagePreview from "./ImagePreview";
 
 const TIME_FILTERS = [
   { key: "all", labelKey: "filter.all" },
@@ -63,6 +64,9 @@ export default function ContentArea() {
   const [dragItemId, setDragItemId] = createSignal<string | null>(null);
   const [dropTargetId, setDropTargetId] = createSignal<string | null>(null);
 
+  // Image preview state
+  const [previewSrc, setPreviewSrc] = createSignal<string | null>(null);
+
   // Filtered items based on category + time filter
   const filteredItems = createMemo(() => {
     let result = items();
@@ -71,7 +75,7 @@ export default function ContentArea() {
     const cat = categoryFilter();
     if (cat !== "all") {
       result = result.filter((i) => {
-        if (["code", "link", "image", "text"].includes(cat)) {
+        if (["code", "link", "image", "video", "text"].includes(cat)) {
           return (i.ai_type || i.type) === cat;
         }
         // Tag filter
@@ -383,6 +387,7 @@ export default function ContentArea() {
                       }
                       onDelete={handleItemDelete}
                       onPin={handleItemPin}
+                      onImageClick={(src) => setPreviewSrc(src)}
                     />
                   </div>
                 );
@@ -417,6 +422,10 @@ export default function ContentArea() {
         onConfirm={confirmBatchDelete}
         onCancel={() => setConfirmOpen(false)}
       />
+
+      <Show when={previewSrc() !== null}>
+        <ImagePreview src={previewSrc()!} onClose={() => setPreviewSrc(null)} />
+      </Show>
     </div>
   );
 }

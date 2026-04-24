@@ -1,6 +1,6 @@
-import { Show, For, createSignal } from "solid-js";
+import { Show, For, createSignal, onMount } from "solid-js";
 import type { ClipboardItem } from "../stores/clipboard";
-import { copyItemContent, copiedId } from "../stores/clipboard";
+import { copyItemContent, copiedId, getItemContent } from "../stores/clipboard";
 import { t } from "../stores/i18n";
 
 function truncateText(text: string, maxLen: number = 120): string {
@@ -21,6 +21,10 @@ function typeAvatar(type: string): { letter: string; bg: string; color: string; 
       return { letter: "", bg: "bg-blue-50", color: "text-blue-500", icon: "ph-link" };
     case "image":
       return { letter: "", bg: "bg-green-50", color: "text-green-500", icon: "ph-image" };
+    case "video":
+      return { letter: "", bg: "bg-rose-50", color: "text-rose-500", icon: "ph-video-camera" };
+    case "file-paths":
+      return { letter: "", bg: "bg-amber-50", color: "text-amber-600", icon: "ph-file" };
     case "json":
       return { letter: "", bg: "bg-orange-50", color: "text-orange-500", icon: "ph-brackets-curly" };
     case "xml":
@@ -43,14 +47,30 @@ interface Props {
   onCopy?: (item: ClipboardItem) => void;
   onDelete?: (id: string) => void;
   onPin?: (id: string, pinned: boolean) => void;
+  onImageClick?: (src: string) => void;
 }
 
 export default function ClipboardItemCard(props: Props) {
   const [hovered, setHovered] = createSignal(false);
+  const [resolvedSrc, setResolvedSrc] = createSignal<string | null>(null);
   const tags = () => (props.item.ai_tags || []).filter((t) => t.length >= 2 && !/^[\s\p{P}\p{S}]+$/u.test(t));
   const justCopied = () => copiedId() === props.item.id;
   const dtype = () => displayType(props.item);
   const avatar = () => typeAvatar(dtype());
+
+  // Resolve image content: if file_path exists, load from backend
+  const imageSrc = () => {
+    const c = props.item.content;
+    if (c.startsWith("data:")) return c;
+    if (resolvedSrc()) return resolvedSrc()!;
+    return c;
+  };
+
+  onMount(() => {
+    if (props.item.type === "image" && props.item.file_path && !props.item.content.startsWith("data:")) {
+      getItemContent(props.item).then((dataUrl) => setResolvedSrc(dataUrl));
+    }
+  });
 
   const handleCopy = async (e: MouseEvent) => {
     e.stopPropagation();
@@ -106,14 +126,32 @@ export default function ClipboardItemCard(props: Props) {
           {/* Content */}
           <div class="flex-1 min-w-0">
             {/* Image preview */}
-            <Show when={props.item.type === "image" && props.item.content.startsWith("data:")}>
+            <Show when={props.item.type === "image"}>
               <div class="mt-1">
                 <img
-                  src={props.item.content}
+                  src={imageSrc()}
                   alt="Clipboard image"
-                  class="max-w-full max-h-[120px] rounded-lg object-contain border border-white/50 dark:border-white/10"
+                  class="max-w-full max-h-[120px] rounded-lg object-contain border border-white/50 dark:border-white/10 cursor-pointer hover:opacity-90 transition-opacity"
                   loading="lazy"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const src = imageSrc();
+                    if (src) props.onImageClick?.(src);
+                  }}
                 />
+              </div>
+            </Show>
+
+            {/* Video preview */}
+            <Show when={props.item.type === "video"}>
+              <div class="mt-1 flex items-center gap-2 bg-white/30 dark:bg-slate-700/30 rounded-lg p-3 border border-white/50 dark:border-white/10">
+                <i class="ph ph-video-camera text-2xl text-rose-400" />
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs text-gray-600 dark:text-gray-300 truncate">
+                    {props.item.file_path ? props.item.file_path.split("/").pop() : "Video recording"}
+                  </p>
+                  <p class="text-[10px] text-gray-400">MP4</p>
+                </div>
               </div>
             </Show>
 
@@ -123,7 +161,7 @@ export default function ClipboardItemCard(props: Props) {
                 <Show
                   when={dtype() === "code"}
                   fallback={
-                    <Show when={!(props.item.type === "image" && props.item.content.startsWith("data:"))}>
+                    <Show when={props.item.type !== "image" && props.item.type !== "video"}>
                       <p class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
                         {truncateText(props.item.content)}
                       </p>
@@ -233,7 +271,7 @@ export default function ClipboardItemCard(props: Props) {
       </div>
 
       <Show
-        when={props.item.type === "image" && props.item.content.startsWith("data:")}
+        when={props.item.type === "image"}
         fallback={
           <p class="break-all leading-relaxed text-sm text-gray-700">
             {truncateText(props.item.content)}
@@ -241,7 +279,9 @@ export default function ClipboardItemCard(props: Props) {
         }
       >
         <div class="mt-1">
-          <img src={props.item.content} alt="Clipboard image" class="clipboard-image-preview" loading="lazy" />
+          <img src={imageSrc()} alt="Clipboard image" class="clipboard-image-preview cursor-pointer hover:opacity-90 transition-opacity" loading="lazy"
+            onClick={(e) => { e.stopPropagation(); const src = imageSrc(); if (src) props.onImageClick?.(src); }}
+          />
         </div>
       </Show>
 

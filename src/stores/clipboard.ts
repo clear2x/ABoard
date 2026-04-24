@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 export interface ClipboardItem {
   id: string;
-  type: "text" | "image" | "file-paths";
+  type: "text" | "image" | "file-paths" | "video";
   content: string;
   hash: string;
   timestamp: number;
@@ -14,6 +14,7 @@ export interface ClipboardItem {
   ai_type?: string | null;
   ai_tags?: string[] | null;
   ai_summary?: string | null;
+  file_path?: string | null;
 }
 
 export type ViewMode = "list" | "grid";
@@ -67,7 +68,7 @@ export function setViewMode(mode: ViewMode) {
 /// For images, uses Tauri command to write as a real image (not base64 text).
 export async function copyItemContent(item: ClipboardItem): Promise<boolean> {
   try {
-    if (item.type === "image" && item.content.startsWith("data:")) {
+    if (item.type === "image") {
       // Use Tauri backend: pass item ID, Rust reads image from DB
       await invoke("copy_image_to_clipboard", { itemId: item.id });
     } else {
@@ -80,6 +81,20 @@ export async function copyItemContent(item: ClipboardItem): Promise<boolean> {
     console.error("[store] Copy failed:", e);
     return false;
   }
+}
+
+/// Load the displayable content for an item.
+/// For items with file_path, reads the file from the data directory.
+export async function getItemContent(item: ClipboardItem): Promise<string> {
+  if (item.file_path) {
+    try {
+      return await invoke<string>("read_data_file", { relativePath: item.file_path });
+    } catch (e) {
+      console.error("[store] Failed to read data file:", e);
+      return item.content;
+    }
+  }
+  return item.content;
 }
 
 export function toggleSelect(id: string) {
@@ -107,10 +122,19 @@ function normalizeItem(raw: Record<string, unknown>): ClipboardItem {
   } else if (Array.isArray(raw.ai_tags)) {
     aiTags = raw.ai_tags as string[];
   }
+  const filePath = (raw.file_path as string) || null;
+  const contentType = (raw.type || raw.content_type) as "text" | "image" | "file-paths" | "video";
+
+  // For image items with file_path, convert to displayable URL
+  let content = raw.content as string;
+  if (contentType === "image" && filePath && !content.startsWith("data:")) {
+    content = `aboard-file://${filePath}`;
+  }
+
   return {
     id: raw.id as string,
-    type: (raw.type || raw.content_type) as "text" | "image" | "file-paths",
-    content: raw.content as string,
+    type: contentType,
+    content,
     hash: raw.hash as string,
     timestamp: raw.timestamp as number,
     metadata: (raw.metadata || {}) as Record<string, unknown>,
@@ -119,6 +143,7 @@ function normalizeItem(raw: Record<string, unknown>): ClipboardItem {
     ai_type: (raw.ai_type as string) || null,
     ai_tags: aiTags,
     ai_summary: (raw.ai_summary as string) || null,
+    file_path: filePath,
   };
 }
 

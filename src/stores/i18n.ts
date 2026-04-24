@@ -167,6 +167,7 @@ const t_map: Translations = {
   "sidebar.code": { zh: "代码", en: "Code" },
   "sidebar.links": { zh: "链接", en: "Links" },
   "sidebar.images": { zh: "图片", en: "Images" },
+  "sidebar.videos": { zh: "视频", en: "Videos" },
   "sidebar.text": { zh: "文本", en: "Text" },
   "sidebar.tags": { zh: "标签", en: "Tags" },
   "sidebar.newTag": { zh: "新建标签", en: "New Tag" },
@@ -216,6 +217,9 @@ const t_map: Translations = {
   "settings.storageStatus": { zh: "存储状态", en: "Storage Status" },
   "settings.used": { zh: "已使用", en: "Used" },
   "settings.cleanOldData": { zh: "清理旧数据", en: "Clean Old Data" },
+  "settings.cleaning": { zh: "清理中...", en: "Cleaning..." },
+  "settings.cleaned": { zh: "已清理 {n} 条旧数据", en: "Cleaned {n} old items" },
+  "settings.noOldItems": { zh: "没有需要清理的旧数据", en: "No old items to clean" },
   "settings.showHideWindow": { zh: "显示 / 隐藏主窗口", en: "Show / Hide Main Window" },
   "settings.quickPastePanel": { zh: "快速粘贴面板", en: "Quick Paste Panel" },
 
