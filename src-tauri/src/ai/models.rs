@@ -1,5 +1,3 @@
-use crate::ai::{AiState, InferenceProvider};
-use crate::db::DbState;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -279,56 +277,4 @@ impl ModelManager {
         Ok(())
     }
 
-    /// Switch the active model: updates config and reloads the LocalProvider.
-    pub async fn switch_model(
-        ai_state: &AiState,
-        db_state: &DbState,
-        model_id: &str,
-    ) -> Result<(), String> {
-        // Validate ID format
-        if model_id.len() > 64 || !model_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-            return Err(format!("Invalid model ID format: {}", model_id));
-        }
-
-        // Get model file_path from database
-        let file_path = {
-            let conn_lock =
-                db_state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
-            conn_lock
-                .query_row(
-                    "SELECT file_path FROM model_metadata WHERE id = ?1 AND status = 'available'",
-                    params![model_id],
-                    |row| row.get::<_, String>(0),
-                )
-                .map_err(|e| format!("Model not found or not available: {}", e))?
-        };
-
-        // Verify the file exists
-        if !Path::new(&file_path).exists() {
-            return Err(format!("Model file not found on disk: {}", file_path));
-        }
-
-        // Update config with the new model path
-        {
-            let mut config = ai_state.config.lock().await;
-            config.model_path = Some(file_path.clone());
-            config.active_provider = crate::ai::config::ProviderType::Local;
-            config
-                .save(&ai_state.app_handle)
-                .map_err(|e| format!("Failed to save config: {}", e))?;
-        }
-
-        // Reload the LocalProvider with the new model
-        let new_provider: Box<dyn InferenceProvider> = {
-            let local = crate::ai::local::LocalProvider::new(file_path);
-            Box::new(local)
-        };
-
-        {
-            let mut provider = ai_state.provider.lock().await;
-            *provider = new_provider;
-        }
-
-        Ok(())
-    }
 }

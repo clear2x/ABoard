@@ -111,9 +111,6 @@ export default function Sidebar() {
               )}
             </For>
           </ul>
-          <div class="px-3 py-2 mt-1 text-sm text-blue-500 cursor-pointer flex items-center gap-1 hover:text-blue-600">
-            <i class="ph ph-plus" /> {t("sidebar.newTag")}
-          </div>
         </div>
       </Show>
 

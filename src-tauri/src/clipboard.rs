@@ -1,5 +1,6 @@
 use crate::db;
 use crate::db::DbState;
+use arboard::Clipboard as ArboardClipboard;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -102,11 +103,9 @@ pub fn start_monitoring<R: Runtime>(app: tauri::AppHandle<R>) {
             let text_result = app.clipboard().read_text();
             if let Ok(ref t) = text_result {
                 if !t.trim().is_empty() {
-                    println!("[clipboard] read_text OK: {} chars, preview: {:?}",
-                        t.len(), &t.chars().take(80).collect::<String>());
+                    eprintln!("[clipboard] [DEBUG] text captured: {} chars, starts_with_data_image={}",
+                        t.len(), t.trim().starts_with("data:image/"));
                 }
-            } else if let Err(ref e) = text_result {
-                println!("[clipboard] read_text ERR: {:?}", e);
             }
             match text_result {
                 Ok(text) => {
@@ -169,17 +168,39 @@ fn detect_content_type(text: &str) -> (String, String) {
     ("text".to_string(), text.to_string())
 }
 
+/// Check the pasteboard for file references (Finder/Explorer file copies).
+/// Uses arboard's native API which properly resolves .file/id= reference URLs
+/// on macOS via NSPasteboardURLReadingFileURLsOnlyKey.
+fn try_read_image_file_list() -> Option<ClipboardItem> {
+    let mut clipboard = ArboardClipboard::new().ok()?;
+    let files = clipboard.get().file_list().ok()?;
+    for path in &files {
+        let path_str = path.to_string_lossy();
+        if let Some(item) = read_image_file(&path_str) {
+            return Some(item);
+        }
+    }
+    None
+}
+
 /// Try to read an image from the clipboard.
-/// First tries Tauri's clipboard plugin, then falls back to macOS native methods.
+/// Checks file references first (Finder/Explorer copies), then Tauri's clipboard plugin,
+/// then platform-specific fallback methods.
 fn try_read_image<R: Runtime>(app: &tauri::AppHandle<R>) -> Option<ClipboardItem> {
-    // Method 1: Tauri clipboard plugin (works for most apps)
+    // Method 0: Check for file references (Finder/Explorer file copies).
+    // Uses arboard's native API which properly resolves .file/id= reference URLs
+    // on macOS via NSPasteboardURLReadingFileURLsOnlyKey.
+    if let Some(item) = try_read_image_file_list() {
+        return Some(item);
+    }
+
+    // Method 1: Tauri clipboard plugin (works for most apps with raw image data)
     let img_result = app.clipboard().read_image();
     match img_result {
         Ok(tauri_img) => {
             let rgba = tauri_img.rgba();
             let w = tauri_img.width();
             let h = tauri_img.height();
-            println!("[clipboard] read_image OK: {}x{} ({} bytes RGBA)", w, h, rgba.len());
 
             // Size guard
             if rgba.len() > MAX_IMAGE_SIZE {
@@ -190,7 +211,7 @@ fn try_read_image<R: Runtime>(app: &tauri::AppHandle<R>) -> Option<ClipboardItem
             return encode_and_build_item(&rgba, w, h);
         }
         Err(e) => {
-            println!("[clipboard] read_image ERR: {:?}, trying fallback...", e);
+            eprintln!("[clipboard] [DEBUG] read_image err: {:?}", e);
         }
     }
 
@@ -250,7 +271,6 @@ fn encode_and_build_item(rgba: &[u8], w: u32, h: u32) -> Option<ClipboardItem> {
 fn read_image_file(path: &str) -> Option<ClipboardItem> {
     let file_path = std::path::Path::new(path);
     if !file_path.exists() {
-        println!("[clipboard] File does not exist: {}", path);
         return None;
     }
 
@@ -266,7 +286,7 @@ fn read_image_file(path: &str) -> Option<ClipboardItem> {
         return None;
     }
 
-    let img = image::io::Reader::new(std::io::Cursor::new(&file_data))
+    let img = image::ImageReader::new(std::io::Cursor::new(&file_data))
         .with_guessed_format()
         .ok()?
         .decode()
@@ -274,13 +294,13 @@ fn read_image_file(path: &str) -> Option<ClipboardItem> {
 
     let rgba = img.to_rgba8();
     let (w, h) = rgba.dimensions();
-    println!("[clipboard] Read image from file: {} ({}x{})", path, w, h);
 
     encode_and_build_item(&rgba, w, h)
 }
 
 /// macOS fallback: read image from clipboard via AppleScriptObjC + NSPasteboard.
-/// Uses UTI types (public.png, public.tiff, public.file-url) which work on all macOS versions.
+/// Uses UTI types (public.png, public.tiff, NSFilenamesPboardType, public.file-url)
+/// which work on all macOS versions.
 #[cfg(target_os = "macos")]
 fn try_read_image_fallback() -> Option<ClipboardItem> {
     use std::process::Command;
@@ -290,7 +310,7 @@ fn try_read_image_fallback() -> Option<ClipboardItem> {
     let tmp_png_str = tmp_png.to_str()?.to_string();
     let tmp_tiff_str = tmp_tiff.to_str()?.to_string();
 
-    // Single AppleScriptObjC script that tries PNG → TIFF → file-url
+    // Single AppleScriptObjC script that tries PNG → TIFF → NSFilenames → file-url
     let script = format!(r#"
 use framework "AppKit"
 use framework "Foundation"
@@ -310,13 +330,30 @@ if tiffData is not missing value then
     return "TIFF"
 end if
 
--- Try file URL (e.g. Finder copied file)
+-- Try NSFilenamesPboardType (Finder copies give direct file paths)
+set theList to pb's propertyListForType:"NSFilenamesPboardType"
+if theList is not missing value then
+    set firstPath to first item of (theList as list)
+    return "FILE:" & (firstPath as text)
+end if
+
+-- Try file URL with NSURL resolution (handles .file/id= reference URLs)
 set urlData to pb's dataForType:"public.file-url"
 if urlData is not missing value then
     set urlStr to (current application's NSString's alloc()'s initWithData:urlData encoding:4) as text
+    set nsurl to current application's NSURL's URLWithString:urlStr
+    if nsurl is not missing value then
+        set resolved to nsurl's filePathURL()
+        if resolved is not missing value then
+            set pathStr to (resolved's |path|() as text)
+            if pathStr is not "" then
+                return "FILE:" & pathStr
+            end if
+        end if
+    end if
+    -- Fallback: strip file:// and decode percent encoding
     if urlStr starts with "file://" then
         set posixPath to text 8 thru -1 of urlStr
-        -- Decode percent encoding
         set decodedPath to (current application's NSString's stringWithString:posixPath)'s stringByReplacingPercentEscapesUsingEncoding:4
         return "FILE:" & (decodedPath as text)
     end if
@@ -332,11 +369,8 @@ return ""
         .ok()?;
 
     let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    println!("[clipboard] macOS NSPasteboard fallback result: {:?}", result);
 
     if result == "PNG" && tmp_png.exists() {
-        let size = tmp_png.metadata().map(|m| m.len()).unwrap_or(0);
-        println!("[clipboard] Got PNG from pasteboard: {} bytes", size);
         if let Some(item) = read_image_file(&tmp_png_str) {
             let _ = std::fs::remove_file(&tmp_png);
             return Some(item);
@@ -345,8 +379,6 @@ return ""
     }
 
     if result == "TIFF" && tmp_tiff.exists() {
-        let size = tmp_tiff.metadata().map(|m| m.len()).unwrap_or(0);
-        println!("[clipboard] Got TIFF from pasteboard: {} bytes", size);
         if let Some(item) = read_image_file(&tmp_tiff_str) {
             let _ = std::fs::remove_file(&tmp_tiff);
             return Some(item);
@@ -356,21 +388,21 @@ return ""
 
     if result.starts_with("FILE:") {
         let path = &result[5..];
-        println!("[clipboard] Got file URL from pasteboard: {}", path);
         if let Some(item) = read_image_file(path) {
             return Some(item);
         }
     }
 
-    println!("[clipboard] macOS fallback: all methods failed");
     None
 }
 
 /// Windows fallback: read image via PowerShell System.Windows.Forms.
+/// Tries clipboard image first, then falls back to file path from Explorer copy.
 #[cfg(target_os = "windows")]
 fn try_read_image_fallback() -> Option<ClipboardItem> {
     use std::process::Command;
 
+    // Method 1: Try reading image directly from clipboard
     let tmp = std::env::temp_dir().join("aboard_clip.png");
     let tmp_str = tmp.to_str()?;
 
@@ -391,41 +423,106 @@ if ($img) {{
         .ok()?;
 
     let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if result != "OK" || !tmp.exists() {
-        return None;
+    if result == "OK" && tmp.exists() {
+        if let Some(item) = read_image_file(tmp_str) {
+            let _ = std::fs::remove_file(&tmp);
+            return Some(item);
+        }
+        let _ = std::fs::remove_file(&tmp);
     }
 
-    let item = read_image_file(tmp_str)?;
-    // Clean up temp file
-    let _ = std::fs::remove_file(tmp);
-    Some(item)
+    // Method 2: Try file path from Explorer (FileDrop format)
+    let file_script = r#"
+Add-Type -AssemblyName System.Windows.Forms
+$files = [System.Windows.Forms.Clipboard]::GetFileDropList()
+if ($files.Count -gt 0) {
+    Write-Output $files[0]
+}
+"#;
+    let file_output = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", file_script])
+        .output()
+        .ok()?;
+
+    let file_path = String::from_utf8_lossy(&file_output.stdout).trim().to_string();
+    if !file_path.is_empty() {
+        if let Some(item) = read_image_file(&file_path) {
+            return Some(item);
+        }
+    }
+
+    None
 }
 
 /// Linux fallback: read image via xclip.
+/// Tries image/png first, then falls back to text/uri-list for file manager copies.
 #[cfg(target_os = "linux")]
 fn try_read_image_fallback() -> Option<ClipboardItem> {
     use std::process::Command;
 
+    // Method 1: Try reading image/png directly
     let output = Command::new("xclip")
         .args(["-selection", "clipboard", "-t", "image/png", "-o"])
         .output()
         .ok()?;
 
-    if output.stdout.is_empty() {
-        return None;
+    if !output.stdout.is_empty() {
+        let img = image::ImageReader::new(std::io::Cursor::new(&output.stdout))
+            .with_guessed_format()
+            .ok()?
+            .decode()
+            .ok()?;
+
+        let rgba = img.to_rgba8();
+        let (w, h) = rgba.dimensions();
+        return encode_and_build_item(&rgba, w, h);
     }
 
-    // Decode PNG data directly
-    let img = image::io::Reader::new(std::io::Cursor::new(&output.stdout))
-        .with_guessed_format()
-        .ok()?
-        .decode()
+    // Method 2: Try text/uri-list for file manager copies (e.g. Nautilus)
+    let uri_output = Command::new("xclip")
+        .args(["-selection", "clipboard", "-t", "text/uri-list", "-o"])
+        .output()
         .ok()?;
 
-    let rgba = img.to_rgba8();
-    let (w, h) = rgba.dimensions();
-    println!("[clipboard] Read image via xclip fallback: {}x{}", w, h);
-    encode_and_build_item(&rgba, w, h)
+    let uri_list = String::from_utf8_lossy(&uri_output.stdout);
+    for line in uri_list.lines() {
+        let line = line.trim();
+        if line.is_empty() { continue; }
+        // Convert file:// URI to path, with percent-decode for special chars
+        let path = if line.starts_with("file://") {
+            let encoded = line.trim_start_matches("file://");
+            percent_decode_path(encoded)
+        } else {
+            line.to_string()
+        };
+        if let Some(item) = read_image_file(&path) {
+            return Some(item);
+        }
+    }
+
+    None
+}
+
+/// Simple percent-decoding for file URI paths (e.g., %20 → space).
+#[cfg(target_os = "linux")]
+fn percent_decode_path(encoded: &str) -> String {
+    let mut result = String::with_capacity(encoded.len());
+    let mut chars = encoded.bytes();
+    while let Some(b) = chars.next() {
+        if b == b'%' {
+            let hi = chars.next().unwrap_or(b'0');
+            let lo = chars.next().unwrap_or(b'0');
+            if let Ok(byte) = u8::from_str_radix(
+                &String::from_utf8_lossy(&[hi, lo]),
+                16,
+            ) {
+                result.push(byte as char);
+                continue;
+            }
+        }
+        result.push(b as char);
+    }
+    result
 }
 
 /// Persist a clipboard item to DB, emit event, and enqueue AI processing.
@@ -437,13 +534,6 @@ fn persist_and_emit<R: Runtime>(app: &tauri::AppHandle<R>, item: ClipboardItem) 
 
     if let Err(e) = app.emit("clipboard-update", &item) {
         eprintln!("[clipboard] Failed to emit event: {}", e);
-    } else {
-        println!(
-            "[clipboard] Captured {} ({} bytes, hash: {}...)",
-            item.content_type,
-            item.content.len(),
-            &item.hash[..8.min(item.hash.len())]
-        );
     }
 
     // Enqueue AI processing job (async, non-blocking) — skip for images

@@ -7,7 +7,7 @@ mod tray;
 
 use std::sync::Mutex;
 use std::time::Instant;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 /// State for quick-switch cycling through clipboard history.
 struct CycleState {
@@ -104,6 +104,23 @@ end if
             .map_err(|e| format!("Clipboard write error: {}", e))?;
         Ok(())
     }
+}
+
+/// Emit "open-settings" event to the main window so it opens the settings panel.
+#[tauri::command]
+fn emit_open_settings(app: tauri::AppHandle) -> Result<(), String> {
+    let _ = app.emit("open-settings", ());
+    Ok(())
+}
+
+/// Show the main window (called from floating popup footer button).
+#[tauri::command]
+fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(webview_window) = app.get_webview_window("main") {
+        let _ = webview_window.show();
+        let _ = webview_window.set_focus();
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -252,21 +269,36 @@ pub fn run() {
                                         if webview_window.is_visible().unwrap_or(false) {
                                             let _ = webview_window.hide();
                                         } else {
-                                            // Center floating window on cursor before showing
-                                            if let Ok(pos) = webview_window.cursor_position() {
-                                                if let Ok(size) = webview_window.inner_size() {
-                                                    let new_x =
-                                                        pos.x as f64 - size.width as f64 / 2.0;
-                                                    let new_y =
-                                                        pos.y as f64 - size.height as f64 / 2.0;
-                                                    let _ = webview_window.set_position(
-                                                        tauri::Position::Logical(
-                                                            tauri::LogicalPosition::new(
-                                                                new_x, new_y,
-                                                            ),
+                                            // Position floating window on right side, vertically centered
+                                            let monitor = app.primary_monitor()
+                                                .ok()
+                                                .flatten()
+                                                .or_else(|| {
+                                                    app.available_monitors()
+                                                        .ok()
+                                                        .and_then(|m| m.into_iter().next())
+                                                });
+                                            if let Some(monitor) = monitor {
+                                                let scale = monitor.scale_factor();
+                                                let mon_size = monitor.size();
+                                                let win_size = webview_window.inner_size().unwrap_or_else(|_| {
+                                                    tauri::PhysicalSize::new(280, 520)
+                                                });
+                                                // Convert physical → logical coordinates
+                                                let mon_w = mon_size.width as f64 / scale;
+                                                let win_w = win_size.width as f64 / scale;
+                                                let mon_h = mon_size.height as f64 / scale;
+                                                let win_h = win_size.height as f64 / scale;
+                                                let new_x = mon_w - win_w - 20.0; // 20px margin from right edge
+                                                let new_y = (mon_h - win_h) / 2.0; // vertically centered
+                                                let _ = webview_window.set_position(
+                                                    tauri::Position::Logical(
+                                                        tauri::LogicalPosition::new(
+                                                            new_x.max(0.0),
+                                                            new_y.max(0.0),
                                                         ),
-                                                    );
-                                                }
+                                                    ),
+                                                );
                                             }
                                             let _ = webview_window.show();
                                             let _ = webview_window.set_focus();
@@ -315,6 +347,8 @@ pub fn run() {
             paste_to_active,
             open_url,
             copy_image_to_clipboard,
+            show_main_window,
+            emit_open_settings,
             clipboard::toggle_monitoring,
             db::get_history,
             db::search_history,

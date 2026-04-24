@@ -11,7 +11,13 @@ const isTauri = !!window.__TAURI_INTERNALS__;
 
 export default function TitleBar(props: Props) {
   const appWindow = isTauri ? getCurrentWindow() : null;
-  const isMac = navigator.platform.toUpperCase().includes("MAC");
+  const isMac = (() => {
+    if (typeof navigator !== "undefined") {
+      const ua = navigator.userAgent || "";
+      return /Mac|iPod|iPhone|iPad/.test(ua);
+    }
+    return false;
+  })();
   const [maximized, setMaximized] = createSignal(false);
   const [semanticMode, setSemanticMode] = createSignal(false);
 
@@ -90,7 +96,9 @@ export default function TitleBar(props: Props) {
         />
         <div class="flex items-center gap-1 shrink-0">
           <span class="text-[10px] bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 dark:bg-gray-600/50 dark:text-gray-400 dark:border-gray-500/50">⌘K</span>
-          <i class="ph ph-funnel text-gray-400 ml-2 hover:text-gray-700 cursor-pointer dark:text-gray-500 dark:hover:text-gray-300" />
+          <i class={`ph ph-funnel ml-2 cursor-pointer transition-colors ${semanticMode() ? "text-blue-500" : "text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"}`}
+             onClick={() => setSemanticMode(!semanticMode())}
+          />
         </div>
       </div>
 

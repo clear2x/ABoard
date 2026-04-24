@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { theme, setTheme, type ThemeMode } from "../stores/theme";
 import { locale, setLocale, t } from "../stores/i18n";
+import { storageSize, itemCount, loadStorageStats } from "../stores/clipboard";
 import type { Locale } from "../stores/i18n";
 
 interface AiConfig {
@@ -39,6 +40,13 @@ const TABS = [
 type Tab = typeof TABS[number]["key"];
 
 export default function SettingsPanel(props: Props) {
+  const formatSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  };
+
   const [activeTab, setActiveTab] = createSignal<Tab>("ai");
 
   // AI settings state
@@ -98,6 +106,8 @@ export default function SettingsPanel(props: Props) {
       const ver = await getVersion();
       setAppVersion(ver);
     } catch {}
+
+    loadStorageStats();
 
     try {
       const config = await invoke<AiConfig>("ai_get_config");
@@ -431,10 +441,10 @@ export default function SettingsPanel(props: Props) {
                     <div>
                       <div class="text-[10px] text-gray-500 mb-0.5">{t("settings.used")}</div>
                       <div class="flex items-baseline gap-1 mb-1.5">
-                        <span class="text-sm font-bold text-gray-700">12.4 GB</span><span class="text-[9px] text-gray-400">/ 50 GB</span>
+                        <span class="text-sm font-bold text-gray-700">{formatSize(storageSize())}</span>
                       </div>
                       <div class="w-full h-1.5 bg-gray-200/50 rounded-full overflow-hidden">
-                        <div class="h-full bg-blue-500 rounded-full" style={{ width: "25%" }} />
+                        <div class="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, (storageSize() / (50 * 1024 * 1024 * 1024)) * 100)}%` }} />
                       </div>
                     </div>
                     <button class="w-full mt-2 bg-white/60 hover:bg-white/80 border border-white/80 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm">{t("settings.cleanOldData")}</button>
@@ -488,8 +498,8 @@ export default function SettingsPanel(props: Props) {
               <h3 class="text-[11px] font-bold text-gray-500 uppercase">{t("settings.shortcuts")}</h3>
               <div class="glass-card rounded-xl p-3 space-y-2">
                 {[
-                  { desc: t("settings.showHideWindow"), key: "\u2325 V" },
-                  { desc: t("settings.quickPastePanel"), key: "\u2318 \u21E7 V" },
+                  { desc: t("settings.showHideWindow"), key: "\u2318 \u21E7 V" },
+                  { desc: t("settings.quickPastePanel"), key: "\u2318 \u21E7 J" },
                 ].map((s) => (
                   <div class="flex justify-between items-center text-xs">
                     <span class="text-gray-700">{s.desc}</span>

@@ -198,31 +198,34 @@ export async function loadStorageStats() {
   }
 }
 
-/// Delete one or more clipboard items by ID, then refresh the list.
+/// Delete one or more clipboard items by ID. Optimistically removes from local state.
 export async function deleteItems(ids: string[]) {
   try {
     await invoke("delete_items", { ids });
-    await Promise.all([loadHistory(), loadStorageStats()]);
+    setItems((prev) => prev.filter((i) => !ids.includes(i.id)));
+    loadStorageStats();
   } catch (e) {
     console.error("[store] Delete failed:", e);
   }
 }
 
-/// Pin a clipboard item, then refresh the list.
+/// Pin a clipboard item. Optimistically updates local state.
 export async function pinItem(id: string) {
   try {
     await invoke("pin_item", { id });
-    await Promise.all([loadHistory(), loadStorageStats()]);
+    setItems((prev) => prev.map((i) => i.id === id ? { ...i, pinned: true } : i));
+    loadStorageStats();
   } catch (e) {
     console.error("[store] Pin failed:", e);
   }
 }
 
-/// Unpin a clipboard item, then refresh the list.
+/// Unpin a clipboard item. Optimistically updates local state.
 export async function unpinItem(id: string) {
   try {
     await invoke("unpin_item", { id });
-    await Promise.all([loadHistory(), loadStorageStats()]);
+    setItems((prev) => prev.map((i) => i.id === id ? { ...i, pinned: false } : i));
+    loadStorageStats();
   } catch (e) {
     console.error("[store] Unpin failed:", e);
   }
@@ -233,6 +236,17 @@ export function addItem(item: ClipboardItem) {
   setItems((prev) => {
     if (prev.some((i) => i.hash === item.hash)) return prev;
     return [item, ...prev];
+  });
+}
+
+/// Reorder items by moving an item from fromIndex to toIndex.
+export function reorderItems(fromIndex: number, toIndex: number) {
+  setItems((prev) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return prev;
+    const next = [...prev];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    return next;
   });
 }
 

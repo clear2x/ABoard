@@ -16,6 +16,7 @@ import {
   timeFilter,
   setTimeFilter,
   categoryFilter,
+  reorderItems,
 } from "../stores/clipboard";
 import { t } from "../stores/i18n";
 import ClipboardItemCard from "./ClipboardItemCard";
@@ -28,7 +29,6 @@ const TIME_FILTERS = [
   { key: "today", labelKey: "filter.today" },
   { key: "yesterday", labelKey: "filter.yesterday" },
   { key: "last7days", labelKey: "filter.last7days" },
-  { key: "custom", labelKey: "filter.custom" },
 ] as const;
 
 function isToday(ts: number): boolean {
@@ -58,6 +58,10 @@ export default function ContentArea() {
 
   const [batchMode, setBatchMode] = createSignal(false);
   const [confirmOpen, setConfirmOpen] = createSignal(false);
+
+  // Drag-and-drop state
+  const [dragItemId, setDragItemId] = createSignal<string | null>(null);
+  const [dropTargetId, setDropTargetId] = createSignal<string | null>(null);
 
   // Filtered items based on category + time filter
   const filteredItems = createMemo(() => {
@@ -114,6 +118,31 @@ export default function ContentArea() {
       setBatchMode(false);
       clearSelection();
     }
+    // Arrow key navigation (US-003)
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const list = filteredItems();
+      if (list.length === 0) return;
+      const cur = selectedId();
+      if (!cur) {
+        setSelectedId(e.key === "ArrowDown" ? list[0].id : list[list.length - 1].id);
+      } else {
+        const idx = list.findIndex((i) => i.id === cur);
+        if (idx === -1) {
+          setSelectedId(list[0].id);
+        } else {
+          const next = e.key === "ArrowDown" ? idx + 1 : idx - 1;
+          if (next >= 0 && next < list.length) {
+            setSelectedId(list[next].id);
+          }
+        }
+      }
+      // Scroll into view
+      requestAnimationFrame(() => {
+        const el = document.querySelector(`[data-item-id="${selectedId()}"]`);
+        el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      });
+    }
   };
 
   const enterBatchMode = () => {
@@ -169,7 +198,6 @@ export default function ContentArea() {
     else pinItem(id);
   };
 
-  const cm = contextMenu();
   const selectedCount = () => selectedIds().size;
 
   return (
@@ -276,8 +304,10 @@ export default function ContentArea() {
                 {t("clipboard.loading")}
               </div>
             }>
-              <div class="flex items-center justify-center h-32 text-sm text-gray-400">
-                {t("clipboard.noItems")}
+              <div class="flex flex-col items-center justify-center py-16 text-gray-400">
+                <i class="ph ph-clipboard-text text-5xl mb-4 text-gray-300 dark:text-gray-600" />
+                <p class="text-sm mb-2">{t("clipboard.noItems")}</p>
+                <p class="text-[11px] text-gray-300 dark:text-gray-600">⌘⇧V</p>
               </div>
             </Show>
           }
@@ -285,8 +315,48 @@ export default function ContentArea() {
             <For each={filteredItems()}>
               {(item) => {
                 const timeStr = () => new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                const isDragging = () => dragItemId() === item.id;
+                const isDropTarget = () => dropTargetId() === item.id;
                 return (
-                  <div class="flex gap-4 group animate-slide-in">
+                  <div
+                    class="flex gap-4 group animate-slide-in transition-opacity"
+                    classList={{
+                      "opacity-40": isDragging(),
+                      "border-t-2 border-blue-400": isDropTarget(),
+                    }}
+                    draggable={true}
+                    onDragStart={(e) => {
+                      setDragItemId(item.id);
+                      e.dataTransfer!.effectAllowed = "move";
+                      e.dataTransfer!.setData("text/plain", item.id);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer!.dropEffect = "move";
+                      setDropTargetId(item.id);
+                    }}
+                    onDragLeave={() => {
+                      if (dropTargetId() === item.id) setDropTargetId(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const fromId = dragItemId();
+                      if (fromId && fromId !== item.id) {
+                        const allItems = items();
+                        const fromIdx = allItems.findIndex((i) => i.id === fromId);
+                        const toIdx = allItems.findIndex((i) => i.id === item.id);
+                        if (fromIdx !== -1 && toIdx !== -1) {
+                          reorderItems(fromIdx, toIdx);
+                        }
+                      }
+                      setDragItemId(null);
+                      setDropTargetId(null);
+                    }}
+                    onDragEnd={() => {
+                      setDragItemId(null);
+                      setDropTargetId(null);
+                    }}
+                  >
                     {/* Timeline timestamp */}
                     <div class="text-[10px] w-8 text-right shrink-0 mt-1 text-gray-400">
                       {timeStr()}
@@ -294,6 +364,7 @@ export default function ContentArea() {
                     {/* Card */}
                     <ClipboardItemCard
                       item={item}
+                      data-item-id={item.id}
                       isSelected={batchMode() ? false : item.id === selectedId()}
                       showCheckbox={batchMode()}
                       checked={selectedIds().has(item.id)}
@@ -321,8 +392,10 @@ export default function ContentArea() {
       </div>
 
       {/* Context menu */}
-      <Show when={cm !== null}>
-        {cm && (() => {
+      <Show when={contextMenu() !== null}>
+        {(() => {
+          const cm = contextMenu();
+          if (!cm) return null;
           const currentItem = items().find((i) => i.id === cm.itemId);
           return (
             <ContextMenu
