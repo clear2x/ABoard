@@ -326,6 +326,26 @@ pub fn delete_items(
     Ok(())
 }
 
+/// Delete unpinned items older than N days. Returns count of deleted items.
+#[tauri::command]
+pub fn clean_old_items(
+    state: tauri::State<'_, DbState>,
+    days: u32,
+) -> Result<u64, String> {
+    let cutoff = chrono::Utc::now()
+        .checked_sub_signed(chrono::Duration::days(days as i64))
+        .ok_or("Invalid days value")?
+        .timestamp_millis();
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    let count = conn
+        .execute(
+            "DELETE FROM clipboard_items WHERE pinned = 0 AND timestamp < ?1",
+            rusqlite::params![cutoff],
+        )
+        .map_err(|e| format!("Clean error: {}", e))?;
+    Ok(count as u64)
+}
+
 /// Pin a clipboard item. Sets pinned=1 and pinned_at to current time.
 #[tauri::command]
 pub fn pin_item(

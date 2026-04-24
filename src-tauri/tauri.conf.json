@@ -20,7 +20,8 @@
         "decorations": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "shadow": true
+        "shadow": true,
+        "dragDropEnabled": false
       },
       {
         "label": "floating",
@@ -36,6 +37,7 @@
         "visible": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
+        "dragDropEnabled": false,
         "url": "/"
       }
     ],

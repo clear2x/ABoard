@@ -353,6 +353,7 @@ pub fn run() {
             db::get_history,
             db::search_history,
             db::delete_items,
+            db::clean_old_items,
             db::pin_item,
             db::unpin_item,
             db::get_pinned,

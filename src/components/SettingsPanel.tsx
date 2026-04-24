@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { theme, setTheme, type ThemeMode } from "../stores/theme";
 import { locale, setLocale, t } from "../stores/i18n";
-import { storageSize, itemCount, loadStorageStats } from "../stores/clipboard";
+import { storageSize, itemCount, loadStorageStats, loadHistory } from "../stores/clipboard";
 import type { Locale } from "../stores/i18n";
 
 interface AiConfig {
@@ -447,7 +447,19 @@ export default function SettingsPanel(props: Props) {
                         <div class="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, (storageSize() / (50 * 1024 * 1024 * 1024)) * 100)}%` }} />
                       </div>
                     </div>
-                    <button class="w-full mt-2 bg-white/60 hover:bg-white/80 border border-white/80 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm">{t("settings.cleanOldData")}</button>
+                    <button class="w-full mt-2 bg-white/60 hover:bg-white/80 border border-white/80 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm"
+                      onClick={async () => {
+                        try {
+                          const count = await invoke<number>("clean_old_items", { days: 30 });
+                          setMessage(`Cleaned ${count} old items`);
+                          await loadStorageStats();
+                          await loadHistory();
+                          setTimeout(() => setMessage(""), 3000);
+                        } catch (e) {
+                          setMessage(`Error: ${e}`);
+                        }
+                      }}
+                    >{t("settings.cleanOldData")}</button>
                   </div>
                 </div>
               </div>
