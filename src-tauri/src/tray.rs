@@ -302,43 +302,8 @@ pub fn update_tray_locale(app: tauri::AppHandle, locale: String) -> Result<(), S
 // macOS-only: screenshot and screen recording
 // ---------------------------------------------------------------------------
 
-/// Whether we already requested screen capture access this session.
-#[cfg(target_os = "macos")]
-static PERMISSION_REQUESTED: AtomicBool = AtomicBool::new(false);
-
-/// Check screen capture permission. Returns true if we have it.
-/// If not, requests once and emits a user-friendly alert, then returns false.
-#[cfg(target_os = "macos")]
-fn ensure_screen_capture_permission<R: Runtime>(app: &AppHandle<R>) -> bool {
-    use core_graphics::access::ScreenCaptureAccess;
-    let access = ScreenCaptureAccess::default();
-
-    if access.preflight() {
-        return true;
-    }
-
-    // Only request once per session to avoid repeated System Settings pop-ups
-    if !PERMISSION_REQUESTED.load(Ordering::Relaxed) {
-        PERMISSION_REQUESTED.store(true, Ordering::Relaxed);
-        access.request();
-    }
-
-    let locale = get_stored_locale();
-    let msg = if locale == "zh" {
-        "请在「系统设置 > 隐私与安全性 > 屏幕录制」中启用 ABoard，然后重启应用。".to_string()
-    } else {
-        "Please enable ABoard in System Settings > Privacy & Security > Screen Recording, then restart the app.".to_string()
-    };
-    let _ = app.emit("show-alert", msg);
-    false
-}
-
 #[cfg(target_os = "macos")]
 fn capture_screenshot<R: Runtime>(app: AppHandle<R>) {
-    if !ensure_screen_capture_permission(&app) {
-        return;
-    }
-
     let app_data_dir = match app.path().app_data_dir() {
         Ok(dir) => dir,
         Err(_) => return,
@@ -419,10 +384,6 @@ fn start_screen_recording<R: Runtime>(app: AppHandle<R>, record_item: MenuItem<R
             let _ = app.emit("show-alert", "Screen recording requires macOS 14+ Sonoma");
             return;
         }
-    }
-
-    if !ensure_screen_capture_permission(&app) {
-        return;
     }
 
     RECORDING_ACTIVE.store(true, Ordering::SeqCst);
