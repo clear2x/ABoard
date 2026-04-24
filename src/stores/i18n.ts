@@ -247,6 +247,7 @@ const t_map: Translations = {
   "ctx.xmlInvalid": { zh: "XML 格式错误:\n{error}", en: "XML format error:\n{error}" },
   "ctx.markdownToPlaintext": { zh: "Markdown → 纯文本", en: "Markdown → Plain Text" },
   "ctx.htmlToPlaintext": { zh: "HTML → 纯文本", en: "HTML → Plain Text" },
+  "ctx.revealInFolder": { zh: "在文件夹中显示", en: "Show in Folder" },
 
   // AiResultPopup
   "ai.resultOriginal": { zh: "原文", en: "Original" },

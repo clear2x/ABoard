@@ -3,12 +3,16 @@ use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
+use tauri_plugin_dialog::DialogExt;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
 use std::sync::Mutex;
 
 /// Global flag indicating whether screen recording is in progress.
 static RECORDING_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// PID of the active screencapture recording process, for stopping.
+static RECORDING_PID: AtomicU32 = AtomicU32::new(0);
 
 /// Stored locale: 0 = zh, 1 = en
 static STORED_LOCALE: AtomicU8 = AtomicU8::new(0);
@@ -84,9 +88,13 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
     #[cfg(target_os = "macos")]
     let record_i = MenuItem::with_id(app, "record", "Screen Recording", true, None::<&str>)?;
     #[cfg(target_os = "macos")]
+    let reset_perm_i = MenuItem::with_id(app, "reset-permission", "Reset Screen Recording Permission…", true, None::<&str>)?;
+    #[cfg(target_os = "macos")]
     state.insert("screenshot", screenshot_i.clone());
     #[cfg(target_os = "macos")]
     state.insert("record", record_i.clone());
+    #[cfg(target_os = "macos")]
+    state.insert("reset-permission", reset_perm_i.clone());
 
     let menu = {
         #[cfg(target_os = "macos")]
@@ -94,6 +102,7 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
             Menu::with_items(app, &[
                 &screenshot_i,
                 &record_i,
+                &reset_perm_i,
                 &PredefinedMenuItem::separator(app)?,
                 &quick_paste_i,
                 &show_i,
@@ -129,9 +138,43 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
             #[cfg(target_os = "macos")]
             "record" => {
                 if RECORDING_ACTIVE.load(Ordering::SeqCst) {
+                    // Stop recording by sending SIGINT (same as Ctrl+C in terminal)
+                    let pid = RECORDING_PID.swap(0, Ordering::SeqCst);
+                    if pid > 0 {
+                        let _ = std::process::Command::new("kill")
+                            .arg("-INT")
+                            .arg(pid.to_string())
+                            .status();
+                    }
                     return;
                 }
                 start_screen_recording(app.clone(), record_i.clone());
+            }
+            #[cfg(target_os = "macos")]
+            "reset-permission" => {
+                let locale = get_stored_locale();
+                let (title, msg, success_msg) = if locale == "zh" {
+                    ("重置屏幕录制权限".to_string(), "即将重置屏幕录制权限。重置后需要重新授权。\n\n继续？".to_string(), "✓ 权限已重置。请重新截图或录屏以触发授权弹窗。".to_string())
+                } else {
+                    ("Reset Screen Recording Permission".to_string(), "This will reset screen recording permission. You will need to re-authorize ABoard.\n\nContinue?".to_string(), "✓ Permission reset. Trigger a screenshot or recording to re-authorize.".to_string())
+                };
+                let handle = app.clone();
+                let _ = app.dialog()
+                    .message(&msg)
+                    .title(&title)
+                    .kind(tauri_plugin_dialog::MessageDialogKind::Warning)
+                    .show(move |confirmed| {
+                        if confirmed {
+                            let _ = std::process::Command::new("tccutil")
+                                .args(["reset", "ScreenCapture", "com.aboard.app"])
+                                .status();
+                            let _ = handle.dialog()
+                                .message(&success_msg)
+                                .title(&title)
+                                .kind(tauri_plugin_dialog::MessageDialogKind::Info)
+                                .show(|_| {});
+                        }
+                    });
             }
             "quick-paste" => {
                 if let Some(webview_window) = app.get_webview_window("floating") {
@@ -207,6 +250,7 @@ struct TrayTexts {
     screenshot: &'static str,
     screen_recording: &'static str,
     stop_recording: &'static str,
+    reset_permission: &'static str,
     quick_paste: &'static str,
     show_window: &'static str,
     pause_monitoring: &'static str,
@@ -218,6 +262,7 @@ const TEXTS_ZH: TrayTexts = TrayTexts {
     screenshot: "截图",
     screen_recording: "录屏",
     stop_recording: "停止录屏",
+    reset_permission: "重置屏幕录制权限…",
     quick_paste: "快速粘贴",
     show_window: "显示窗口",
     pause_monitoring: "暂停监听",
@@ -229,6 +274,7 @@ const TEXTS_EN: TrayTexts = TrayTexts {
     screenshot: "Screenshot",
     screen_recording: "Screen Recording",
     stop_recording: "Stop Recording",
+    reset_permission: "Reset Screen Recording Permission…",
     quick_paste: "Quick Paste",
     show_window: "Show Window",
     pause_monitoring: "Pause Monitoring",
@@ -249,6 +295,7 @@ fn get_text(key: &str, locale: &str) -> String {
         "screenshot" => texts.screenshot.to_string(),
         "screen_recording" => texts.screen_recording.to_string(),
         "stop_recording" => texts.stop_recording.to_string(),
+        "reset_permission" => texts.reset_permission.to_string(),
         "quick_paste" => texts.quick_paste.to_string(),
         "show_window" => texts.show_window.to_string(),
         "pause_monitoring" => texts.pause_monitoring.to_string(),
@@ -281,6 +328,7 @@ pub fn update_tray_locale(app: tauri::AppHandle, locale: String) -> Result<(), S
     {
         state.set_text("screenshot", texts.screenshot);
         state.set_text("record", texts.screen_recording);
+        state.set_text("reset-permission", texts.reset_permission);
     }
 
     state.set_text("quick-paste", texts.quick_paste);
@@ -302,8 +350,40 @@ pub fn update_tray_locale(app: tauri::AppHandle, locale: String) -> Result<(), S
 // macOS-only: screenshot and screen recording
 // ---------------------------------------------------------------------------
 
+/// Show a one-time permission guidance dialog using the native dialog API.
+/// Skips the dialog if screen recording permission is already granted.
+#[cfg(target_os = "macos")]
+fn show_permission_guide<R: Runtime>(app: &AppHandle<R>) {
+    use core_graphics::access::ScreenCaptureAccess;
+
+    static SHOWN: AtomicBool = AtomicBool::new(false);
+    if SHOWN.swap(true, Ordering::SeqCst) {
+        return;
+    }
+
+    // If screen recording permission is already granted, no need to show guidance.
+    // Note: CGPreflightScreenCaptureAccess is unreliable in debug/dev builds
+    // (always returns false), but works correctly in signed release builds.
+    if ScreenCaptureAccess::default().preflight() {
+        return;
+    }
+
+    let locale = get_stored_locale();
+    let (title, msg) = if locale == "zh" {
+        ("屏幕录制权限", "ABoard 需要屏幕录制权限。首次使用时 macOS 会弹出系统权限对话框，请允许后重试。\n\n如果权限已开启但仍有问题，请到「系统设置 > 隐私与安全性 > 屏幕录制」中关闭 ABoard 再重新打开。")
+    } else {
+        ("Screen Recording Permission", "ABoard needs Screen Recording access. macOS will prompt you to grant permission on first use.\n\nIf you already granted it but it still prompts, try toggling ABoard OFF/ON in System Settings > Privacy & Security > Screen Recording.")
+    };
+    let _ = app.dialog()
+        .message(msg)
+        .title(title)
+        .kind(tauri_plugin_dialog::MessageDialogKind::Info)
+        .show(|_| {});
+}
+
 #[cfg(target_os = "macos")]
 fn capture_screenshot<R: Runtime>(app: AppHandle<R>) {
+    show_permission_guide(&app);
     let app_data_dir = match app.path().app_data_dir() {
         Ok(dir) => dir,
         Err(_) => return,
@@ -373,18 +453,7 @@ fn capture_screenshot<R: Runtime>(app: AppHandle<R>) {
 
 #[cfg(target_os = "macos")]
 fn start_screen_recording<R: Runtime>(app: AppHandle<R>, record_item: MenuItem<R>) {
-    let version_output = std::process::Command::new("sw_vers")
-        .arg("-productVersion")
-        .output();
-
-    if let Ok(output) = version_output {
-        let version_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let major: u32 = version_str.split('.').next().unwrap_or("0").parse().unwrap_or(0);
-        if major < 14 {
-            let _ = app.emit("show-alert", "Screen recording requires macOS 14+ Sonoma");
-            return;
-        }
-    }
+    show_permission_guide(&app);
 
     RECORDING_ACTIVE.store(true, Ordering::SeqCst);
 
@@ -406,11 +475,28 @@ fn start_screen_recording<R: Runtime>(app: AppHandle<R>, record_item: MenuItem<R
     let app_clone = app.clone();
     let record_item_clone = record_item.clone();
     std::thread::spawn(move || {
-        let status = std::process::Command::new("screencapture")
-            .arg("-r")
+        // -v    : capture video recording of the screen
+        // -x    : no shutter sound
+        let mut child = match std::process::Command::new("screencapture")
+            .arg("-v")
+            .arg("-x")
             .arg(&dest_path)
-            .status();
+            .spawn()
+        {
+            Ok(c) => {
+                RECORDING_PID.store(c.id(), Ordering::SeqCst);
+                c
+            }
+            Err(_) => {
+                RECORDING_ACTIVE.store(false, Ordering::SeqCst);
+                let resume_text = get_text("screen_recording", &get_stored_locale());
+                let _ = record_item_clone.set_text(&resume_text);
+                return;
+            }
+        };
 
+        let status = child.wait();
+        RECORDING_PID.store(0, Ordering::SeqCst);
         RECORDING_ACTIVE.store(false, Ordering::SeqCst);
         let resume_text = get_text("screen_recording", &get_stored_locale());
         let _ = record_item_clone.set_text(&resume_text);

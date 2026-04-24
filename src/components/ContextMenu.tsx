@@ -1,4 +1,5 @@
 import { pinItem, unpinItem, deleteItems } from "../stores/clipboard";
+import { invoke } from "@tauri-apps/api/core";
 import {
   translateContent,
   summarizeContent,
@@ -26,6 +27,7 @@ interface Props {
   itemId: string;
   isPinned: boolean;
   content: string;
+  filePath?: string | null;
   onClose: () => void;
 }
 
@@ -138,6 +140,13 @@ export default function ContextMenu(props: Props) {
 
   const handleDelete = async () => {
     await deleteItems([props.itemId]);
+    props.onClose();
+  };
+
+  const handleRevealInFolder = () => {
+    if (props.filePath) {
+      invoke("reveal_in_folder", { filePath: props.filePath });
+    }
     props.onClose();
   };
 
@@ -327,6 +336,16 @@ export default function ContextMenu(props: Props) {
 
       {/* Separator */}
       <div class="my-1" style={{ "border-top": "1px solid var(--color-border)" }} />
+
+      {/* Show in Folder (for file-backed items like screenshots / recordings) */}
+      <Show when={props.filePath}>
+        <button
+          class="w-full text-left px-3 py-2 text-sm cursor-pointer transition-smooth rounded-[var(--radius-sm)] text-gray-600 hover:bg-[var(--color-bg-card-hover)]"
+          onClick={handleRevealInFolder}
+        >
+          {t("ctx.revealInFolder")}
+        </button>
+      </Show>
 
       {/* Existing actions */}
       <button

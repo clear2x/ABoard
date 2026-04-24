@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Required for screen recording via screencapture under Hardened Runtime -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
+    <!-- Required for microphone access during screen recording -->
+    <key>com.apple.security.device.microphone</key>
+    <true/>
+    <!-- Required when the app loads dynamic libraries at runtime (Tauri webview) -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>
