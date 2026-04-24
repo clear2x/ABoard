@@ -116,12 +116,6 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
 
     app.manage(state);
 
-    #[cfg(target_os = "macos")]
-    let record_item = {
-        let r = MenuItem::with_id(app, "record", "", true, None::<&str>)?;
-        r.clone()
-    };
-
     let _tray = TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
@@ -137,7 +131,7 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
                 if RECORDING_ACTIVE.load(Ordering::SeqCst) {
                     return;
                 }
-                start_screen_recording(app.clone(), record_item.clone());
+                start_screen_recording(app.clone(), record_i.clone());
             }
             "quick-paste" => {
                 if let Some(webview_window) = app.get_webview_window("floating") {
@@ -308,8 +302,43 @@ pub fn update_tray_locale(app: tauri::AppHandle, locale: String) -> Result<(), S
 // macOS-only: screenshot and screen recording
 // ---------------------------------------------------------------------------
 
+/// Whether we already requested screen capture access this session.
+#[cfg(target_os = "macos")]
+static PERMISSION_REQUESTED: AtomicBool = AtomicBool::new(false);
+
+/// Check screen capture permission. Returns true if we have it.
+/// If not, requests once and emits a user-friendly alert, then returns false.
+#[cfg(target_os = "macos")]
+fn ensure_screen_capture_permission<R: Runtime>(app: &AppHandle<R>) -> bool {
+    use core_graphics::access::ScreenCaptureAccess;
+    let access = ScreenCaptureAccess::default();
+
+    if access.preflight() {
+        return true;
+    }
+
+    // Only request once per session to avoid repeated System Settings pop-ups
+    if !PERMISSION_REQUESTED.load(Ordering::Relaxed) {
+        PERMISSION_REQUESTED.store(true, Ordering::Relaxed);
+        access.request();
+    }
+
+    let locale = get_stored_locale();
+    let msg = if locale == "zh" {
+        "请在「系统设置 > 隐私与安全性 > 屏幕录制」中启用 ABoard，然后重启应用。".to_string()
+    } else {
+        "Please enable ABoard in System Settings > Privacy & Security > Screen Recording, then restart the app.".to_string()
+    };
+    let _ = app.emit("show-alert", msg);
+    false
+}
+
 #[cfg(target_os = "macos")]
 fn capture_screenshot<R: Runtime>(app: AppHandle<R>) {
+    if !ensure_screen_capture_permission(&app) {
+        return;
+    }
+
     let app_data_dir = match app.path().app_data_dir() {
         Ok(dir) => dir,
         Err(_) => return,
@@ -320,6 +349,7 @@ fn capture_screenshot<R: Runtime>(app: AppHandle<R>) {
     let tmp_path = std::env::temp_dir().join(format!("aboard_screenshot_{}.png", uuid::Uuid::new_v4()));
 
     let result = std::process::Command::new("screencapture")
+        .arg("-x")
         .arg("-i")
         .arg(&tmp_path)
         .status();
@@ -391,15 +421,8 @@ fn start_screen_recording<R: Runtime>(app: AppHandle<R>, record_item: MenuItem<R
         }
     }
 
-    // Check screen recording permission via CoreGraphics API
-    {
-        use core_graphics::access::ScreenCaptureAccess;
-        let access = ScreenCaptureAccess::default();
-        if !access.preflight() {
-            // Permission not granted — request it (opens System Settings)
-            access.request();
-            return;
-        }
+    if !ensure_screen_capture_permission(&app) {
+        return;
     }
 
     RECORDING_ACTIVE.store(true, Ordering::SeqCst);
