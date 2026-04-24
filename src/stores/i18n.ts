@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { invoke } from "@tauri-apps/api/core";
 
 export type Locale = "zh" | "en";
 
@@ -10,6 +11,8 @@ export { locale };
 export function setLocale(lang: Locale) {
   setLocaleInternal(lang);
   localStorage.setItem(STORAGE_KEY, lang);
+  // Sync tray menu texts with the new locale
+  invoke("update_tray_locale", { locale: lang }).catch(() => {});
 }
 
 export function initLocale() {
@@ -17,6 +20,9 @@ export function initLocale() {
   if (saved === "zh" || saved === "en") {
     setLocaleInternal(saved);
   }
+  // Sync tray menu on startup
+  const current = saved || "zh";
+  invoke("update_tray_locale", { locale: current }).catch(() => {});
 }
 
 // --- Translation map ---

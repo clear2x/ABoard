@@ -351,6 +351,7 @@ pub fn run() {
             emit_open_settings,
             clipboard::toggle_monitoring,
             clipboard::get_monitoring_state,
+            tray::update_tray_locale,
             db::get_history,
             db::search_history,
             db::delete_items,

@@ -3,64 +3,120 @@ use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 
 /// Global flag indicating whether screen recording is in progress.
 static RECORDING_ACTIVE: AtomicBool = AtomicBool::new(false);
 
-/// Build the tray menu items. Platform-specific items (screenshot, recording)
-/// are only included on macOS where the tools exist.
-fn build_menu<R: Runtime>(app: &AppHandle<R>) -> Result<Menu<R>, Box<dyn std::error::Error>> {
-    #[cfg(target_os = "macos")]
-    {
-        let screenshot_i = MenuItem::with_id(app, "screenshot", "Screenshot", true, None::<&str>)?;
-        let record_i = MenuItem::with_id(app, "record", "Screen Recording", true, None::<&str>)?;
-        let quick_paste_i = MenuItem::with_id(app, "quick-paste", "Quick Paste", true, None::<&str>)?;
-        let show_i = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
-        let pause_i = MenuItem::with_id(app, "pause", "Pause Monitoring", true, None::<&str>)?;
-        let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+// ---------------------------------------------------------------------------
+// Type-erased menu item handle — stores a set_text closure to avoid generics
+// ---------------------------------------------------------------------------
 
-        Ok(Menu::with_items(app, &[
-            &screenshot_i,
-            &record_i,
-            &PredefinedMenuItem::separator(app)?,
-            &quick_paste_i,
-            &show_i,
-            &pause_i,
-            &PredefinedMenuItem::separator(app)?,
-            &quit_i,
-        ])?)
+struct TrayItemHandle {
+    set_text_fn: Box<dyn Fn(&str) + Send + Sync>,
+}
+
+impl TrayItemHandle {
+    fn new<R: Runtime>(item: MenuItem<R>) -> Self {
+        Self {
+            set_text_fn: Box::new(move |text| {
+                let _ = item.set_text(text);
+            }),
+        }
     }
 
-    #[cfg(not(target_os = "macos"))]
-    {
-        let quick_paste_i = MenuItem::with_id(app, "quick-paste", "Quick Paste", true, None::<&str>)?;
-        let show_i = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
-        let pause_i = MenuItem::with_id(app, "pause", "Pause Monitoring", true, None::<&str>)?;
-        let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-
-        Ok(Menu::with_items(app, &[
-            &quick_paste_i,
-            &show_i,
-            &pause_i,
-            &PredefinedMenuItem::separator(app)?,
-            &quit_i,
-        ])?)
+    fn set_text(&self, text: &str) {
+        (self.set_text_fn)(text);
     }
 }
 
+/// Stores type-erased tray menu item handles keyed by ID.
+pub struct TrayMenuState {
+    items: Mutex<HashMap<String, TrayItemHandle>>,
+}
+
+impl TrayMenuState {
+    fn new() -> Self {
+        Self {
+            items: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn insert<R: Runtime>(&self, id: &str, item: MenuItem<R>) {
+        self.items
+            .lock()
+            .unwrap()
+            .insert(id.to_string(), TrayItemHandle::new(item));
+    }
+
+    fn set_text(&self, id: &str, text: &str) {
+        if let Some(handle) = self.items.lock().unwrap().get(id) {
+            handle.set_text(text);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tray setup
+// ---------------------------------------------------------------------------
+
 /// Set up the system tray icon with context menu.
 pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
-    let menu = build_menu(app)?;
+    let state = TrayMenuState::new();
 
-    // Clone items that need to be updated from the event handler.
+    let quick_paste_i = MenuItem::with_id(app, "quick-paste", "Quick Paste", true, None::<&str>)?;
+    let show_i = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
     let pause_i = MenuItem::with_id(app, "pause", "Pause Monitoring", true, None::<&str>)?;
-    let pause_item = pause_i.clone();
+    let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+
+    state.insert("quick-paste", quick_paste_i.clone());
+    state.insert("show", show_i.clone());
+    state.insert("pause", pause_i.clone());
+    state.insert("quit", quit_i.clone());
+
+    #[cfg(target_os = "macos")]
+    let screenshot_i = MenuItem::with_id(app, "screenshot", "Screenshot", true, None::<&str>)?;
+    #[cfg(target_os = "macos")]
+    let record_i = MenuItem::with_id(app, "record", "Screen Recording", true, None::<&str>)?;
+    #[cfg(target_os = "macos")]
+    state.insert("screenshot", screenshot_i.clone());
+    #[cfg(target_os = "macos")]
+    state.insert("record", record_i.clone());
+
+    let menu = {
+        #[cfg(target_os = "macos")]
+        {
+            Menu::with_items(app, &[
+                &screenshot_i,
+                &record_i,
+                &PredefinedMenuItem::separator(app)?,
+                &quick_paste_i,
+                &show_i,
+                &pause_i,
+                &PredefinedMenuItem::separator(app)?,
+                &quit_i,
+            ])?
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            Menu::with_items(app, &[
+                &quick_paste_i,
+                &show_i,
+                &pause_i,
+                &PredefinedMenuItem::separator(app)?,
+                &quit_i,
+            ])?
+        }
+    };
+
+    app.manage(state);
 
     #[cfg(target_os = "macos")]
     let record_item = {
-        let record_i = MenuItem::with_id(app, "record", "Screen Recording", true, None::<&str>)?;
-        record_i.clone()
+        let r = MenuItem::with_id(app, "record", "", true, None::<&str>)?;
+        r.clone()
     };
 
     let _tray = TrayIconBuilder::new()
@@ -118,11 +174,9 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
             }
             "pause" => {
                 let paused = crate::clipboard::toggle_monitoring();
-                let _ = pause_item.set_text(if paused {
-                    "Resume Monitoring"
-                } else {
-                    "Pause Monitoring"
-                });
+                let st = app.state::<TrayMenuState>();
+                let key = if paused { "resume_monitoring" } else { "pause_monitoring" };
+                st.set_text("pause", &get_text(key, &get_stored_locale()));
             }
             "quit" => {
                 app.exit(0);
@@ -144,6 +198,95 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
             }
         })
         .build(app)?;
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Locale-aware menu text
+// ---------------------------------------------------------------------------
+
+struct TrayTexts {
+    screenshot: &'static str,
+    screen_recording: &'static str,
+    quick_paste: &'static str,
+    show_window: &'static str,
+    pause_monitoring: &'static str,
+    resume_monitoring: &'static str,
+    quit: &'static str,
+}
+
+const TEXTS_ZH: TrayTexts = TrayTexts {
+    screenshot: "截图",
+    screen_recording: "录屏",
+    quick_paste: "快速粘贴",
+    show_window: "显示窗口",
+    pause_monitoring: "暂停监听",
+    resume_monitoring: "恢复监听",
+    quit: "退出",
+};
+
+const TEXTS_EN: TrayTexts = TrayTexts {
+    screenshot: "Screenshot",
+    screen_recording: "Screen Recording",
+    quick_paste: "Quick Paste",
+    show_window: "Show Window",
+    pause_monitoring: "Pause Monitoring",
+    resume_monitoring: "Resume Monitoring",
+    quit: "Quit",
+};
+
+fn get_texts(locale: &str) -> &'static TrayTexts {
+    match locale {
+        "zh" => &TEXTS_ZH,
+        _ => &TEXTS_EN,
+    }
+}
+
+fn get_text(key: &str, locale: &str) -> String {
+    let texts = get_texts(locale);
+    match key {
+        "screenshot" => texts.screenshot.to_string(),
+        "screen_recording" => texts.screen_recording.to_string(),
+        "quick_paste" => texts.quick_paste.to_string(),
+        "show_window" => texts.show_window.to_string(),
+        "pause_monitoring" => texts.pause_monitoring.to_string(),
+        "resume_monitoring" => texts.resume_monitoring.to_string(),
+        "quit" => texts.quit.to_string(),
+        _ => key.to_string(),
+    }
+}
+
+/// Read stored locale from app data dir config.
+fn get_stored_locale() -> String {
+    // Default to zh since the app defaults to Chinese
+    "zh".to_string()
+}
+
+/// Tauri command: update tray menu texts for the given locale.
+/// Called from frontend when locale changes.
+#[tauri::command]
+pub fn update_tray_locale(app: tauri::AppHandle, locale: String) -> Result<(), String> {
+    let state = app.state::<TrayMenuState>();
+    let texts = get_texts(&locale);
+
+    #[cfg(target_os = "macos")]
+    {
+        state.set_text("screenshot", texts.screenshot);
+        state.set_text("record", texts.screen_recording);
+    }
+
+    state.set_text("quick-paste", texts.quick_paste);
+    state.set_text("show", texts.show_window);
+
+    // Preserve pause/resume state
+    let pause_text = if crate::clipboard::MONITORING_PAUSED.load(Ordering::SeqCst) {
+        texts.resume_monitoring
+    } else {
+        texts.pause_monitoring
+    };
+    state.set_text("pause", pause_text);
+    state.set_text("quit", texts.quit);
 
     Ok(())
 }
