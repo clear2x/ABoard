@@ -83,15 +83,11 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
     state.insert("pause", pause_i.clone());
     state.insert("quit", quit_i.clone());
 
-    #[cfg(target_os = "macos")]
     let screenshot_i = MenuItem::with_id(app, "screenshot", "Screenshot", true, None::<&str>)?;
-    #[cfg(target_os = "macos")]
     let record_i = MenuItem::with_id(app, "record", "Screen Recording", true, None::<&str>)?;
     #[cfg(target_os = "macos")]
     let reset_perm_i = MenuItem::with_id(app, "reset-permission", "Reset Screen Recording Permission…", true, None::<&str>)?;
-    #[cfg(target_os = "macos")]
     state.insert("screenshot", screenshot_i.clone());
-    #[cfg(target_os = "macos")]
     state.insert("record", record_i.clone());
     #[cfg(target_os = "macos")]
     state.insert("reset-permission", reset_perm_i.clone());
@@ -114,6 +110,9 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
         #[cfg(not(target_os = "macos"))]
         {
             Menu::with_items(app, &[
+                &screenshot_i,
+                &record_i,
+                &PredefinedMenuItem::separator(app)?,
                 &quick_paste_i,
                 &show_i,
                 &pause_i,
@@ -138,21 +137,12 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
         .show_menu_on_left_click(true)
         .tooltip("ABoard - Clipboard Manager")
         .on_menu_event(move |app, event| match event.id().as_ref() {
-            #[cfg(target_os = "macos")]
             "screenshot" => {
                 capture_screenshot(app.clone());
             }
-            #[cfg(target_os = "macos")]
             "record" => {
                 if RECORDING_ACTIVE.load(Ordering::SeqCst) {
-                    // Stop recording by sending SIGINT (same as Ctrl+C in terminal)
-                    let pid = RECORDING_PID.swap(0, Ordering::SeqCst);
-                    if pid > 0 {
-                        let _ = std::process::Command::new("kill")
-                            .arg("-INT")
-                            .arg(pid.to_string())
-                            .status();
-                    }
+                    stop_recording();
                     return;
                 }
                 start_screen_recording(app.clone(), record_i.clone());
@@ -332,11 +322,10 @@ pub fn update_tray_locale(app: tauri::AppHandle, locale: String) -> Result<(), S
     let texts = get_texts(&locale);
 
     #[cfg(target_os = "macos")]
-    {
-        state.set_text("screenshot", texts.screenshot);
-        state.set_text("record", texts.screen_recording);
-        state.set_text("reset-permission", texts.reset_permission);
-    }
+    state.set_text("reset-permission", texts.reset_permission);
+
+    state.set_text("screenshot", texts.screenshot);
+    state.set_text("record", texts.screen_recording);
 
     state.set_text("quick-paste", texts.quick_paste);
     state.set_text("show", texts.show_window);
@@ -356,6 +345,18 @@ pub fn update_tray_locale(app: tauri::AppHandle, locale: String) -> Result<(), S
 // ---------------------------------------------------------------------------
 // macOS-only: screenshot and screen recording
 // ---------------------------------------------------------------------------
+
+/// Stop recording — macOS sends SIGINT to screencapture process.
+#[cfg(target_os = "macos")]
+fn stop_recording() {
+    let pid = RECORDING_PID.swap(0, Ordering::SeqCst);
+    if pid > 0 {
+        let _ = std::process::Command::new("kill")
+            .arg("-INT")
+            .arg(pid.to_string())
+            .status();
+    }
+}
 
 /// Show a one-time permission guidance dialog using the native dialog API.
 /// Skips the dialog if screen recording permission is already granted.
@@ -488,6 +489,155 @@ fn start_screen_recording<R: Runtime>(app: AppHandle<R>, record_item: MenuItem<R
             .arg("-v")
             .arg("-x")
             .arg(&dest_path)
+            .spawn()
+        {
+            Ok(c) => {
+                RECORDING_PID.store(c.id(), Ordering::SeqCst);
+                c
+            }
+            Err(_) => {
+                RECORDING_ACTIVE.store(false, Ordering::SeqCst);
+                let resume_text = get_text("screen_recording", &get_stored_locale());
+                let _ = record_item_clone.set_text(&resume_text);
+                return;
+            }
+        };
+
+        let status = child.wait();
+        RECORDING_PID.store(0, Ordering::SeqCst);
+        RECORDING_ACTIVE.store(false, Ordering::SeqCst);
+        let resume_text = get_text("screen_recording", &get_stored_locale());
+        let _ = record_item_clone.set_text(&resume_text);
+
+        if let Ok(status) = status {
+            if status.success() && dest_path.exists() {
+                let bytes = match std::fs::read(&dest_path) {
+                    Ok(b) => b,
+                    Err(_) => return,
+                };
+
+                let file_path_str = format!("data/{}", file_name);
+                let hash = {
+                    use sha2::{Digest, Sha256};
+                    let mut hasher = Sha256::new();
+                    hasher.update(&bytes);
+                    format!("{:x}", hasher.finalize())
+                };
+                let timestamp = chrono::Utc::now().timestamp_millis();
+
+                let db_state = app_clone.state::<crate::db::DbState>();
+                if let Ok(conn) = db_state.conn.lock() {
+                    let _ = conn.execute(
+                        "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, metadata, pinned, file_path) VALUES (?1, 'video', '', ?2, ?3, '{}', 0, ?4)",
+                        rusqlite::params![id, hash, timestamp, file_path_str],
+                    );
+                }
+
+                let _ = app_clone.emit("clipboard-update", serde_json::json!({
+                    "id": id,
+                    "type": "video",
+                    "content": "",
+                    "hash": hash,
+                    "timestamp": timestamp,
+                    "metadata": {},
+                    "pinned": false,
+                    "file_path": file_path_str,
+                }));
+            } else {
+                let _ = std::fs::remove_file(&dest_path);
+            }
+        }
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Windows: screenshot via Snipping Tool, recording via ffmpeg
+// ---------------------------------------------------------------------------
+
+#[cfg(target_os = "windows")]
+fn capture_screenshot<R: Runtime>(app: AppHandle<R>) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    // Launch Windows Snipping Tool — user selects area, screenshot goes to clipboard,
+    // then our clipboard monitor captures it automatically.
+    let _ = std::process::Command::new("cmd")
+        .args(["/c", "start", "snippingtool.exe", "/clip"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn();
+}
+
+#[cfg(target_os = "windows")]
+fn stop_recording() {
+    let pid = RECORDING_PID.swap(0, Ordering::SeqCst);
+    if pid > 0 {
+        // On Windows, kill the ffmpeg process
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/F"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .status();
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn start_screen_recording<R: Runtime>(app: AppHandle<R>, record_item: MenuItem<R>) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    // Check if ffmpeg is available
+    let ffmpeg_check = std::process::Command::new("ffmpeg")
+        .arg("-version")
+        .creation_flags(CREATE_NO_WINDOW)
+        .output();
+
+    if ffmpeg_check.is_err() {
+        let locale = get_stored_locale();
+        let (title, msg) = if locale == "zh" {
+            ("需要 ffmpeg", "录屏功能需要安装 ffmpeg。\n\n请访问 https://ffmpeg.org 下载并添加到 PATH。")
+        } else {
+            ("ffmpeg Required", "Screen recording requires ffmpeg.\n\nPlease install ffmpeg from https://ffmpeg.org and add it to PATH.")
+        };
+        let _ = app.dialog()
+            .message(msg)
+            .title(title)
+            .kind(tauri_plugin_dialog::MessageDialogKind::Info)
+            .show(|_| {});
+        return;
+    }
+
+    RECORDING_ACTIVE.store(true, Ordering::SeqCst);
+    let stop_text = get_text("stop_recording", &get_stored_locale());
+    let _ = record_item.set_text(&stop_text);
+
+    let app_data_dir = match app.path().app_data_dir() {
+        Ok(dir) => dir,
+        Err(_) => { RECORDING_ACTIVE.store(false, Ordering::SeqCst); return; }
+    };
+    let data_dir = app_data_dir.join("data");
+    let _ = std::fs::create_dir_all(&data_dir);
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let file_name = format!("{}.mp4", id);
+    let dest_path = data_dir.join(&file_name);
+
+    let app_clone = app.clone();
+    let record_item_clone = record_item.clone();
+    std::thread::spawn(move || {
+        let mut child = match std::process::Command::new("ffmpeg")
+            .args([
+                "-y",
+                "-f", "gdigrab",
+                "-framerate", "30",
+                "-i", "desktop",
+                "-c:v", "libx264",
+                "-preset", "ultrafast",
+                "-crf", "28",
+                &dest_path.to_string_lossy(),
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .stdin(std::process::Stdio::piped())
             .spawn()
         {
             Ok(c) => {
