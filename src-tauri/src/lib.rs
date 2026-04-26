@@ -128,9 +128,11 @@ fn reveal_in_folder(app: tauri::AppHandle, file_path: String) -> Result<(), Stri
     }
     #[cfg(target_os = "windows")]
     {
+        if !full_path.exists() {
+            return Err("File not found".to_string());
+        }
         std::process::Command::new("explorer")
-            .arg("/select,")
-            .arg(&full_path)
+            .arg(format!("/select,{}", full_path.display()))
             .spawn()
             .map_err(|e| format!("Failed to open Explorer: {}", e))?;
     }
@@ -201,6 +203,24 @@ fn paste_to_active(content: String, app: tauri::AppHandle) -> Result<(), String>
         let cmd_up = CGEvent::new_keyboard_event(source, 55, false)
             .map_err(|_| "Failed to create Cmd up event".to_string())?;
         cmd_up.post(post_tap);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command",
+                "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| format!("SendKeys error: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xdotool")
+            .args(["key", "--clearmodifiers", "ctrl+v"])
+            .spawn();
     }
     Ok(())
 }
@@ -277,6 +297,24 @@ fn quick_cycle(app: tauri::AppHandle, cycle: tauri::State<'_, Mutex<CycleState>>
         let cmd_up = CGEvent::new_keyboard_event(source, 55, false)
             .map_err(|_| "Failed to create Cmd up event".to_string())?;
         cmd_up.post(post_tap);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command",
+                "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| format!("SendKeys error: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xdotool")
+            .args(["key", "--clearmodifiers", "ctrl+v"])
+            .spawn();
     }
     Ok(())
 }

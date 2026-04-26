@@ -34,5 +34,8 @@ tokenizers = { version = "0.22.0", default-features = false }
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = { version = "0.24" }
 
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Input_KeyboardAndMouse"] }
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

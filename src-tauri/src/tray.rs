@@ -559,23 +559,88 @@ fn capture_screenshot<R: Runtime>(app: AppHandle<R>) {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-    // Launch Windows Snipping Tool — user selects area, screenshot goes to clipboard,
-    // then our clipboard monitor captures it automatically.
-    let _ = std::process::Command::new("cmd")
-        .args(["/c", "start", "snippingtool.exe", "/clip"])
+    let app_data_dir = match app.path().app_data_dir() {
+        Ok(dir) => dir,
+        Err(_) => return,
+    };
+    let data_dir = app_data_dir.join("data");
+    let _ = std::fs::create_dir_all(&data_dir);
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let file_name = format!("{}.png", id);
+    let dest_path = data_dir.join(&file_name);
+    let dest_str = dest_path.to_string_lossy().to_string().replace('\\', "\\\\");
+
+    // Use PowerShell to capture full screen to PNG
+    let script = format!(
+        r#"
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+$screen = [System.Windows.Forms.Screen]::PrimaryScreen
+$bounds = $screen.Bounds
+$bmp = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height)
+$gfx = [System.Drawing.Graphics]::FromImage($bmp)
+$gfx.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+$bmp.Save('{}', [System.Drawing.Imaging.ImageFormat]::Png)
+$gfx.Dispose()
+$bmp.Dispose()
+Write-Output 'OK'
+"#,
+        dest_str
+    );
+
+    let output = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
         .creation_flags(CREATE_NO_WINDOW)
-        .spawn();
+        .output();
+
+    if let Ok(out) = output {
+        let result = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if result == "OK" && dest_path.exists() {
+            if let Ok(bytes) = std::fs::read(&dest_path) {
+                let file_path_str = format!("data/{}", file_name);
+                let hash = {
+                    use sha2::{Digest, Sha256};
+                    let mut hasher = Sha256::new();
+                    hasher.update(&bytes);
+                    format!("{:x}", hasher.finalize())
+                };
+                let timestamp = chrono::Utc::now().timestamp_millis();
+
+                let db_state = app.state::<crate::db::DbState>();
+                if let Ok(conn) = db_state.conn.lock() {
+                    let _ = conn.execute(
+                        "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, metadata, pinned, file_path) VALUES (?1, 'image', '', ?2, ?3, '{}', 0, ?4)",
+                        rusqlite::params![id, hash, timestamp, file_path_str],
+                    );
+                }
+
+                let _ = app.emit("clipboard-update", serde_json::json!({
+                    "id": id,
+                    "type": "image",
+                    "content": format!("data:image/png;base64,{}", base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes)),
+                    "hash": hash,
+                    "timestamp": timestamp,
+                    "metadata": {},
+                    "pinned": false,
+                    "file_path": file_path_str,
+                }));
+            }
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
 fn stop_recording() {
     let pid = RECORDING_PID.swap(0, Ordering::SeqCst);
     if pid > 0 {
-        // On Windows, kill the ffmpeg process
+        // Send 'q' to ffmpeg stdin for clean shutdown instead of taskkill
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
+        // Try graceful stop first: write 'q' to ffmpeg stdin
+        // (stdin pipe is lost in the spawned thread, so use taskkill without /F)
         let _ = std::process::Command::new("taskkill")
-            .args(["/PID", &pid.to_string(), "/F"])
+            .args(["/PID", &pid.to_string()])
             .creation_flags(CREATE_NO_WINDOW)
             .status();
     }
@@ -595,9 +660,9 @@ fn start_screen_recording<R: Runtime>(app: AppHandle<R>, record_item: MenuItem<R
     if ffmpeg_check.is_err() {
         let locale = get_stored_locale();
         let (title, msg) = if locale == "zh" {
-            ("需要 ffmpeg", "录屏功能需要安装 ffmpeg。\n\n请访问 https://ffmpeg.org 下载并添加到 PATH。")
+            ("录屏", "录屏功能需要安装 ffmpeg。\n\n请访问 https://ffmpeg.org 下载并添加到 PATH。\n\n或者使用 Win+Alt+R 启动 Xbox Game Bar 录屏。")
         } else {
-            ("ffmpeg Required", "Screen recording requires ffmpeg.\n\nPlease install ffmpeg from https://ffmpeg.org and add it to PATH.")
+            ("Screen Recording", "Screen recording requires ffmpeg.\n\nInstall from https://ffmpeg.org and add to PATH.\n\nAlternatively, use Win+Alt+R for Xbox Game Bar recording.")
         };
         let _ = app.dialog()
             .message(msg)
@@ -704,8 +769,64 @@ fn start_screen_recording<R: Runtime>(app: AppHandle<R>, record_item: MenuItem<R
 // ---------------------------------------------------------------------------
 
 #[cfg(target_os = "linux")]
-fn capture_screenshot<R: Runtime>(_app: AppHandle<R>) {
-    // Could integrate xclip/xdotool/scrot in the future
+fn capture_screenshot<R: Runtime>(app: AppHandle<R>) {
+    let app_data_dir = match app.path().app_data_dir() {
+        Ok(dir) => dir,
+        Err(_) => return,
+    };
+    let data_dir = app_data_dir.join("data");
+    let _ = std::fs::create_dir_all(&data_dir);
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let file_name = format!("{}.png", id);
+    let dest_path = data_dir.join(&file_name);
+    let tmp_path = std::env::temp_dir().join(format!("aboard_screenshot_{}.png", id));
+
+    // Try gnome-screenshot first, then scrot, then import (ImageMagick)
+    let result = std::process::Command::new("gnome-screenshot")
+        .arg("-f").arg(&tmp_path)
+        .status()
+        .or_else(|_| std::process::Command::new("scrot").arg(&tmp_path).status())
+        .or_else(|_| std::process::Command::new("import").arg("-window").arg("root").arg(&tmp_path).status());
+
+    if let Ok(Some(status)) = result.map(|s| s.success().then_some(())) {
+        // gnore the result, check if file exists
+    }
+
+    if tmp_path.exists() {
+        if let Ok(bytes) = std::fs::read(&tmp_path) {
+            let _ = std::fs::write(&dest_path, &bytes);
+            let _ = std::fs::remove_file(&tmp_path);
+
+            let file_path_str = format!("data/{}", file_name);
+            let hash = {
+                use sha2::{Digest, Sha256};
+                let mut hasher = Sha256::new();
+                hasher.update(&bytes);
+                format!("{:x}", hasher.finalize())
+            };
+            let timestamp = chrono::Utc::now().timestamp_millis();
+
+            let db_state = app.state::<crate::db::DbState>();
+            if let Ok(conn) = db_state.conn.lock() {
+                let _ = conn.execute(
+                    "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, metadata, pinned, file_path) VALUES (?1, 'image', '', ?2, ?3, '{}', 0, ?4)",
+                    rusqlite::params![id, hash, timestamp, file_path_str],
+                );
+            }
+
+            let _ = app.emit("clipboard-update", serde_json::json!({
+                "id": id,
+                "type": "image",
+                "content": format!("data:image/png;base64,{}", base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes)),
+                "hash": hash,
+                "timestamp": timestamp,
+                "metadata": {},
+                "pinned": false,
+                "file_path": file_path_str,
+            }));
+        }
+    }
 }
 
 #[cfg(target_os = "linux")]
