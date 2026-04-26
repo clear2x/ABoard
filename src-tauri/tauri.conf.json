@@ -50,7 +50,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "targets": ["msi"],
+    "targets": "all",
     "macOS": {
       "entitlements": "entitlements.plist",
       "minimumSystemVersion": "14.0",
