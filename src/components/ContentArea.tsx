@@ -1,6 +1,6 @@
 import { For, Show, createSignal, createMemo } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { save } from "@tauri-apps/plugin-dialog";
 import {
   items,
   selectedId,
@@ -175,9 +175,7 @@ export default function ContentArea() {
   const handleExport = async () => {
     const ids = Array.from(selectedIds());
     if (ids.length === 0) return;
-    const filePath = await open({
-      multiple: false,
-      directory: false,
+    const filePath = await save({
       defaultPath: `aboard-export.zip`,
       filters: [{ name: "ZIP", extensions: ["zip"] }],
     });
