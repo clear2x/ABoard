@@ -700,6 +700,33 @@ fn start_screen_recording<R: Runtime>(app: AppHandle<R>, record_item: MenuItem<R
 }
 
 // ---------------------------------------------------------------------------
+// Linux: stub implementations (no native capture tool)
+// ---------------------------------------------------------------------------
+
+#[cfg(target_os = "linux")]
+fn capture_screenshot<R: Runtime>(_app: AppHandle<R>) {
+    // Could integrate xclip/xdotool/scrot in the future
+}
+
+#[cfg(target_os = "linux")]
+fn stop_recording() {}
+
+#[cfg(target_os = "linux")]
+fn start_screen_recording<R: Runtime>(app: AppHandle<R>, _record_item: MenuItem<R>) {
+    let locale = get_stored_locale();
+    let (title, msg) = if locale == "zh" {
+        ("暂不支持", "Linux 上的录屏功能尚未实现。")
+    } else {
+        ("Not Supported", "Screen recording is not yet supported on Linux.")
+    };
+    let _ = app.dialog()
+        .message(msg)
+        .title(title)
+        .kind(tauri_plugin_dialog::MessageDialogKind::Info)
+        .show(|_| {});
+}
+
+// ---------------------------------------------------------------------------
 // macOS: application menu bar
 // ---------------------------------------------------------------------------
 
