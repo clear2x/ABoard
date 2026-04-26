@@ -18,9 +18,21 @@ function typeIcon(type: string): { icon: string; bg: string; color: string; lett
       return { icon: "ph-link", bg: "bg-blue-50 dark:bg-blue-900/30", color: "text-blue-500" };
     case "image":
       return { icon: "ph-image", bg: "bg-green-50 dark:bg-green-900/30", color: "text-green-500" };
+    case "video":
+      return { icon: "ph-video-camera", bg: "bg-rose-50 dark:bg-rose-900/30", color: "text-rose-500" };
     default:
       return { icon: "", bg: "bg-blue-100 dark:bg-blue-900/30", color: "text-blue-600", letter: "T" };
   }
+}
+
+function itemLabel(item: ClipboardItem): string {
+  if (item.type === "video") {
+    return item.file_path ? item.file_path.split("/").pop() || "Video" : "Video recording";
+  }
+  if (item.type === "image") {
+    return "Image";
+  }
+  return item.content.slice(0, 80);
 }
 
 export default function FloatingPopup() {
@@ -274,7 +286,7 @@ export default function FloatingPopup() {
                           </Show>
                         </div>
                         <div class="text-xs text-gray-600 leading-tight truncate flex-1 min-w-0">
-                          {item.content.slice(0, 80)}
+                          {itemLabel(item)}
                         </div>
                         <Show when={hoveredId() === item.id}>
                           <ItemActions item={item} />
@@ -328,7 +340,7 @@ export default function FloatingPopup() {
                           when={dtype() === "code"}
                           fallback={
                             <div class="text-xs text-gray-600 leading-tight truncate flex-1 min-w-0">
-                              {item.content.slice(0, 80)}
+                              {itemLabel(item)}
                             </div>
                           }
                         >
