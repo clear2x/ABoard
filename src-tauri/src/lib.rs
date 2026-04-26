@@ -421,6 +421,19 @@ pub fn run() {
                 tray::setup_app_menu(&app.handle())?;
             }
 
+            // Windows/Linux: hide system decorations to avoid double title bar.
+            // macOS uses Overlay titleBarStyle (set in tauri.conf.json) which
+            // shows traffic lights without a visible title bar.
+            #[cfg(not(target_os = "macos"))]
+            {
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.set_decorations(false);
+                }
+                if let Some(win) = app.get_webview_window("floating") {
+                    let _ = win.set_decorations(false);
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
