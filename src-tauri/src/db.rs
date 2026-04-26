@@ -652,45 +652,86 @@ pub fn export_items(
         .compression_method(zip::CompressionMethod::Deflated);
 
     let mut text_idx = 0u32;
-    let mut img_idx = 0u32;
-    let mut vid_idx = 0u32;
 
     for item in &items {
         let content_type = item.content_type.as_str();
         match content_type {
             "image" => {
-                if let Some(ref fp) = item.file_path {
+                // Method 1: read from data/ directory (file_path exists)
+                let written = if let Some(ref fp) = item.file_path {
                     let full_path = app_data_dir.join(fp);
                     if full_path.exists() {
-                        let bytes = std::fs::read(&full_path)
-                            .map_err(|e| format!("Read image error: {}", e))?;
-                        let ext = full_path.extension()
-                            .and_then(|e| e.to_str())
-                            .unwrap_or("png");
-                        let name = format!("images/{}.{}", item.id, ext);
-                        zip.start_file(&name, options)
-                            .map_err(|e| format!("ZIP write error: {}", e))?;
-                        zip.write_all(&bytes)
-                            .map_err(|e| format!("ZIP write error: {}", e))?;
-                        img_idx += 1;
+                        if let Ok(bytes) = std::fs::read(&full_path) {
+                            let ext = full_path.extension()
+                                .and_then(|e| e.to_str())
+                                .unwrap_or("png");
+                            let name = format!("images/{}.{}", item.id, ext);
+                            zip.start_file(&name, options)
+                                .map_err(|e| format!("ZIP write error: {}", e))?;
+                            zip.write_all(&bytes)
+                                .map_err(|e| format!("ZIP write error: {}", e))?;
+                            true
+                        } else { false }
+                    } else { false }
+                } else { false };
+
+                // Method 2: decode from base64 data URL in content
+                if !written {
+                    if let Some(b64_start) = item.content.find(",base64,") {
+                        let b64 = &item.content[b64_start + 8..];
+                        if let Ok(bytes) = base64::Engine::decode(
+                            &base64::engine::general_purpose::STANDARD, b64
+                        ) {
+                            // Detect extension from data URL prefix
+                            let ext = if item.content.contains("image/png") { "png" }
+                                else if item.content.contains("image/jpeg") { "jpg" }
+                                else if item.content.contains("image/gif") { "gif" }
+                                else if item.content.contains("image/webp") { "webp" }
+                                else { "png" };
+                            let name = format!("images/{}.{}", item.id, ext);
+                            zip.start_file(&name, options)
+                                .map_err(|e| format!("ZIP write error: {}", e))?;
+                            zip.write_all(&bytes)
+                                .map_err(|e| format!("ZIP write error: {}", e))?;
+                        }
                     }
                 }
             }
             "video" => {
-                if let Some(ref fp) = item.file_path {
+                let written = if let Some(ref fp) = item.file_path {
                     let full_path = app_data_dir.join(fp);
                     if full_path.exists() {
-                        let bytes = std::fs::read(&full_path)
-                            .map_err(|e| format!("Read video error: {}", e))?;
-                        let ext = full_path.extension()
-                            .and_then(|e| e.to_str())
-                            .unwrap_or("mp4");
-                        let name = format!("videos/{}.{}", item.id, ext);
-                        zip.start_file(&name, options)
-                            .map_err(|e| format!("ZIP write error: {}", e))?;
-                        zip.write_all(&bytes)
-                            .map_err(|e| format!("ZIP write error: {}", e))?;
-                        vid_idx += 1;
+                        if let Ok(bytes) = std::fs::read(&full_path) {
+                            let ext = full_path.extension()
+                                .and_then(|e| e.to_str())
+                                .unwrap_or("mp4");
+                            let name = format!("videos/{}.{}", item.id, ext);
+                            zip.start_file(&name, options)
+                                .map_err(|e| format!("ZIP write error: {}", e))?;
+                            zip.write_all(&bytes)
+                                .map_err(|e| format!("ZIP write error: {}", e))?;
+                            true
+                        } else { false }
+                    } else { false }
+                } else { false };
+
+                // Fallback: decode from base64 data URL
+                if !written {
+                    if let Some(b64_start) = item.content.find(",base64,") {
+                        let b64 = &item.content[b64_start + 8..];
+                        if let Ok(bytes) = base64::Engine::decode(
+                            &base64::engine::general_purpose::STANDARD, b64
+                        ) {
+                            let ext = if item.content.contains("video/mp4") { "mp4" }
+                                else if item.content.contains("video/webm") { "webm" }
+                                else if item.content.contains("video/quicktime") { "mov" }
+                                else { "mp4" };
+                            let name = format!("videos/{}.{}", item.id, ext);
+                            zip.start_file(&name, options)
+                                .map_err(|e| format!("ZIP write error: {}", e))?;
+                            zip.write_all(&bytes)
+                                .map_err(|e| format!("ZIP write error: {}", e))?;
+                        }
                     }
                 }
             }
