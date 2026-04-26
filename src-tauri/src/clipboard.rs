@@ -633,7 +633,7 @@ fn persist_and_emit<R: Runtime>(app: &tauri::AppHandle<R>, mut item: ClipboardIt
             let _ = std::fs::create_dir_all(&data_dir);
 
             // Extract binary data from base64 data URL
-            if let Some(b64_start) = item.content.find(",base64,") {
+            if let Some(b64_start) = item.content.find(";base64,") {
                 let b64 = &item.content[b64_start + 8..];
                 if let Ok(bytes) = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64) {
                     let file_name = format!("{}.png", item.id);

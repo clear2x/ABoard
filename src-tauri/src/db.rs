@@ -677,7 +677,7 @@ pub fn export_items(
 
                 // Method 2: decode from base64 data URL in content
                 if !written {
-                    if let Some(b64_start) = item.content.find(",base64,") {
+                    if let Some(b64_start) = item.content.find(";base64,") {
                         let b64 = &item.content[b64_start + 8..];
                         if let Ok(bytes) = base64::Engine::decode(
                             &base64::engine::general_purpose::STANDARD, b64
@@ -717,7 +717,7 @@ pub fn export_items(
 
                 // Fallback: decode from base64 data URL
                 if !written {
-                    if let Some(b64_start) = item.content.find(",base64,") {
+                    if let Some(b64_start) = item.content.find(";base64,") {
                         let b64 = &item.content[b64_start + 8..];
                         if let Ok(bytes) = base64::Engine::decode(
                             &base64::engine::general_purpose::STANDARD, b64
