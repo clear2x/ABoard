@@ -495,7 +495,9 @@ return ""
 /// Tries clipboard image first, then falls back to file path from Explorer copy.
 #[cfg(target_os = "windows")]
 fn try_read_image_fallback() -> Option<ClipboardItem> {
+    use std::os::windows::process::CommandExt;
     use std::process::Command;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
 
     // Method 1: Try reading image directly from clipboard
     let tmp = std::env::temp_dir().join("aboard_clip.png");
@@ -514,6 +516,7 @@ if ($img) {{
 
     let output = Command::new("powershell")
         .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .ok()?;
 
@@ -536,6 +539,7 @@ if ($files.Count -gt 0) {
 "#;
     let file_output = Command::new("powershell")
         .args(["-NoProfile", "-NonInteractive", "-Command", file_script])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .ok()?;
 

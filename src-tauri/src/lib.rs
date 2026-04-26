@@ -25,7 +25,12 @@ fn open_url(url: String) -> Result<(), String> {
     }
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd").args(["/c", "start", &url]).spawn().map_err(|e| format!("Failed to open URL: {}", e))?;
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new("cmd")
+            .args(["/c", "start", &url])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
     }
     #[cfg(target_os = "linux")]
     {
@@ -351,8 +356,9 @@ pub fn run() {
                         .build(),
                 )?;
 
-                app.global_shortcut().register(toggle_shortcut)?;
-                app.global_shortcut().register(cycle_shortcut)?;
+                let gs = app.global_shortcut();
+                let _ = gs.register(toggle_shortcut);
+                let _ = gs.register(cycle_shortcut);
             }
 
             db::init_db(&app.handle())?;

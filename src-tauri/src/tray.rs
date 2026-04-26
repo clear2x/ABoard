@@ -125,8 +125,15 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
 
     app.manage(state);
 
+    let icon = app.default_window_icon().cloned().unwrap_or_else(|| {
+        let bytes = include_bytes!("../icons/icon.png");
+        let img = image::load_from_memory(bytes).expect("Failed to load fallback tray icon");
+        let rgba = img.to_rgba8();
+        let (w, h) = rgba.dimensions();
+        tauri::image::Image::new_owned(rgba.into_raw(), w, h)
+    });
     let _tray = TrayIconBuilder::new()
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(icon)
         .menu(&menu)
         .show_menu_on_left_click(true)
         .tooltip("ABoard - Clipboard Manager")

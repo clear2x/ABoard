@@ -17,9 +17,7 @@
         "height": 640,
         "resizable": true,
         "transparent": true,
-        "decorations": true,
-        "titleBarStyle": "Overlay",
-        "hiddenTitle": true,
+        "decorations": false,
         "shadow": true,
         "dragDropEnabled": false
       },
@@ -30,9 +28,7 @@
         "height": 520,
         "resizable": false,
         "transparent": true,
-        "decorations": true,
-        "titleBarStyle": "Overlay",
-        "hiddenTitle": true,
+        "decorations": false,
         "shadow": true,
         "visible": false,
         "alwaysOnTop": true,
@@ -54,7 +50,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "targets": "all",
+    "targets": ["msi"],
     "macOS": {
       "entitlements": "entitlements.plist",
       "minimumSystemVersion": "14.0",
