@@ -41,7 +41,7 @@ const t_map: Translations = {
   "clipboard.selectAll": { zh: "全选", en: "Select All" },
   "clipboard.clearSel": { zh: "取消选择", en: "Clear" },
   "clipboard.deleteSelected": { zh: "删除选中", en: "Delete Selected" },
-  "clipboard.export": { zh: "导出", en: "Export" },
+  "clipboard.export": { zh: "导出 ZIP", en: "Export ZIP" },
   "clipboard.exportJson": { zh: "导出为 JSON", en: "Export as JSON" },
   "clipboard.exportMd": { zh: "导出为 Markdown", en: "Export as Markdown" },
   "clipboard.exportText": { zh: "导出为文本", en: "Export as Text" },

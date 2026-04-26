@@ -172,26 +172,23 @@ export default function ContentArea() {
     exitBatchMode();
   };
 
-  const handleExport = async (format: "json" | "markdown" | "text") => {
+  const handleExport = async () => {
     const ids = Array.from(selectedIds());
     if (ids.length === 0) return;
-    const extensions: Record<string, string> = { json: "json", markdown: "md", text: "txt" };
     const filePath = await open({
       multiple: false,
       directory: false,
-      defaultPath: `aboard-export.${extensions[format]}`,
-      filters: [{ name: format.toUpperCase(), extensions: [extensions[format]] }],
+      defaultPath: `aboard-export.zip`,
+      filters: [{ name: "ZIP", extensions: ["zip"] }],
     });
     if (!filePath) return;
     try {
-      await invoke("export_items", { ids, format, path: filePath });
+      await invoke("export_items", { ids, path: filePath });
       exitBatchMode();
     } catch (e) {
       console.error("[ContentArea] Export failed:", e);
     }
   };
-
-  const [showExportMenu, setShowExportMenu] = createSignal(false);
 
   const handleItemDelete = (id: string) => {
     deleteItems([id]);
@@ -265,32 +262,13 @@ export default function ContentArea() {
           >
             {t("clipboard.deleteSelected")} ({selectedCount()})
           </button>
-          <div class="relative"
-            onMouseEnter={() => setShowExportMenu(true)}
-            onMouseLeave={() => setShowExportMenu(false)}
+          <button
+            class="px-3 py-1.5 text-xs rounded-lg text-white disabled:opacity-40 bg-blue-500"
+            disabled={selectedCount() === 0}
+            onClick={handleExport}
           >
-            <button
-              class="px-3 py-1.5 text-xs rounded-lg text-white disabled:opacity-40 bg-blue-500"
-              disabled={selectedCount() === 0}
-            >
-              {t("clipboard.export")}
-            </button>
-            <Show when={showExportMenu() && selectedCount() > 0}>
-              <div class="absolute top-full left-0 mt-1 py-1 min-w-[120px] glass-card animate-context-menu z-50"
-                style={{ "box-shadow": "0 4px 6px rgba(0,0,0,0.1)" }}
-              >
-                <button class="w-full text-left px-3 py-2 text-xs hover:bg-white/30 text-gray-600"
-                  onClick={() => handleExport("json")}
-                >{t("clipboard.exportJson")}</button>
-                <button class="w-full text-left px-3 py-2 text-xs hover:bg-white/30 text-gray-600"
-                  onClick={() => handleExport("markdown")}
-                >{t("clipboard.exportMd")}</button>
-                <button class="w-full text-left px-3 py-2 text-xs hover:bg-white/30 text-gray-600"
-                  onClick={() => handleExport("text")}
-                >{t("clipboard.exportText")}</button>
-              </div>
-            </Show>
-          </div>
+            {t("clipboard.export")}
+          </button>
           <div class="flex-1" />
           <button class="px-3 py-1.5 text-xs rounded-lg hover:bg-white/30 transition-colors text-gray-600" onClick={exitBatchMode}>
             {t("clipboard.cancel")}

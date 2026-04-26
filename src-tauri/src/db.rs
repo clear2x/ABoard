@@ -605,14 +605,18 @@ pub fn get_storage_stats(app: tauri::AppHandle) -> Result<serde_json::Value, Str
     }))
 }
 
-/// Export selected clipboard items to a file in JSON, Markdown, or plain text format.
+/// Export selected clipboard items as a ZIP archive.
+/// Text items → `text/{index}.txt`, images → `images/{filename}.png`,
+/// videos → `videos/{filename}.mp4`.
 #[tauri::command]
-pub async fn export_items(
+pub fn export_items(
+    app: tauri::AppHandle,
     state: tauri::State<'_, DbState>,
     ids: Vec<String>,
-    format: String,
     path: String,
 ) -> Result<(), String> {
+    use std::io::{Cursor, Write as IoWrite};
+
     if ids.is_empty() {
         return Err("No items selected for export".to_string());
     }
@@ -641,36 +645,75 @@ pub async fn export_items(
     };
     drop(conn);
 
-    let content = match format.as_str() {
-        "json" => {
-            serde_json::to_string_pretty(&items).map_err(|e| format!("JSON serialize error: {}", e))?
-        }
-        "markdown" => {
-            let mut md = String::from("# ABoard Export\n\n");
-            for item in &items {
-                let time = chrono::DateTime::from_timestamp_millis(item.timestamp)
-                    .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string())
-                    .unwrap_or_default();
-                md.push_str(&format!("## {} {}\n", if item.pinned { "📌 " } else { "" }, time));
-                md.push_str(&format!("{}\n\n---\n\n", &item.content));
-            }
-            md
-        }
-        "text" => {
-            items
-                .iter()
-                .map(|item| {
-                    let time = chrono::DateTime::from_timestamp_millis(item.timestamp)
-                        .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string())
-                        .unwrap_or_default();
-                    format!("[{}]\n{}\n\n---\n", time, item.content)
-                })
-                .collect()
-        }
-        _ => return Err(format!("Unsupported export format: {}", format)),
-    };
+    let app_data_dir = app.path().app_data_dir().map_err(|e| format!("App data dir error: {}", e))?;
+    let buf = Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(buf);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
 
-    std::fs::write(&path, content).map_err(|e| format!("File write error: {}", e))?;
+    let mut text_idx = 0u32;
+    let mut img_idx = 0u32;
+    let mut vid_idx = 0u32;
+
+    for item in &items {
+        let content_type = item.content_type.as_str();
+        match content_type {
+            "image" => {
+                if let Some(ref fp) = item.file_path {
+                    let full_path = app_data_dir.join(fp);
+                    if full_path.exists() {
+                        let bytes = std::fs::read(&full_path)
+                            .map_err(|e| format!("Read image error: {}", e))?;
+                        let ext = full_path.extension()
+                            .and_then(|e| e.to_str())
+                            .unwrap_or("png");
+                        let name = format!("images/{}.{}", item.id, ext);
+                        zip.start_file(&name, options)
+                            .map_err(|e| format!("ZIP write error: {}", e))?;
+                        zip.write_all(&bytes)
+                            .map_err(|e| format!("ZIP write error: {}", e))?;
+                        img_idx += 1;
+                    }
+                }
+            }
+            "video" => {
+                if let Some(ref fp) = item.file_path {
+                    let full_path = app_data_dir.join(fp);
+                    if full_path.exists() {
+                        let bytes = std::fs::read(&full_path)
+                            .map_err(|e| format!("Read video error: {}", e))?;
+                        let ext = full_path.extension()
+                            .and_then(|e| e.to_str())
+                            .unwrap_or("mp4");
+                        let name = format!("videos/{}.{}", item.id, ext);
+                        zip.start_file(&name, options)
+                            .map_err(|e| format!("ZIP write error: {}", e))?;
+                        zip.write_all(&bytes)
+                            .map_err(|e| format!("ZIP write error: {}", e))?;
+                        vid_idx += 1;
+                    }
+                }
+            }
+            _ => {
+                // Text, code, link, file-paths — write as .txt
+                let time = chrono::DateTime::from_timestamp_millis(item.timestamp)
+                    .map(|t| t.format("%Y-%m-%d_%H-%M-%S").to_string())
+                    .unwrap_or_else(|| format!("item_{}", text_idx));
+                let name = format!("text/{}_{}.txt", text_idx, time);
+                let content = if item.content.is_empty() { "(empty)" } else { &item.content };
+                zip.start_file(&name, options)
+                    .map_err(|e| format!("ZIP write error: {}", e))?;
+                zip.write_all(content.as_bytes())
+                    .map_err(|e| format!("ZIP write error: {}", e))?;
+                text_idx += 1;
+            }
+        }
+    }
+
+    let buf = zip.finish().map_err(|e| format!("ZIP finalize error: {}", e))?;
+    std::fs::write(&path, buf.into_inner())
+        .map_err(|e| format!("File write error: {}", e))?;
+
     Ok(())
 }
 
