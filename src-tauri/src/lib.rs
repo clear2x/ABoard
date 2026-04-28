@@ -437,6 +437,17 @@ pub fn run() {
                 }
             }
 
+            // Intercept floating window close (red dot) — hide instead of destroy.
+            if let Some(floating) = app.get_webview_window("floating") {
+                let floating_clone = floating.clone();
+                floating.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = floating_clone.hide();
+                    }
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
