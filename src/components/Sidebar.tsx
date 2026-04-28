@@ -1,4 +1,5 @@
-import { For, Show, createMemo, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal, onMount } from "solid-js";
+import { invoke } from "@tauri-apps/api/core";
 import { items, categoryFilter, setCategoryFilter, storageSize, itemCount, loadStorageStats } from "../stores/clipboard";
 import { t } from "../stores/i18n";
 
@@ -19,8 +20,83 @@ export default function Sidebar() {
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   };
 
+  // --- Snippets state ---
+  interface Snippet {
+    id: string;
+    title: string;
+    content: string;
+    created_at: number;
+    updated_at: number;
+  }
+
+  const [snippets, setSnippets] = createSignal<Snippet[]>([]);
+  const [showSnippetModal, setShowSnippetModal] = createSignal(false);
+  const [editingSnippet, setEditingSnippet] = createSignal<Snippet | null>(null);
+  const [snippetTitle, setSnippetTitle] = createSignal("");
+  const [snippetContent, setSnippetContent] = createSignal("");
+
+  async function loadSnippets() {
+    try {
+      const result = await invoke<Snippet[]>("list_snippets");
+      setSnippets(result);
+    } catch (e) {
+      console.error("[sidebar] Failed to load snippets:", e);
+    }
+  }
+
+  function openNewSnippet() {
+    setEditingSnippet(null);
+    setSnippetTitle("");
+    setSnippetContent("");
+    setShowSnippetModal(true);
+  }
+
+  function openEditSnippet(snippet: Snippet) {
+    setEditingSnippet(snippet);
+    setSnippetTitle(snippet.title);
+    setSnippetContent(snippet.content);
+    setShowSnippetModal(true);
+  }
+
+  async function saveSnippet() {
+    const title = snippetTitle().trim();
+    const content = snippetContent().trim();
+    if (!title || !content) return;
+
+    try {
+      const editing = editingSnippet();
+      if (editing) {
+        await invoke("update_snippet", { id: editing.id, title, content });
+      } else {
+        await invoke("create_snippet", { title, content });
+      }
+      setShowSnippetModal(false);
+      await loadSnippets();
+    } catch (e) {
+      console.error("[sidebar] Failed to save snippet:", e);
+    }
+  }
+
+  async function deleteSnippet(id: string) {
+    try {
+      await invoke("delete_snippet", { id });
+      await loadSnippets();
+    } catch (e) {
+      console.error("[sidebar] Failed to delete snippet:", e);
+    }
+  }
+
+  async function copySnippetContent(snippet: Snippet) {
+    try {
+      await navigator.clipboard.writeText(snippet.content);
+    } catch (e) {
+      console.error("[sidebar] Failed to copy snippet:", e);
+    }
+  }
+
   onMount(() => {
     loadStorageStats();
+    loadSnippets();
   });
 
   const categoryCounts = createMemo(() => {
