@@ -479,6 +479,7 @@ pub fn run() {
             db::update_snippet,
             db::delete_snippet,
             db::list_snippets,
+            db::generate_video_thumbnail,
             reveal_in_folder,
         ])
         .build(tauri::generate_context!())

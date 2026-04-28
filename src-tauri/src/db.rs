@@ -1020,3 +1020,58 @@ pub fn list_snippets(state: tauri::State<'_, DbState>) -> Result<Vec<Snippet>, S
     })).map_err(|e| format!("Query error: {}", e))?;
     Ok(rows.filter_map(|r| r.ok()).collect())
 }
+
+// --- Video Thumbnail ---
+
+#[tauri::command]
+pub fn generate_video_thumbnail(app: tauri::AppHandle, item_id: String) -> Result<String, String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| format!("{:?}", e))?;
+
+    // Find the item's file_path
+    let db_state = app.state::<DbState>();
+    let file_path: Option<String> = {
+        let conn = db_state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+        conn.query_row(
+            "SELECT file_path FROM clipboard_items WHERE id = ?1",
+            rusqlite::params![item_id],
+            |row| row.get::<_, Option<String>>(0),
+        ).unwrap_or(None)
+    };
+
+    let fp = file_path.ok_or("No file_path for this item")?;
+    let full_path = app_data_dir.join(&fp);
+    if !full_path.exists() {
+        return Err("Video file not found".to_string());
+    }
+
+    let thumbs_dir = app_data_dir.join("thumbs");
+    let _ = std::fs::create_dir_all(&thumbs_dir);
+    let thumb_path = thumbs_dir.join(format!("{}.jpg", item_id));
+
+    // Use ffmpeg to extract first frame
+    let output = std::process::Command::new("ffmpeg")
+        .args([
+            "-i", full_path.to_str().unwrap_or(""),
+            "-vframes", "1",
+            "-q:v", "2",
+            "-y",
+            thumb_path.to_str().unwrap_or(""),
+        ])
+        .output();
+
+    match output {
+        Ok(o) if o.status.success() && thumb_path.exists() => {
+            Ok(format!("thumbs/{}.jpg", item_id))
+        }
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            // ffmpeg not found or extraction failed - return empty gracefully
+            eprintln!("[video-thumb] ffmpeg failed: {}", stderr.chars().take(200).collect::<String>());
+            Ok(String::new())
+        }
+        Err(_) => {
+            // ffmpeg not installed
+            Ok(String::new())
+        }
+    }
+}
