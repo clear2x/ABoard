@@ -1,5 +1,6 @@
 import { createSignal, onMount, onCleanup, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
 import { theme, setTheme, type ThemeMode } from "../stores/theme";
 import { locale, setLocale, t } from "../stores/i18n";
@@ -76,6 +77,8 @@ export default function SettingsPanel(props: Props) {
   const [latestVersion, setLatestVersion] = createSignal("");
   const [cleaning, setCleaning] = createSignal(false);
   const [cleanMessage, setCleanMessage] = createSignal("");
+  const [importing, setImporting] = createSignal(false);
+  const [importMessage, setImportMessage] = createSignal("");
 
   const checkForUpdate = async () => {
     setUpdateStatus("checking");
@@ -512,6 +515,32 @@ export default function SettingsPanel(props: Props) {
                         "text-green-500": !cleanMessage().startsWith("Error"),
                         "text-red-500": cleanMessage().startsWith("Error"),
                       }}>{cleanMessage()}</p>
+                    </Show>
+                    <button class="w-full mt-1 bg-white/60 hover:bg-white/80 border border-white/80 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm disabled:opacity-40"
+                      disabled={importing()}
+                      onClick={async () => {
+                        const selected = await open({ filters: [{ name: "ZIP", extensions: ["zip"] }] });
+                        if (!selected) return;
+                        setImporting(true);
+                        setImportMessage("");
+                        try {
+                          const count = await invoke<number>("import_items", { path: selected });
+                          setImportMessage(t("settings.imported", { n: String(count) }));
+                          await loadStorageStats();
+                          await loadHistory();
+                          setTimeout(() => setImportMessage(""), 3000);
+                        } catch (e) {
+                          setImportMessage(t("settings.importError"));
+                        } finally {
+                          setImporting(false);
+                        }
+                      }}
+                    >{importing() ? "..." : t("settings.importZip")}</button>
+                    <Show when={importMessage()}>
+                      <p class="text-[10px] mt-1 text-center" classList={{
+                        "text-green-500": !importMessage().startsWith("Error"),
+                        "text-red-500": importMessage().startsWith("Error"),
+                      }}>{importMessage()}</p>
                     </Show>
                   </div>
                 </div>
