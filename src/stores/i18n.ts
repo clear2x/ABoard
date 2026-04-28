@@ -262,6 +262,10 @@ const t_map: Translations = {
   "ai.resultOriginal": { zh: "原文", en: "Original" },
   "ai.generationTime": { zh: "生成耗时", en: "Generation time" },
 
+  // Dedup
+  "ctx.duplicate": { zh: "重复", en: "Duplicate" },
+  "ctx.similarItems": { zh: "相似条目", en: "Similar Items" },
+
   // AiToolbox
   "toolbox.unrecognizedFormat": { zh: "无法识别内容格式。支持 JSON、XML、HTML 和 Markdown 格式化。", en: "Unrecognized content format. Supports JSON, XML, HTML, and Markdown formatting." },
 
@@ -288,6 +292,8 @@ const t_map: Translations = {
   "settings.author": { zh: "作者", en: "Author" },
   "settings.homepage": { zh: "主页", en: "Homepage" },
   "settings.importZip": { zh: "导入 ZIP", en: "Import ZIP" },
+  "settings.editShortcut": { zh: "编辑", en: "Edit" },
+  "settings.pressNewShortcut": { zh: "按下新快捷键...", en: "Press new shortcut..." },
   "settings.imported": { zh: "已导入 {n} 条", en: "Imported {n} items" },
   "settings.importError": { zh: "导入失败", en: "Import failed" },
 };

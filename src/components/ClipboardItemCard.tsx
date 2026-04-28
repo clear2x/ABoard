@@ -1,4 +1,5 @@
 import { Show, For, createSignal, onMount } from "solid-js";
+import type { JSX } from "solid-js";
 import type { ClipboardItem } from "../stores/clipboard";
 import { copyItemContent, copiedId, getItemContent } from "../stores/clipboard";
 import { t } from "../stores/i18n";
