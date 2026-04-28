@@ -83,6 +83,19 @@ pub fn get_monitoring_state() -> bool {
     !MONITORING_PAUSED.load(Ordering::SeqCst)
 }
 
+/// Get the macOS NSPasteboard changeCount (cheap integer read).
+#[cfg(target_os = "macos")]
+fn get_pasteboard_change_count() -> i64 {
+    let output = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg("use framework \"AppKit\"; return current application's NSPasteboard's generalPasteboard()'s changeCount() as integer")
+        .output();
+    match output {
+        Ok(o) => String::from_utf8_lossy(&o.stdout).trim().parse().unwrap_or(-1),
+        Err(_) => -1,
+    }
+}
+
 /// Start the clipboard monitoring loop.
 /// Spawns an async task that polls the clipboard every POLL_INTERVAL_MS.
 /// When new content is detected (via SHA256 hash comparison), emits a
@@ -90,12 +103,29 @@ pub fn get_monitoring_state() -> bool {
 pub fn start_monitoring<R: Runtime>(app: tauri::AppHandle<R>) {
     tauri::async_runtime::spawn(async move {
         let mut last_hash = String::new();
+
+        // macOS: track NSPasteboard changeCount for cheap change detection
+        #[cfg(target_os = "macos")]
+        let mut last_change_count: Option<i64> = None;
+
         loop {
             tokio::time::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS)).await;
 
             // Check if monitoring is paused
             if MONITORING_PAUSED.load(Ordering::SeqCst) {
                 continue;
+            }
+
+            // macOS: use NSPasteboard changeCount for zero-cost change detection
+            #[cfg(target_os = "macos")]
+            {
+                let current_count = get_pasteboard_change_count();
+                if let Some(last) = last_change_count {
+                    if current_count == last {
+                        continue; // No change — skip expensive clipboard read
+                    }
+                }
+                last_change_count = Some(current_count);
             }
 
             // Check for multi-file clipboard (Finder copy of multiple files)
@@ -633,7 +663,7 @@ fn persist_and_emit<R: Runtime>(app: &tauri::AppHandle<R>, mut item: ClipboardIt
             let _ = std::fs::create_dir_all(&data_dir);
 
             // Extract binary data from base64 data URL
-            if let Some(b64_start) = item.content.find(",base64,") {
+            if let Some(b64_start) = item.content.find(";base64,") {
                 let b64 = &item.content[b64_start + 8..];
                 if let Ok(bytes) = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64) {
                     let file_name = format!("{}.png", item.id);
@@ -641,6 +671,19 @@ fn persist_and_emit<R: Runtime>(app: &tauri::AppHandle<R>, mut item: ClipboardIt
                     if std::fs::write(&file_path, &bytes).is_ok() {
                         let relative = format!("data/{}", file_name);
                         item.file_path = Some(relative);
+
+                        // Generate thumbnail (200px wide, webp)
+                        let thumbs_dir = app_data_dir.join("thumbs");
+                        let _ = std::fs::create_dir_all(&thumbs_dir);
+                        if let Ok(img) = image::load_from_memory(&bytes) {
+                            let thumb = img.thumbnail(200, u32::MAX);
+                            let thumb_path = thumbs_dir.join(format!("{}.webp", item.id));
+                            let mut thumb_buf = std::io::Cursor::new(Vec::new());
+                            if thumb.write_to(&mut thumb_buf, image::ImageFormat::WebP).is_ok() {
+                                let _ = std::fs::write(&thumb_path, thumb_buf.into_inner());
+                            }
+                        }
+
                         // Keep the base64 content for the event payload (frontend uses it for immediate display)
                         // but clear it for DB storage to save space
                         let event_content = item.content.clone();

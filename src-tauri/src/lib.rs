@@ -415,10 +415,26 @@ pub fn run() {
             clipboard::start_monitoring(app.handle().clone());
             tray::setup_tray(&app.handle())?;
 
+            // Start auto-cleanup background task
+            db::start_auto_cleanup(app.handle().clone());
+
             // macOS: set up native application menu bar
             #[cfg(target_os = "macos")]
             {
                 tray::setup_app_menu(&app.handle())?;
+            }
+
+            // Windows/Linux: hide system decorations to avoid double title bar.
+            // macOS uses Overlay titleBarStyle (set in tauri.conf.json) which
+            // shows traffic lights without a visible title bar.
+            #[cfg(not(target_os = "macos"))]
+            {
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.set_decorations(false);
+                }
+                if let Some(win) = app.get_webview_window("floating") {
+                    let _ = win.set_decorations(false);
+                }
             }
 
             Ok(())
@@ -457,6 +473,19 @@ pub fn run() {
             db::export_items,
             db::get_storage_stats,
             db::read_data_file,
+            db::get_setting,
+            db::set_setting,
+            db::create_snippet,
+            db::update_snippet,
+            db::delete_snippet,
+            db::list_snippets,
+            db::generate_video_thumbnail,
+            db::import_items,
+            db::find_similar_items,
+            db::save_window_state,
+            db::load_window_state,
+            db::get_shortcuts,
+            db::update_shortcut,
             reveal_in_folder,
         ])
         .build(tauri::generate_context!())

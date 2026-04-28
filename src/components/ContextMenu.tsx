@@ -27,6 +27,7 @@ interface Props {
   itemId: string;
   isPinned: boolean;
   content: string;
+  itemType?: "text" | "image" | "file-paths" | "video";
   filePath?: string | null;
   onClose: () => void;
 }
@@ -162,6 +163,23 @@ export default function ContextMenu(props: Props) {
 
   const handleRewrite = (style: string) => {
     rewriteContent(props.content, props.itemId, style);
+    props.onClose();
+  };
+
+  const handlePastePlain = async () => {
+    const plain = props.content
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>/gi, "\n")
+      .replace(/<[^>]*>/g, "")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    await navigator.clipboard.writeText(plain);
     props.onClose();
   };
 
@@ -336,6 +354,16 @@ export default function ContextMenu(props: Props) {
 
       {/* Separator */}
       <div class="my-1" style={{ "border-top": "1px solid var(--color-border)" }} />
+
+      {/* Paste as Plain Text - only for text/code items */}
+      <Show when={props.itemType === "text" || props.itemType === "file-paths" || !props.itemType}>
+        <button
+          class="w-full text-left px-3 py-2 text-sm cursor-pointer transition-smooth rounded-[var(--radius-sm)] text-gray-600 hover:bg-[var(--color-bg-card-hover)]"
+          onClick={handlePastePlain}
+        >
+          {t("ctx.pastePlain")}
+        </button>
+      </Show>
 
       {/* Show in Folder (for file-backed items like screenshots / recordings) */}
       <Show when={props.filePath}>

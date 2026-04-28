@@ -1,4 +1,5 @@
-import { For, Show, createMemo, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal, onMount } from "solid-js";
+import { invoke } from "@tauri-apps/api/core";
 import { items, categoryFilter, setCategoryFilter, storageSize, itemCount, loadStorageStats } from "../stores/clipboard";
 import { t } from "../stores/i18n";
 
@@ -19,8 +20,83 @@ export default function Sidebar() {
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   };
 
+  // --- Snippets state ---
+  interface Snippet {
+    id: string;
+    title: string;
+    content: string;
+    created_at: number;
+    updated_at: number;
+  }
+
+  const [snippets, setSnippets] = createSignal<Snippet[]>([]);
+  const [showSnippetModal, setShowSnippetModal] = createSignal(false);
+  const [editingSnippet, setEditingSnippet] = createSignal<Snippet | null>(null);
+  const [snippetTitle, setSnippetTitle] = createSignal("");
+  const [snippetContent, setSnippetContent] = createSignal("");
+
+  async function loadSnippets() {
+    try {
+      const result = await invoke<Snippet[]>("list_snippets");
+      setSnippets(result);
+    } catch (e) {
+      console.error("[sidebar] Failed to load snippets:", e);
+    }
+  }
+
+  function openNewSnippet() {
+    setEditingSnippet(null);
+    setSnippetTitle("");
+    setSnippetContent("");
+    setShowSnippetModal(true);
+  }
+
+  function openEditSnippet(snippet: Snippet) {
+    setEditingSnippet(snippet);
+    setSnippetTitle(snippet.title);
+    setSnippetContent(snippet.content);
+    setShowSnippetModal(true);
+  }
+
+  async function saveSnippet() {
+    const title = snippetTitle().trim();
+    const content = snippetContent().trim();
+    if (!title || !content) return;
+
+    try {
+      const editing = editingSnippet();
+      if (editing) {
+        await invoke("update_snippet", { id: editing.id, title, content });
+      } else {
+        await invoke("create_snippet", { title, content });
+      }
+      setShowSnippetModal(false);
+      await loadSnippets();
+    } catch (e) {
+      console.error("[sidebar] Failed to save snippet:", e);
+    }
+  }
+
+  async function deleteSnippet(id: string) {
+    try {
+      await invoke("delete_snippet", { id });
+      await loadSnippets();
+    } catch (e) {
+      console.error("[sidebar] Failed to delete snippet:", e);
+    }
+  }
+
+  async function copySnippetContent(snippet: Snippet) {
+    try {
+      await navigator.clipboard.writeText(snippet.content);
+    } catch (e) {
+      console.error("[sidebar] Failed to copy snippet:", e);
+    }
+  }
+
   onMount(() => {
     loadStorageStats();
+    loadSnippets();
   });
 
   const categoryCounts = createMemo(() => {
@@ -113,6 +189,100 @@ export default function Sidebar() {
               )}
             </For>
           </ul>
+        </div>
+      </Show>
+
+      {/* Snippets section */}
+      <div>
+        <div class="flex items-center justify-between px-2 mb-2">
+          <span class="text-xs text-gray-400 font-medium dark:text-gray-500">
+            {t("sidebar.snippets")}
+          </span>
+          <button
+            class="text-gray-400 hover:text-blue-500 transition-colors"
+            onClick={openNewSnippet}
+            title={t("snippet.new")}
+          >
+            <i class="ph ph-plus text-sm" />
+          </button>
+        </div>
+        <Show
+          when={snippets().length > 0}
+          fallback={
+            <div class="text-[10px] text-gray-300 dark:text-gray-600 px-3">
+              —
+            </div>
+          }
+        >
+          <ul class="space-y-1">
+            <For each={snippets()}>
+              {(snippet) => (
+                <li
+                  class="group flex justify-between items-center px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors hover:bg-white/40 text-gray-600 dark:text-gray-300 dark:hover:bg-white/10"
+                  onClick={() => copySnippetContent(snippet)}
+                >
+                  <span class="truncate flex-1 mr-1">{snippet.title}</span>
+                  <span class="hidden group-hover:flex items-center gap-1">
+                    <button
+                      class="text-gray-400 hover:text-blue-500 transition-colors"
+                      onClick={(e) => { e.stopPropagation(); openEditSnippet(snippet); }}
+                      title={t("snippet.title")}
+                    >
+                      <i class="ph ph-pencil-simple text-xs" />
+                    </button>
+                    <button
+                      class="text-gray-400 hover:text-red-500 transition-colors"
+                      onClick={(e) => { e.stopPropagation(); deleteSnippet(snippet.id); }}
+                      title={t("snippet.delete")}
+                    >
+                      <i class="ph ph-trash text-xs" />
+                    </button>
+                  </span>
+                </li>
+              )}
+            </For>
+          </ul>
+        </Show>
+      </div>
+
+      {/* Snippet modal */}
+      <Show when={showSnippetModal()}>
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setShowSnippetModal(false)}>
+          <div
+            class="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-xl shadow-xl border border-white/40 dark:border-white/10 w-72 p-4 flex flex-col gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">
+              {editingSnippet() ? t("snippet.title") : t("snippet.new")}
+            </div>
+            <input
+              type="text"
+              class="w-full px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white/60 dark:bg-slate-700/60 text-sm text-gray-700 dark:text-gray-200 outline-none focus:border-blue-400 transition-colors"
+              placeholder={t("snippet.title")}
+              value={snippetTitle()}
+              onInput={(e) => setSnippetTitle(e.currentTarget.value)}
+            />
+            <textarea
+              class="w-full h-32 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white/60 dark:bg-slate-700/60 text-sm text-gray-700 dark:text-gray-200 outline-none focus:border-blue-400 resize-none transition-colors"
+              placeholder={t("snippet.content")}
+              value={snippetContent()}
+              onInput={(e) => setSnippetContent(e.currentTarget.value)}
+            />
+            <div class="flex justify-end gap-2">
+              <button
+                class="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                onClick={() => setShowSnippetModal(false)}
+              >
+                {t("clipboard.cancel")}
+              </button>
+              <button
+                class="px-3 py-1.5 rounded-lg text-xs bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                onClick={saveSnippet}
+              >
+                {t("snippet.save")}
+              </button>
+            </div>
+          </div>
         </div>
       </Show>
 

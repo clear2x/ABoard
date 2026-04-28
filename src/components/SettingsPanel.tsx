@@ -1,5 +1,6 @@
-import { createSignal, onMount, onCleanup, Show } from "solid-js";
+import { createSignal, onMount, onCleanup, Show, For } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
 import { theme, setTheme, type ThemeMode } from "../stores/theme";
 import { locale, setLocale, t } from "../stores/i18n";
@@ -76,6 +77,50 @@ export default function SettingsPanel(props: Props) {
   const [latestVersion, setLatestVersion] = createSignal("");
   const [cleaning, setCleaning] = createSignal(false);
   const [cleanMessage, setCleanMessage] = createSignal("");
+  const [importing, setImporting] = createSignal(false);
+  const [importMessage, setImportMessage] = createSignal("");
+
+  // Shortcuts state
+  const [shortcuts, setShortcuts] = createSignal<{ action: string; shortcut: string }[]>([]);
+  const [recordingAction, setRecordingAction] = createSignal<string | null>(null);
+
+  const shortcutLabels: Record<string, string> = {
+    toggle_popup: t("shortcut.togglePopup"),
+    quick_cycle: t("shortcut.quickCycle"),
+    pin_item: t("shortcut.pinItem"),
+    delete_item: t("shortcut.deleteItem"),
+    toggle_window: t("settings.showHideWindow"),
+    quick_paste: t("settings.quickPastePanel"),
+  };
+
+  const formatShortcut = (raw: string): string => {
+    return raw
+      .replace(/CommandOrControl\+/g, "Cmd+")
+      .replace(/Cmd\+/g, "\u2318 ")
+      .replace(/Shift\+/g, "\u21E7 ")
+      .replace(/Alt\+/g, "\u2325 ")
+      .replace(/Control\+/g, "Ctrl+")
+      .replace(/Super\+/g, "\u2318 ");
+  };
+
+  const parseKeyboardEvent = (e: KeyboardEvent): string => {
+    const parts: string[] = [];
+    if (e.metaKey || e.ctrlKey) parts.push("CommandOrControl");
+    if (e.shiftKey) parts.push("Shift");
+    if (e.altKey) parts.push("Alt");
+    // Map key to Electron/Accelerator name
+    let key = e.key;
+    if (key === " ") key = "Space";
+    else if (key === "+") key = "Plus";
+    else if (key === ",") key = "Comma";
+    else if (key === ".") key = "Period";
+    else if (key === "-") key = "Minus";
+    else if (key.length === 1) key = key.toUpperCase();
+    if (!["Meta", "Control", "Shift", "Alt"].includes(e.key)) {
+      parts.push(key);
+    }
+    return parts.join("+");
+  };
 
   const checkForUpdate = async () => {
     setUpdateStatus("checking");
@@ -131,6 +176,14 @@ export default function SettingsPanel(props: Props) {
       setAnthropicModel(config.anthropic_model || "claude-sonnet-4-20250514");
     } catch (err) {
       console.warn("Failed to load AI config:", err);
+    }
+
+    // Load keyboard shortcuts
+    try {
+      const sc = await invoke<{ action: string; shortcut: string }[]>("get_shortcuts");
+      setShortcuts(sc);
+    } catch (err) {
+      console.warn("Failed to load shortcuts:", err);
     }
   });
 
@@ -513,6 +566,32 @@ export default function SettingsPanel(props: Props) {
                         "text-red-500": cleanMessage().startsWith("Error"),
                       }}>{cleanMessage()}</p>
                     </Show>
+                    <button class="w-full mt-1 bg-white/60 hover:bg-white/80 border border-white/80 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm disabled:opacity-40"
+                      disabled={importing()}
+                      onClick={async () => {
+                        const selected = await open({ filters: [{ name: "ZIP", extensions: ["zip"] }] });
+                        if (!selected) return;
+                        setImporting(true);
+                        setImportMessage("");
+                        try {
+                          const count = await invoke<number>("import_items", { path: selected });
+                          setImportMessage(t("settings.imported", { n: String(count) }));
+                          await loadStorageStats();
+                          await loadHistory();
+                          setTimeout(() => setImportMessage(""), 3000);
+                        } catch (e) {
+                          setImportMessage(t("settings.importError"));
+                        } finally {
+                          setImporting(false);
+                        }
+                      }}
+                    >{importing() ? "..." : t("settings.importZip")}</button>
+                    <Show when={importMessage()}>
+                      <p class="text-[10px] mt-1 text-center" classList={{
+                        "text-green-500": !importMessage().startsWith("Error"),
+                        "text-red-500": importMessage().startsWith("Error"),
+                      }}>{importMessage()}</p>
+                    </Show>
                   </div>
                 </div>
               </div>
@@ -557,22 +636,71 @@ export default function SettingsPanel(props: Props) {
             </div>
           </Show>
 
-          {/* Shortcuts tab — matching ui.html */}
+          {/* Shortcuts tab */}
           <Show when={activeTab() === "shortcuts"}>
             <div class="space-y-4">
               <h3 class="text-[11px] font-bold text-gray-500 uppercase">{t("settings.shortcuts")}</h3>
               <div class="glass-card rounded-xl p-3 space-y-2">
-                {[
-                  { desc: t("settings.showHideWindow"), key: "\u2318 \u21E7 V" },
-                  { desc: t("settings.quickPastePanel"), key: "\u2318 \u21E7 J" },
-                ].map((s) => (
-                  <div class="flex justify-between items-center text-xs">
-                    <span class="text-gray-700">{s.desc}</span>
-                    <div class="flex items-center gap-1 bg-white/60 border border-white/80 px-2 py-0.5 rounded shadow-sm text-gray-600">
-                      {s.key}
-                    </div>
-                  </div>
-                ))}
+                <For each={shortcuts()}>
+                  {(sc) => {
+                    const isRecording = () => recordingAction() === sc.action;
+                    const label = () => shortcutLabels[sc.action] || sc.action;
+
+                    const handleKeyDown = async (e: KeyboardEvent) => {
+                      if (!isRecording()) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      // Ignore lone modifier presses
+                      if (["Meta", "Control", "Shift", "Alt"].includes(e.key)) return;
+                      const newShortcut = parseKeyboardEvent(e);
+                      try {
+                        await invoke("update_shortcut", { action: sc.action, shortcut: newShortcut });
+                        setShortcuts((prev) =>
+                          prev.map((s) => s.action === sc.action ? { ...s, shortcut: newShortcut } : s)
+                        );
+                      } catch (err) {
+                        console.error("Failed to update shortcut:", err);
+                      }
+                      setRecordingAction(null);
+                    };
+
+                    return (
+                      <div class="flex justify-between items-center text-xs gap-2">
+                        <span class="text-gray-700 truncate">{label()}</span>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                          <Show when={isRecording()} fallback={
+                            <div class="bg-white/60 border border-white/80 px-2 py-0.5 rounded shadow-sm text-gray-600 font-mono text-[11px]">
+                              {formatShortcut(sc.shortcut)}
+                            </div>
+                          }>
+                            <div class="bg-blue-50 border border-blue-200 px-2 py-0.5 rounded shadow-sm text-blue-600 text-[11px] animate-pulse">
+                              {t("settings.pressNewShortcut")}
+                            </div>
+                          </Show>
+                          <button
+                            class="px-2 py-0.5 rounded text-[10px] transition-colors border"
+                            classList={{
+                              "bg-blue-500 text-white border-blue-500": isRecording(),
+                              "bg-white/60 text-gray-500 border-white/80 hover:bg-white/80": !isRecording(),
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isRecording()) {
+                                setRecordingAction(null);
+                               } else {
+                                setRecordingAction(sc.action);
+                              }
+                            }}
+                            onKeyDown={handleKeyDown}
+                            tabIndex={0}
+                          >
+                            {isRecording() ? "\u2715" : t("settings.editShortcut")}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }}
+                </For>
               </div>
             </div>
           </Show>
