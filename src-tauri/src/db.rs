@@ -68,6 +68,11 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
             updated_at INTEGER NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS keyboard_shortcuts (
+            action TEXT PRIMARY KEY,
+            shortcut TEXT NOT NULL
+        );
+
         ",
     )?;
 
@@ -83,6 +88,27 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
                 "INSERT INTO app_settings (key, value) VALUES ('cleanup_days', '30')",
                 [],
             );
+        }
+    }
+
+    // Seed default keyboard shortcuts
+    {
+        let defaults = vec![
+            ("toggle_popup", "Command+Shift+V"),
+            ("quick_cycle", "Command+Shift+J"),
+        ];
+        for (action, shortcut) in defaults {
+            let exists: bool = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM keyboard_shortcuts WHERE action = ?1)",
+                rusqlite::params![action],
+                |row| row.get(0),
+            ).unwrap_or(false);
+            if !exists {
+                let _ = conn.execute(
+                    "INSERT INTO keyboard_shortcuts (action, shortcut) VALUES (?1, ?2)",
+                    rusqlite::params![action, shortcut],
+                );
+            }
         }
     }
 
@@ -1241,4 +1267,35 @@ pub fn load_window_state(app: tauri::AppHandle) -> Result<Option<serde_json::Val
     let content = std::fs::read_to_string(&state_file).map_err(|e| format!("Read error: {}", e))?;
     let val: serde_json::Value = serde_json::from_str(&content).map_err(|e| format!("Parse error: {}", e))?;
     Ok(Some(val))
+}
+
+// --- Keyboard Shortcuts ---
+
+#[derive(serde::Serialize)]
+pub struct ShortcutEntry {
+    pub action: String,
+    pub shortcut: String,
+}
+
+#[tauri::command]
+pub fn get_shortcuts(state: tauri::State<'_, DbState>) -> Result<Vec<ShortcutEntry>, String> {
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    let mut stmt = conn.prepare("SELECT action, shortcut FROM keyboard_shortcuts")
+        .map_err(|e| format!("Prepare error: {}", e))?;
+    let rows = stmt.query_map([], |row| Ok(ShortcutEntry {
+        action: row.get(0)?,
+        shortcut: row.get(1)?,
+    })).map_err(|e| format!("Query error: {}", e))?;
+    Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+#[tauri::command]
+pub fn update_shortcut(state: tauri::State<'_, DbState>, action: String, shortcut: String) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    conn.execute(
+        "INSERT INTO keyboard_shortcuts (action, shortcut) VALUES (?1, ?2)
+         ON CONFLICT(action) DO UPDATE SET shortcut = ?2",
+        rusqlite::params![action, shortcut],
+    ).map_err(|e| format!("Update shortcut error: {}", e))?;
+    Ok(())
 }

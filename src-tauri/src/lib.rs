@@ -484,6 +484,8 @@ pub fn run() {
             db::find_similar_items,
             db::save_window_state,
             db::load_window_state,
+            db::get_shortcuts,
+            db::update_shortcut,
             reveal_in_folder,
         ])
         .build(tauri::generate_context!())
