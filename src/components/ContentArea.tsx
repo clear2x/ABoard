@@ -17,6 +17,7 @@ import {
   setTimeFilter,
   categoryFilter,
   reorderItems,
+  searchQuery,
 } from "../stores/clipboard";
 import { t } from "../stores/i18n";
 import ClipboardItemCard from "./ClipboardItemCard";
@@ -349,6 +350,7 @@ export default function ContentArea() {
                       showCheckbox={batchMode()}
                       checked={selectedIds().has(item.id)}
                       timeline={true}
+                      searchQuery={searchQuery()}
                       onSelect={(id) => {
                         if (batchMode()) toggleSelect(id);
                         else setSelectedId(id);
@@ -385,6 +387,7 @@ export default function ContentArea() {
               itemId={cm.itemId}
               isPinned={cm.isPinned}
               content={currentItem?.content || ""}
+              itemType={currentItem?.type || "text"}
               filePath={currentItem?.file_path}
               onClose={() => setContextMenu(null)}
             />

@@ -8,6 +8,27 @@ function truncateText(text: string, maxLen: number = 120): string {
   return text.slice(0, maxLen) + "...";
 }
 
+/** Highlight search matches in text. Returns a JSX fragment with matched parts wrapped in <mark>. */
+function highlightText(text: string, query: string): JSX.Element {
+  if (!query.trim()) return <>{text}</>;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`(${escaped})`, "gi");
+  const parts = text.split(regex);
+  if (parts.length <= 1) return <>{text}</>;
+  const lowerQuery = query.toLowerCase();
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === lowerQuery ? (
+          <mark class="bg-yellow-200 dark:bg-yellow-800 rounded-[2px] px-[1px]">{part}</mark>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+}
+
 function displayType(item: ClipboardItem): string {
   return item.ai_type || item.type;
 }
@@ -42,6 +63,7 @@ interface Props {
   checked?: boolean;
   grid?: boolean;
   timeline?: boolean;
+  searchQuery?: string;
   onSelect: (id: string) => void;
   onContextMenu: (e: MouseEvent, id: string, pinned: boolean) => void;
   onCopy?: (item: ClipboardItem) => void;
@@ -57,6 +79,7 @@ export default function ClipboardItemCard(props: Props) {
   const justCopied = () => copiedId() === props.item.id;
   const dtype = () => displayType(props.item);
   const avatar = () => typeAvatar(dtype());
+  const query = () => props.searchQuery ?? "";
 
   // Resolve image content: if file_path exists, load from backend
   const imageSrc = () => {
@@ -163,14 +186,14 @@ export default function ClipboardItemCard(props: Props) {
                   fallback={
                     <Show when={props.item.type !== "image" && props.item.type !== "video"}>
                       <p class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
-                        {truncateText(props.item.content)}
+                        {highlightText(truncateText(props.item.content), query())}
                       </p>
                     </Show>
                   }
                 >
                   <div class="font-mono text-sm text-gray-600 bg-white/30 dark:bg-slate-700/30 dark:text-gray-300 p-3 rounded-lg border border-white/50 dark:border-white/10">
                     {truncateText(props.item.content, 200).split("\n").map((line, i) => (
-                      <div classList={{ "pl-4": i > 0 && i < (props.item.content.split("\n").length - 1) }}>{line}</div>
+                      <div classList={{ "pl-4": i > 0 && i < (props.item.content.split("\n").length - 1) }}>{highlightText(line, query())}</div>
                     ))}
                   </div>
                 </Show>
@@ -187,12 +210,19 @@ export default function ClipboardItemCard(props: Props) {
                     </For>
                   </div>
                 </Show>
+
+                {/* AI Summary */}
+                <Show when={props.item.ai_summary && props.item.ai_summary.trim().length > 0}>
+                  <p class="text-xs text-gray-400 truncate mt-1">
+                    {truncateText(props.item.ai_summary!, 80)}
+                  </p>
+                </Show>
               </div>
             }>
               {/* Link card matching ui.html */}
               <div class="flex items-center gap-2 mb-3">
                 <span class="text-sm text-blue-600 dark:text-blue-400 truncate">
-                  {truncateText(props.item.content, 80)}
+                  {highlightText(truncateText(props.item.content, 80), query())}
                 </span>
               </div>
               <div class="bg-white/40 border border-white/60 rounded-lg p-3 flex gap-3 items-center dark:bg-slate-700/30 dark:border-white/10">
@@ -201,7 +231,7 @@ export default function ClipboardItemCard(props: Props) {
                     {props.item.content.replace(/https?:\/\//, "").split("/")[0]}
                   </div>
                   <div class="text-xs text-gray-500 line-clamp-2">
-                    {truncateText(props.item.content)}
+                    {highlightText(truncateText(props.item.content), query())}
                   </div>
                 </div>
               </div>
@@ -274,7 +304,7 @@ export default function ClipboardItemCard(props: Props) {
         when={props.item.type === "image"}
         fallback={
           <p class="break-all leading-relaxed text-sm text-gray-700">
-            {truncateText(props.item.content)}
+            {highlightText(truncateText(props.item.content), query())}
           </p>
         }
       >
@@ -283,6 +313,13 @@ export default function ClipboardItemCard(props: Props) {
             onClick={(e) => { e.stopPropagation(); const src = imageSrc(); if (src) props.onImageClick?.(src); }}
           />
         </div>
+      </Show>
+
+      {/* AI Summary */}
+      <Show when={props.item.ai_summary && props.item.ai_summary.trim().length > 0}>
+        <p class="text-xs text-gray-400 truncate mt-1">
+          {truncateText(props.item.ai_summary!, 80)}
+        </p>
       </Show>
 
       <Show when={justCopied()}>

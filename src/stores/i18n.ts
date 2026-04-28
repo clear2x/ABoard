@@ -239,6 +239,14 @@ const t_map: Translations = {
   // Missing translations - Sidebar
   "sidebar.clipboardData": { zh: "剪贴板数据", en: "Clipboard Data" },
   "sidebar.records": { zh: "{n} 条记录", en: "{n} records" },
+  "sidebar.snippets": { zh: "常用片段", en: "Snippets" },
+
+  // Snippets
+  "snippet.new": { zh: "新建", en: "New" },
+  "snippet.title": { zh: "标题", en: "Title" },
+  "snippet.content": { zh: "内容", en: "Content" },
+  "snippet.save": { zh: "保存", en: "Save" },
+  "snippet.delete": { zh: "删除", en: "Delete" },
 
   // ContextMenu - format conversion
   "ctx.jsonValid": { zh: "JSON 格式正确 ✓", en: "JSON is valid ✓" },
@@ -247,6 +255,7 @@ const t_map: Translations = {
   "ctx.xmlInvalid": { zh: "XML 格式错误:\n{error}", en: "XML format error:\n{error}" },
   "ctx.markdownToPlaintext": { zh: "Markdown → 纯文本", en: "Markdown → Plain Text" },
   "ctx.htmlToPlaintext": { zh: "HTML → 纯文本", en: "HTML → Plain Text" },
+  "ctx.pastePlain": { zh: "粘贴为纯文本", en: "Paste as Plain Text" },
   "ctx.revealInFolder": { zh: "在文件夹中显示", en: "Show in Folder" },
 
   // AiResultPopup
@@ -278,6 +287,9 @@ const t_map: Translations = {
   "settings.updateError": { zh: "检查失败，请稍后重试", en: "Check failed, please try again later" },
   "settings.author": { zh: "作者", en: "Author" },
   "settings.homepage": { zh: "主页", en: "Homepage" },
+  "settings.importZip": { zh: "导入 ZIP", en: "Import ZIP" },
+  "settings.imported": { zh: "已导入 {n} 条", en: "Imported {n} items" },
+  "settings.importError": { zh: "导入失败", en: "Import failed" },
 };
 
 // --- Translation function ---
