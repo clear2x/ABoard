@@ -14,7 +14,13 @@ function truncateText(text: string, maxLen: number = 120): string {
 function highlightText(text: string, query: string): JSX.Element {
   if (!query.trim()) return <>{text}</>;
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const regex = new RegExp(`(${escaped})`, "gi");
+  if (!escaped) return <>{text}</>;
+  let regex: RegExp;
+  try {
+    regex = new RegExp(`(${escaped})`, "gi");
+  } catch {
+    return <>{text}</>;
+  }
   const parts = text.split(regex);
   if (parts.length <= 1) return <>{text}</>;
   const lowerQuery = query.toLowerCase();
@@ -72,6 +78,7 @@ interface Props {
   onDelete?: (id: string) => void;
   onPin?: (id: string, pinned: boolean) => void;
   onImageClick?: (src: string) => void;
+  "data-item-id"?: string;
 }
 
 export default function ClipboardItemCard(props: Props) {
@@ -145,6 +152,7 @@ export default function ClipboardItemCard(props: Props) {
   if (props.timeline) {
     return (
       <div
+        data-item-id={props.item.id}
         class={`glass-card flex-1 p-4 rounded-xl relative cursor-pointer transition-all duration-150
           ${props.isSelected ? "ring-2 ring-blue-500 bg-blue-50/60 dark:bg-blue-900/20 shadow-sm" : "hover:bg-white/30"}`}
         onMouseEnter={() => setHovered(true)}
@@ -237,9 +245,13 @@ export default function ClipboardItemCard(props: Props) {
                   }
                 >
                   <div class="font-mono text-sm text-gray-600 bg-white/30 dark:bg-slate-700/30 dark:text-gray-300 p-3 rounded-lg border border-white/50 dark:border-white/10">
-                    {truncateText(props.item.content, 200).split("\n").map((line, i) => (
-                      <div classList={{ "pl-4": i > 0 && i < (props.item.content.split("\n").length - 1) }}>{highlightText(line, query())}</div>
-                    ))}
+                    {(() => {
+                      const truncated = truncateText(props.item.content, 200);
+                      const lines = truncated.split("\n");
+                      return lines.map((line, i) => (
+                        <div classList={{ "pl-4": i > 0 && i < (lines.length - 1) }}>{highlightText(line, query())}</div>
+                      ));
+                    })()}
                   </div>
                 </Show>
 
@@ -345,6 +357,7 @@ export default function ClipboardItemCard(props: Props) {
   // Legacy mode (grid / fallback)
   return (
     <div
+      data-item-id={props.item.id}
       class={`glass-card transition-all duration-150 cursor-pointer hover-lift p-3 relative
         ${props.isSelected ? "ring-2 ring-blue-500 bg-blue-50/60 shadow-sm" : "hover:bg-white/30"}
         ${props.showCheckbox && props.checked ? "bg-blue-500/10 border-blue-500/50" : ""}

@@ -19,7 +19,7 @@ import {
   type FormatType,
 } from "../stores/format-tools";
 import { t } from "../stores/i18n";
-import { onMount, onCleanup, createSignal, Show, createMemo } from "solid-js";
+import { onMount, onCleanup, createSignal, Show, createMemo, createEffect } from "solid-js";
 
 interface Props {
   x: number;
@@ -35,6 +35,18 @@ interface Props {
 export default function ContextMenu(props: Props) {
   const [showRewriteMenu, setShowRewriteMenu] = createSignal(false);
   const [showConvertMenu, setShowConvertMenu] = createSignal(false);
+  let menuRef!: HTMLDivElement;
+  const [menuPos, setMenuPos] = createSignal({ left: props.x, top: props.y });
+
+  createEffect(() => {
+    const el = menuRef;
+    if (!el) return;
+    const menuWidth = el.offsetWidth;
+    const menuHeight = el.offsetHeight;
+    const left = Math.max(0, Math.min(props.x, window.innerWidth - menuWidth - 8));
+    const top = Math.max(0, Math.min(props.y, window.innerHeight - menuHeight - 8));
+    setMenuPos({ left, top });
+  });
 
   const contentFormat = createMemo(() => detectContentFormat(props.content));
 
@@ -189,6 +201,7 @@ export default function ContextMenu(props: Props) {
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
+      e.stopPropagation();
       props.onClose();
     }
   };
@@ -212,8 +225,9 @@ export default function ContextMenu(props: Props) {
 
   return (
     <div
+      ref={menuRef}
       class="glass-card fixed py-1 min-w-[160px] z-50 animate-context-menu"
-      style={{ left: `${props.x}px`, top: `${props.y}px`, "box-shadow": "var(--shadow-elevated)" }}
+      style={{ left: `${menuPos().left}px`, top: `${menuPos().top}px`, "box-shadow": "var(--shadow-elevated)" }}
     >
       {/* AI Actions */}
       <button

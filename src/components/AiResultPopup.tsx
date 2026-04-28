@@ -96,7 +96,11 @@ export default function AiResultPopup() {
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") close();
+    if (e.key === "Escape") {
+      if (!result()) return;
+      e.stopPropagation();
+      close();
+    }
   };
 
   onMount(() => document.addEventListener("keydown", handleKeyDown));

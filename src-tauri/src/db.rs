@@ -1,5 +1,6 @@
 use crate::clipboard::ClipboardItem;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -8,6 +9,14 @@ const MAX_QUERY_LEN: usize = 200;
 
 /// Maximum result count for a single query.
 const MAX_LIMIT: u32 = 100;
+
+/// Flag to signal auto-cleanup thread to stop gracefully.
+static AUTO_CLEANUP_RUNNING: AtomicBool = AtomicBool::new(true);
+
+/// Signal the auto-cleanup thread to stop.
+pub fn stop_auto_cleanup() {
+    AUTO_CLEANUP_RUNNING.store(false, Ordering::SeqCst);
+}
 
 /// Wrapper for the SQLite connection, managed as Tauri state.
 pub struct DbState {
@@ -22,6 +31,9 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
 
     let db_path = app_data_dir.join("aboard.db");
     let conn = rusqlite::Connection::open(&db_path)?;
+
+    // Enable WAL mode for concurrent read/write and set busy timeout
+    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")?;
 
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS clipboard_items (
@@ -390,8 +402,6 @@ pub fn delete_items(
         conn.execute("DELETE FROM clipboard_items WHERE id = ?1", rusqlite::params![id])
             .map_err(|e| format!("Delete error: {}", e))?;
     }
-    // Reclaim disk space after deletion
-    let _ = conn.execute("VACUUM", []);
     drop(conn);
 
     // Clean up associated files from data directory
@@ -437,10 +447,6 @@ pub fn clean_old_items(
             rusqlite::params![cutoff],
         )
         .map_err(|e| format!("Clean error: {}", e))?;
-    // Reclaim disk space if items were deleted
-    if count > 0 {
-        let _ = conn.execute("VACUUM", []);
-    }
     drop(conn);
 
     // Clean up associated files
@@ -921,6 +927,10 @@ pub fn start_auto_cleanup(app: tauri::AppHandle) {
         // Initial delay: 5 minutes after startup
         std::thread::sleep(std::time::Duration::from_secs(300));
         loop {
+            if !AUTO_CLEANUP_RUNNING.load(Ordering::SeqCst) {
+                break;
+            }
+
             // Read cleanup_days from DB
             let db_state = app_clone.state::<DbState>();
             let days: u32 = {
@@ -945,8 +955,13 @@ pub fn start_auto_cleanup(app: tauri::AppHandle) {
                 }
             }
 
-            // Run every 6 hours
-            std::thread::sleep(std::time::Duration::from_secs(6 * 3600));
+            // Sleep in short intervals so we can check the stop flag
+            for _ in 0..360 {
+                if !AUTO_CLEANUP_RUNNING.load(Ordering::SeqCst) {
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_secs(60));
+            }
         }
     });
 }

@@ -7,7 +7,11 @@ interface Props {
 
 export default function ImagePreview(props: Props) {
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") props.onClose();
+    if (e.key === "Escape") {
+      if (!props.src) return;
+      e.stopPropagation();
+      props.onClose();
+    }
   };
 
   onMount(() => document.addEventListener("keydown", handleKeyDown));

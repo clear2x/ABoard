@@ -65,6 +65,8 @@ export default function SettingsPanel(props: Props) {
   const [engine, setEngine] = createSignal<"embedded" | "ollama">("embedded");
   const [selectedModel, setSelectedModel] = createSignal(t("settings.defaultModel"));
   const [embeddedStatus, setEmbeddedStatus] = createSignal<"unknown" | "downloading" | "loading" | "ready" | "error">("unknown");
+  const [contextLength, setContextLength] = createSignal(8192);
+  const [saveError, setSaveError] = createSignal("");
 
   // Privacy & storage state
   const [monitoringEnabled, setMonitoringEnabled] = createSignal(true);
@@ -167,6 +169,11 @@ export default function SettingsPanel(props: Props) {
     } catch {}
 
     try {
+      const days = await invoke<string>("get_setting", { key: "cleanup_days" });
+      if (days) setCleanupDays(parseInt(days, 10) || 30);
+    } catch {}
+
+    try {
       const config = await invoke<AiConfig>("ai_get_config");
       setProvider(config.active_provider || "Local");
       setOpenaiKey(config.openai_api_key || "");
@@ -174,6 +181,7 @@ export default function SettingsPanel(props: Props) {
       setOpenaiModel(config.openai_model || "gpt-4o-mini");
       setAnthropicKey(config.anthropic_api_key || "");
       setAnthropicModel(config.anthropic_model || "claude-sonnet-4-20250514");
+      setContextLength(config.context_length || 8192);
     } catch (err) {
       console.warn("Failed to load AI config:", err);
     }
@@ -190,10 +198,25 @@ export default function SettingsPanel(props: Props) {
   const handleSave = async () => {
     setSaving(true);
     setMessage("");
+    setSaveError("");
+
+    // Validate API key for cloud providers
+    const prov = provider();
+    if (prov === "OpenAi" && !openaiKey().trim()) {
+      setSaveError(t("settings.apiKeyRequired") || "API key is required for OpenAI.");
+      setSaving(false);
+      return;
+    }
+    if (prov === "Anthropic" && !anthropicKey().trim()) {
+      setSaveError(t("settings.apiKeyRequired") || "API key is required for Anthropic.");
+      setSaving(false);
+      return;
+    }
+
     try {
       const config: AiConfig = {
-        active_provider: provider(),
-        context_length: 2048,
+        active_provider: prov,
+        context_length: contextLength(),
         openai_api_key: openaiKey() || undefined,
         openai_endpoint: openaiEndpoint(),
         openai_model: openaiModel(),
@@ -224,7 +247,10 @@ export default function SettingsPanel(props: Props) {
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") props.onClose();
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      props.onClose();
+    }
   };
 
   onMount(() => document.addEventListener("keydown", handleKeyDown));
@@ -409,7 +435,10 @@ export default function SettingsPanel(props: Props) {
                   {/* Context window — matching ui.html */}
                   <div class="flex justify-between items-center text-sm">
                     <span class="font-medium text-gray-700">{t("settings.contextWindow")}</span>
-                    <input type="text" value="8192"
+                    <input type="text" value={String(contextLength())} onInput={(e) => {
+                      const v = parseInt((e.target as HTMLInputElement).value, 10);
+                      if (!isNaN(v) && v > 0) setContextLength(v);
+                    }}
                       class="bg-white/60 border border-white/80 px-3 py-1.5 rounded-lg text-xs w-[180px] shadow-sm outline-none text-right font-mono"
                     />
                   </div>
@@ -514,13 +543,17 @@ export default function SettingsPanel(props: Props) {
                       </button>
                       <Show when={showCleanupDropdown()}>
                         <div class="absolute right-0 top-7 z-50 bg-white/95 backdrop-blur-sm border border-white/80 rounded-lg shadow-lg py-1 min-w-[80px]">
-                          {[7, 14, 30, 60, 90].map((d) => (
+                          {([7, 14, 30, 60, 90] as const).map((d) => (
                             <button
                               class="w-full text-left px-3 py-1 text-xs hover:bg-blue-50 transition-colors"
                               classList={{ "text-blue-600 font-medium": cleanupDays() === d, "text-gray-600": cleanupDays() !== d }}
-                              onClick={() => { setCleanupDays(d); setShowCleanupDropdown(false); }}
+                              onClick={() => {
+                                setCleanupDays(d);
+                                setShowCleanupDropdown(false);
+                                invoke("set_setting", { key: "cleanup_days", value: String(d) }).catch(() => {});
+                              }}
                             >
-                              {d} days
+                              {t(`settings.days${d}`)}
                             </button>
                           ))}
                         </div>
@@ -602,6 +635,9 @@ export default function SettingsPanel(props: Props) {
               >
                 {saving() ? t("ai.saving") : t("ai.save")}
               </button>
+              <Show when={saveError()}>
+                <p class="text-xs text-red-500">{saveError()}</p>
+              </Show>
               <Show when={message()}>
                 <p class="text-xs" classList={{
                   "text-green-500": !message().startsWith("Error"),
