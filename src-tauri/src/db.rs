@@ -55,8 +55,28 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
             context_length INTEGER NOT NULL DEFAULT 2048,
             description TEXT
         );
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+
         ",
     )?;
+
+    // Seed default cleanup_days if not set
+    {
+        let exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM app_settings WHERE key = 'cleanup_days')",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(false);
+        if !exists {
+            let _ = conn.execute(
+                "INSERT INTO app_settings (key, value) VALUES ('cleanup_days', '30')",
+                [],
+            );
+        }
+    }
 
     // Migrate: add AI metadata columns if they don't exist (compatible with existing databases)
     let migrations = [
@@ -835,4 +855,106 @@ pub async fn semantic_search(
         .filter_map(|r| r.ok())
         .collect();
     Ok(items)
+}
+
+// --- Settings ---
+
+#[tauri::command]
+pub fn get_setting(state: tauri::State<'_, DbState>, key: String) -> Result<String, String> {
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    conn.query_row(
+        "SELECT value FROM app_settings WHERE key = ?1",
+        rusqlite::params![key],
+        |row| row.get(0),
+    ).map_err(|e| format!("Setting not found: {}", e))
+}
+
+#[tauri::command]
+pub fn set_setting(state: tauri::State<'_, DbState>, key: String, value: String) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    conn.execute(
+        "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = ?2",
+        rusqlite::params![key, value],
+    ).map_err(|e| format!("Save setting error: {}", e))?;
+    Ok(())
+}
+
+/// Start a background task that runs auto-cleanup every 6 hours.
+pub fn start_auto_cleanup(app: tauri::AppHandle) {
+    let app_clone = app.clone();
+    tokio::spawn(async move {
+        // Initial delay: 5 minutes after startup
+        tokio::time::sleep(std::time::Duration::from_secs(300)).await;
+        loop {
+            // Read cleanup_days from DB
+            let db_state = app_clone.state::<DbState>();
+            let days: u32 = {
+                let conn = db_state.conn.lock().ok();
+                match conn {
+                    Some(c) => c.query_row(
+                        "SELECT value FROM app_settings WHERE key = 'cleanup_days'",
+                        [],
+                        |row| row.get::<_, String>(0),
+                    ).ok().and_then(|v| v.parse().ok()).unwrap_or(30),
+                    None => 30,
+                }
+            };
+
+            if days > 0 {
+                match clean_old_items_internal(&app_clone, days) {
+                    Ok(count) if count > 0 => {
+                        eprintln!("[auto-cleanup] Cleaned {} old items ({} day retention)", count, days);
+                    }
+                    Ok(_) => {}
+                    Err(e) => eprintln!("[auto-cleanup] Error: {}", e),
+                }
+            }
+
+            // Run every 6 hours
+            tokio::time::sleep(std::time::Duration::from_secs(6 * 3600)).await;
+        }
+    });
+}
+
+/// Internal cleanup function that takes AppHandle (for use from background task).
+fn clean_old_items_internal(app: &tauri::AppHandle, days: u32) -> Result<u64, String> {
+    let cutoff = chrono::Utc::now()
+        .checked_sub_signed(chrono::Duration::days(days as i64))
+        .ok_or("Invalid days value")?
+        .timestamp_millis();
+
+    let db_state = app.state::<DbState>();
+    let conn = db_state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+
+    let file_paths: Vec<String> = {
+        let mut stmt = conn.prepare(
+            "SELECT file_path FROM clipboard_items WHERE pinned = 0 AND timestamp < ?1 AND file_path IS NOT NULL AND file_path != ''"
+        ).map_err(|e| format!("Prepare error: {}", e))?;
+        let rows = stmt.query_map(rusqlite::params![cutoff], |row| row.get(0)).ok();
+        rows.map(|r| r.filter_map(|v| v.ok()).collect()).unwrap_or_default()
+    };
+
+    let count = conn
+        .execute(
+            "DELETE FROM clipboard_items WHERE pinned = 0 AND timestamp < ?1",
+            rusqlite::params![cutoff],
+        )
+        .map_err(|e| format!("Clean error: {}", e))?;
+
+    if count > 0 {
+        let _ = conn.execute("VACUUM", []);
+    }
+    drop(conn);
+
+    if !file_paths.is_empty() {
+        if let Ok(app_data_dir) = app.path().app_data_dir() {
+            for rel_path in file_paths {
+                let full_path = app_data_dir.join(&rel_path);
+                let _ = std::fs::remove_file(full_path);
+            }
+        }
+    }
+
+    Ok(count as u64)
 }

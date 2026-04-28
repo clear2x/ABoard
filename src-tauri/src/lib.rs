@@ -415,6 +415,9 @@ pub fn run() {
             clipboard::start_monitoring(app.handle().clone());
             tray::setup_tray(&app.handle())?;
 
+            // Start auto-cleanup background task
+            db::start_auto_cleanup(app.handle().clone());
+
             // macOS: set up native application menu bar
             #[cfg(target_os = "macos")]
             {
@@ -470,6 +473,8 @@ pub fn run() {
             db::export_items,
             db::get_storage_stats,
             db::read_data_file,
+            db::get_setting,
+            db::set_setting,
             reveal_in_folder,
         ])
         .build(tauri::generate_context!())
