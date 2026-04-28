@@ -83,6 +83,19 @@ pub fn get_monitoring_state() -> bool {
     !MONITORING_PAUSED.load(Ordering::SeqCst)
 }
 
+/// Get the macOS NSPasteboard changeCount (cheap integer read).
+#[cfg(target_os = "macos")]
+fn get_pasteboard_change_count() -> i64 {
+    let output = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg("use framework \"AppKit\"; return current application's NSPasteboard's generalPasteboard()'s changeCount() as integer")
+        .output();
+    match output {
+        Ok(o) => String::from_utf8_lossy(&o.stdout).trim().parse().unwrap_or(-1),
+        Err(_) => -1,
+    }
+}
+
 /// Start the clipboard monitoring loop.
 /// Spawns an async task that polls the clipboard every POLL_INTERVAL_MS.
 /// When new content is detected (via SHA256 hash comparison), emits a
@@ -90,12 +103,29 @@ pub fn get_monitoring_state() -> bool {
 pub fn start_monitoring<R: Runtime>(app: tauri::AppHandle<R>) {
     tauri::async_runtime::spawn(async move {
         let mut last_hash = String::new();
+
+        // macOS: track NSPasteboard changeCount for cheap change detection
+        #[cfg(target_os = "macos")]
+        let mut last_change_count: Option<i64> = None;
+
         loop {
             tokio::time::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS)).await;
 
             // Check if monitoring is paused
             if MONITORING_PAUSED.load(Ordering::SeqCst) {
                 continue;
+            }
+
+            // macOS: use NSPasteboard changeCount for zero-cost change detection
+            #[cfg(target_os = "macos")]
+            {
+                let current_count = get_pasteboard_change_count();
+                if let Some(last) = last_change_count {
+                    if current_count == last {
+                        continue; // No change — skip expensive clipboard read
+                    }
+                }
+                last_change_count = Some(current_count);
             }
 
             // Check for multi-file clipboard (Finder copy of multiple files)
