@@ -211,11 +211,13 @@ export default function ContextMenu(props: Props) {
       document.addEventListener("click", handleClickOutside);
     }, 0);
     document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("scroll", props.onClose, true);
   });
 
   onCleanup(() => {
     document.removeEventListener("click", handleClickOutside);
     document.removeEventListener("keydown", handleKeyDown);
+    document.removeEventListener("scroll", props.onClose, true);
   });
 
   const isProcessing = () => processing() !== null;

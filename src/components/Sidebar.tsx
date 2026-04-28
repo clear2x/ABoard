@@ -243,16 +243,16 @@ export default function Sidebar() {
                 </li>
                 <Show when={confirmDeleteId() === snippet.id}>
                   <li class="flex items-center justify-between px-3 py-1 text-[10px] text-gray-500">
-                    <span>Delete?</span>
+                    <span>{t("dialog.deleteConfirm")}</span>
                     <span class="flex gap-1">
                       <button
                         class="text-red-500 hover:text-red-700 font-medium"
                         onClick={(e) => { e.stopPropagation(); deleteSnippet(snippet.id); setConfirmDeleteId(null); }}
-                      >Yes</button>
+                      >{t("dialog.yes")}</button>
                       <button
                         class="text-gray-400 hover:text-gray-600"
                         onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
-                      >No</button>
+                      >{t("dialog.no")}</button>
                     </span>
                   </li>
                 </Show>

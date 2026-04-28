@@ -170,7 +170,12 @@ export default function SettingsPanel(props: Props) {
 
     try {
       const days = await invoke<string>("get_setting", { key: "cleanup_days" });
-      if (days) setCleanupDays(parseInt(days, 10) || 30);
+      if (days) setCleanupDays(Math.max(1, Math.min(365, parseInt(days, 10) || 30)));
+    } catch {}
+
+    try {
+      const gpu = await invoke<string>("get_setting", { key: "gpu_enabled" });
+      if (gpu !== null && gpu !== undefined) setGpuEnabled(gpu === "true");
     } catch {}
 
     try {
@@ -449,7 +454,11 @@ export default function SettingsPanel(props: Props) {
                     <button
                       class="w-9 h-5 rounded-full relative shadow-inner cursor-pointer transition-colors"
                       classList={{ "bg-blue-500": gpuEnabled(), "bg-gray-300": !gpuEnabled() }}
-                      onClick={() => setGpuEnabled(!gpuEnabled())}
+                      onClick={() => {
+                        const next = !gpuEnabled();
+                        setGpuEnabled(next);
+                        invoke("set_setting", { key: "gpu_enabled", value: String(next) }).catch(() => {});
+                      }}
                     >
                       <div class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform"
                         style={{ left: gpuEnabled() ? "18px" : "2px" }}
@@ -686,6 +695,11 @@ export default function SettingsPanel(props: Props) {
                       if (!isRecording()) return;
                       e.preventDefault();
                       e.stopPropagation();
+                      // Escape cancels recording
+                      if (e.key === "Escape") {
+                        setRecordingAction(null);
+                        return;
+                      }
                       // Ignore lone modifier presses
                       if (["Meta", "Control", "Shift", "Alt"].includes(e.key)) return;
                       const newShortcut = parseKeyboardEvent(e);
