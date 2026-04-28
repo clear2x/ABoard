@@ -1,4 +1,4 @@
-import { createSignal, onMount, onCleanup, For, Show } from "solid-js";
+import { createSignal, createEffect, onMount, onCleanup, For, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -68,12 +68,19 @@ export default function FloatingPopup() {
     await loadHistory(0, 20);
     setPopupItems(items().slice(0, 20));
 
-    // Listen for clipboard updates to refresh popup content
+    // Listen for clipboard updates to refresh popup content (debounced)
+    let reloadTimer: ReturnType<typeof setTimeout> | undefined;
     const unlisten = await listen("clipboard-update", async () => {
-      await loadHistory(0, 20);
-      setPopupItems(items().slice(0, 20));
+      if (reloadTimer) clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(async () => {
+        await loadHistory(0, 20);
+        setPopupItems(items().slice(0, 20));
+      }, 300);
     });
-    onCleanup(() => unlisten());
+    onCleanup(() => {
+      unlisten();
+      if (reloadTimer) clearTimeout(reloadTimer);
+    });
 
     await getCurrentWindow().setFocus();
 
@@ -105,6 +112,13 @@ export default function FloatingPopup() {
     };
     window.addEventListener("blur", blurHandler);
     onCleanup(() => window.removeEventListener("blur", blurHandler));
+  });
+
+  createEffect(() => {
+    const len = filteredItems().length;
+    if (selectedIndex() >= len) {
+      setSelectedIndex(Math.max(0, len - 1));
+    }
   });
 
   const filteredItems = () => {

@@ -231,6 +231,7 @@ export async function deleteItems(ids: string[]) {
     loadStorageStats();
   } catch (e) {
     console.error("[store] Delete failed:", e);
+    loadHistory();
   }
 }
 
@@ -242,6 +243,7 @@ export async function pinItem(id: string) {
     loadStorageStats();
   } catch (e) {
     console.error("[store] Pin failed:", e);
+    loadHistory();
   }
 }
 
@@ -253,6 +255,7 @@ export async function unpinItem(id: string) {
     loadStorageStats();
   } catch (e) {
     console.error("[store] Unpin failed:", e);
+    loadHistory();
   }
 }
 

@@ -1,5 +1,6 @@
 use crate::clipboard::ClipboardItem;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -8,6 +9,14 @@ const MAX_QUERY_LEN: usize = 200;
 
 /// Maximum result count for a single query.
 const MAX_LIMIT: u32 = 100;
+
+/// Flag to signal auto-cleanup thread to stop gracefully.
+static AUTO_CLEANUP_RUNNING: AtomicBool = AtomicBool::new(true);
+
+/// Signal the auto-cleanup thread to stop.
+pub fn stop_auto_cleanup() {
+    AUTO_CLEANUP_RUNNING.store(false, Ordering::SeqCst);
+}
 
 /// Wrapper for the SQLite connection, managed as Tauri state.
 pub struct DbState {
@@ -22,6 +31,9 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
 
     let db_path = app_data_dir.join("aboard.db");
     let conn = rusqlite::Connection::open(&db_path)?;
+
+    // Enable WAL mode for concurrent read/write and set busy timeout
+    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")?;
 
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS clipboard_items (
@@ -390,8 +402,6 @@ pub fn delete_items(
         conn.execute("DELETE FROM clipboard_items WHERE id = ?1", rusqlite::params![id])
             .map_err(|e| format!("Delete error: {}", e))?;
     }
-    // Reclaim disk space after deletion
-    let _ = conn.execute("VACUUM", []);
     drop(conn);
 
     // Clean up associated files from data directory
@@ -437,10 +447,6 @@ pub fn clean_old_items(
             rusqlite::params![cutoff],
         )
         .map_err(|e| format!("Clean error: {}", e))?;
-    // Reclaim disk space if items were deleted
-    if count > 0 {
-        let _ = conn.execute("VACUUM", []);
-    }
     drop(conn);
 
     // Clean up associated files
@@ -921,6 +927,10 @@ pub fn start_auto_cleanup(app: tauri::AppHandle) {
         // Initial delay: 5 minutes after startup
         std::thread::sleep(std::time::Duration::from_secs(300));
         loop {
+            if !AUTO_CLEANUP_RUNNING.load(Ordering::SeqCst) {
+                break;
+            }
+
             // Read cleanup_days from DB
             let db_state = app_clone.state::<DbState>();
             let days: u32 = {
@@ -945,8 +955,13 @@ pub fn start_auto_cleanup(app: tauri::AppHandle) {
                 }
             }
 
-            // Run every 6 hours
-            std::thread::sleep(std::time::Duration::from_secs(6 * 3600));
+            // Sleep in short intervals so we can check the stop flag
+            for _ in 0..360 {
+                if !AUTO_CLEANUP_RUNNING.load(Ordering::SeqCst) {
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_secs(60));
+            }
         }
     });
 }
@@ -1112,8 +1127,17 @@ pub fn import_items(app: tauri::AppHandle, state: tauri::State<'_, DbState>, pat
     let data_dir = app_data_dir.join("data");
     let _ = std::fs::create_dir_all(&data_dir);
 
-    let mut imported = 0u32;
-    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    // Phase 1: Extract all entries and do file I/O WITHOUT holding the DB lock
+    struct PendingItem {
+        id: String,
+        content_type: String,
+        content: String,
+        hash: String,
+        timestamp: i64,
+        file_path: Option<String>,
+    }
+
+    let mut pending: Vec<PendingItem> = Vec::new();
 
     for i in 0..archive.len() {
         let mut entry = match archive.by_index(i) {
@@ -1128,67 +1152,57 @@ pub fn import_items(app: tauri::AppHandle, state: tauri::State<'_, DbState>, pat
             let mut content = String::new();
             if std::io::Read::read_to_string(&mut entry, &mut content).is_ok() && !content.is_empty() {
                 let hash = crate::clipboard::compute_hash(content.as_bytes());
-                // Skip if already exists (by hash)
-                let exists: bool = conn.query_row(
-                    "SELECT EXISTS(SELECT 1 FROM clipboard_items WHERE hash = ?1)",
-                    rusqlite::params![hash],
-                    |row| row.get(0),
-                ).unwrap_or(false);
-                if !exists {
-                    let _ = conn.execute(
-                        "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, metadata, pinned) VALUES (?1, 'text', ?2, ?3, ?4, '{}', 0)",
-                        rusqlite::params![id, content, hash, now],
-                    );
-                    imported += 1;
-                }
+                pending.push(PendingItem {
+                    id, content_type: "text".into(), content, hash, timestamp: now, file_path: None,
+                });
             }
-        } else if name.starts_with("images/") {
+        } else if name.starts_with("images/") || name.starts_with("videos/") {
+            let content_type = if name.starts_with("images/") { "image" } else { "video" };
+            let default_ext = if content_type == "image" { "png" } else { "mp4" };
             let mut buf = Vec::new();
             if std::io::Read::read_to_end(&mut entry, &mut buf).is_ok() && !buf.is_empty() {
                 let hash = crate::clipboard::compute_hash(&buf);
-                let exists: bool = conn.query_row(
-                    "SELECT EXISTS(SELECT 1 FROM clipboard_items WHERE hash = ?1)",
-                    rusqlite::params![hash],
-                    |row| row.get(0),
-                ).unwrap_or(false);
-                if !exists {
-                    let ext = name.rsplit('.').next().unwrap_or("png");
-                    let file_name = format!("{}.{}", id, ext);
-                    let file_full = data_dir.join(&file_name);
-                    if std::fs::write(&file_full, &buf).is_ok() {
-                        let relative = format!("data/{}", file_name);
-                        let _ = conn.execute(
-                            "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, metadata, pinned, file_path) VALUES (?1, 'image', '', ?2, ?3, '{}', 0, ?4)",
-                            rusqlite::params![id, hash, now, relative],
-                        );
-                        imported += 1;
-                    }
-                }
-            }
-        } else if name.starts_with("videos/") {
-            let mut buf = Vec::new();
-            if std::io::Read::read_to_end(&mut entry, &mut buf).is_ok() && !buf.is_empty() {
-                let hash = crate::clipboard::compute_hash(&buf);
-                let exists: bool = conn.query_row(
-                    "SELECT EXISTS(SELECT 1 FROM clipboard_items WHERE hash = ?1)",
-                    rusqlite::params![hash],
-                    |row| row.get(0),
-                ).unwrap_or(false);
-                if !exists {
-                    let ext = name.rsplit('.').next().unwrap_or("mp4");
-                    let file_name = format!("{}.{}", id, ext);
-                    let file_full = data_dir.join(&file_name);
-                    if std::fs::write(&file_full, &buf).is_ok() {
-                        let relative = format!("data/{}", file_name);
-                        let _ = conn.execute(
-                            "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, metadata, pinned, file_path) VALUES (?1, 'video', '', ?2, ?3, '{}', 0, ?4)",
-                            rusqlite::params![id, hash, now, relative],
-                        );
-                        imported += 1;
-                    }
+                let ext = name.rsplit('.').next().unwrap_or(default_ext);
+                let file_name = format!("{}.{}", id, ext);
+                let file_full = data_dir.join(&file_name);
+                if std::fs::write(&file_full, &buf).is_ok() {
+                    let relative = format!("data/{}", file_name);
+                    pending.push(PendingItem {
+                        id, content_type: content_type.into(), content: String::new(),
+                        hash, timestamp: now, file_path: Some(relative),
+                    });
                 }
             }
         }
+    }
+
+    // Phase 2: Insert into DB with brief lock per item
+    let mut imported = 0u32;
+    for item in pending {
+        let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+        let exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM clipboard_items WHERE hash = ?1)",
+            rusqlite::params![item.hash],
+            |row| row.get(0),
+        ).unwrap_or(false);
+        if !exists {
+            match item.file_path {
+                Some(ref fp) => {
+                    let _ = conn.execute(
+                        "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, metadata, pinned, file_path) VALUES (?1, ?2, ?3, ?4, ?5, '{}', 0, ?6)",
+                        rusqlite::params![item.id, item.content_type, item.content, item.hash, item.timestamp, fp],
+                    );
+                }
+                None => {
+                    let _ = conn.execute(
+                        "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, metadata, pinned) VALUES (?1, ?2, ?3, ?4, ?5, '{}', 0)",
+                        rusqlite::params![item.id, item.content_type, item.content, item.hash, item.timestamp],
+                    );
+                }
+            }
+            imported += 1;
+        }
+        drop(conn); // Release lock before next iteration
     }
 
     Ok(imported)

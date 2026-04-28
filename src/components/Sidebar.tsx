@@ -34,6 +34,7 @@ export default function Sidebar() {
   const [editingSnippet, setEditingSnippet] = createSignal<Snippet | null>(null);
   const [snippetTitle, setSnippetTitle] = createSignal("");
   const [snippetContent, setSnippetContent] = createSignal("");
+  const [confirmDeleteId, setConfirmDeleteId] = createSignal<string | null>(null);
 
   async function loadSnippets() {
     try {
@@ -217,6 +218,7 @@ export default function Sidebar() {
           <ul class="space-y-1">
             <For each={snippets()}>
               {(snippet) => (
+                <div class="contents">
                 <li
                   class="group flex justify-between items-center px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors hover:bg-white/40 text-gray-600 dark:text-gray-300 dark:hover:bg-white/10"
                   onClick={() => copySnippetContent(snippet)}
@@ -232,13 +234,29 @@ export default function Sidebar() {
                     </button>
                     <button
                       class="text-gray-400 hover:text-red-500 transition-colors"
-                      onClick={(e) => { e.stopPropagation(); deleteSnippet(snippet.id); }}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(snippet.id); }}
                       title={t("snippet.delete")}
                     >
                       <i class="ph ph-trash text-xs" />
                     </button>
                   </span>
                 </li>
+                <Show when={confirmDeleteId() === snippet.id}>
+                  <li class="flex items-center justify-between px-3 py-1 text-[10px] text-gray-500">
+                    <span>Delete?</span>
+                    <span class="flex gap-1">
+                      <button
+                        class="text-red-500 hover:text-red-700 font-medium"
+                        onClick={(e) => { e.stopPropagation(); deleteSnippet(snippet.id); setConfirmDeleteId(null); }}
+                      >Yes</button>
+                      <button
+                        class="text-gray-400 hover:text-gray-600"
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
+                      >No</button>
+                    </span>
+                  </li>
+                </Show>
+                </div>
               )}
             </For>
           </ul>

@@ -15,10 +15,64 @@ struct CycleState {
     last_cycle: Option<Instant>,
 }
 
-/// Copy image from base64 data URL to system clipboard as a real image.
+/// Simulate Cmd+V / Ctrl+V keyboard shortcut to trigger paste.
+fn simulate_paste() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use core_graphics::event::{CGEvent, CGEventFlags};
+        use core_graphics::event_source::CGEventSource;
+        use core_graphics::event_source::CGEventSourceStateID::HIDSystemState;
+
+        let source = CGEventSource::new(HIDSystemState).map_err(|_| "Failed to create CGEventSource".to_string())?;
+        let post_tap = core_graphics::event::CGEventTapLocation::HID;
+
+        let cmd_down = CGEvent::new_keyboard_event(source.clone(), 55, true)
+            .map_err(|_| "Failed to create Cmd down event".to_string())?;
+        cmd_down.set_flags(CGEventFlags::CGEventFlagCommand);
+        cmd_down.post(post_tap);
+
+        let v_down = CGEvent::new_keyboard_event(source.clone(), 9, true)
+            .map_err(|_| "Failed to create V down event".to_string())?;
+        v_down.set_flags(CGEventFlags::CGEventFlagCommand);
+        v_down.post(post_tap);
+
+        let v_up = CGEvent::new_keyboard_event(source.clone(), 9, false)
+            .map_err(|_| "Failed to create V up event".to_string())?;
+        v_up.set_flags(CGEventFlags::CGEventFlagCommand);
+        v_up.post(post_tap);
+
+        let cmd_up = CGEvent::new_keyboard_event(source, 55, false)
+            .map_err(|_| "Failed to create Cmd up event".to_string())?;
+        cmd_up.post(post_tap);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command",
+                "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| format!("SendKeys error: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xdotool")
+            .args(["key", "--clearmodifiers", "ctrl+v"])
+            .spawn();
+    }
+    Ok(())
+}
+
 /// Open a URL in the system's default browser.
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
+    // Validate URL scheme to prevent command injection
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("Invalid URL: only http/https schemes are allowed".to_string());
+    }
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open").arg(&url).spawn().map_err(|e| format!("Failed to open URL: {}", e))?;
@@ -27,7 +81,7 @@ fn open_url(url: String) -> Result<(), String> {
     {
         use std::os::windows::process::CommandExt;
         std::process::Command::new("cmd")
-            .args(["/c", "start", &url])
+            .args(["/c", "start", "", &url])
             .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .spawn()
             .map_err(|e| format!("Failed to open URL: {}", e))?;
@@ -168,61 +222,16 @@ fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 fn paste_to_active(content: String, app: tauri::AppHandle) -> Result<(), String> {
+    // Reject image/video data — cannot paste as text
+    if content.starts_with("data:image") || content.starts_with("data:video") {
+        return Err("Cannot paste images or videos as text".to_string());
+    }
+    if content.is_empty() {
+        return Err("No text content to paste".to_string());
+    }
     use tauri_plugin_clipboard_manager::ClipboardExt;
     let _ = app.clipboard().write_text(&content);
-
-    #[cfg(target_os = "macos")]
-    {
-        use core_graphics::event::{CGEvent, CGEventFlags};
-        use core_graphics::event_source::CGEventSource;
-        use core_graphics::event_source::CGEventSourceStateID::HIDSystemState;
-
-        let source = CGEventSource::new(HIDSystemState).map_err(|_| "Failed to create CGEventSource".to_string())?;
-
-        let post_tap = core_graphics::event::CGEventTapLocation::HID;
-
-        // Cmd down
-        let cmd_down = CGEvent::new_keyboard_event(source.clone(), 55, true)
-            .map_err(|_| "Failed to create Cmd down event".to_string())?;
-        cmd_down.set_flags(CGEventFlags::CGEventFlagCommand);
-        cmd_down.post(post_tap);
-
-        // V down
-        let v_down = CGEvent::new_keyboard_event(source.clone(), 9, true)
-            .map_err(|_| "Failed to create V down event".to_string())?;
-        v_down.set_flags(CGEventFlags::CGEventFlagCommand);
-        v_down.post(post_tap);
-
-        // V up
-        let v_up = CGEvent::new_keyboard_event(source.clone(), 9, false)
-            .map_err(|_| "Failed to create V up event".to_string())?;
-        v_up.set_flags(CGEventFlags::CGEventFlagCommand);
-        v_up.post(post_tap);
-
-        // Cmd up
-        let cmd_up = CGEvent::new_keyboard_event(source, 55, false)
-            .map_err(|_| "Failed to create Cmd up event".to_string())?;
-        cmd_up.post(post_tap);
-    }
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        std::process::Command::new("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-Command",
-                "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| format!("SendKeys error: {}", e))?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let _ = std::process::Command::new("xdotool")
-            .args(["key", "--clearmodifiers", "ctrl+v"])
-            .spawn();
-    }
-    Ok(())
+    simulate_paste()
 }
 
 /// Quick switch: cycle through recent clipboard items and paste directly.
@@ -250,73 +259,26 @@ fn quick_cycle(app: tauri::AppHandle, cycle: tauri::State<'_, Mutex<CycleState>>
     let idx = state.index;
     drop(state); // Release lock before DB query
 
-    // Get the Nth recent item from DB
+    // Get the Nth recent text item from DB (skip images/videos)
     let db_state = app.state::<db::DbState>();
     let content: String = {
         let conn = db_state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
         let content: String = conn
             .query_row(
                 "SELECT content FROM clipboard_items
+                 WHERE content_type NOT IN ('image', 'video')
                  ORDER BY pinned DESC, pinned_at DESC, timestamp DESC
                  LIMIT 1 OFFSET ?1",
                 rusqlite::params![idx],
                 |row| row.get(0),
             )
-            .map_err(|e| format!("No item at index {}: {}", idx, e))?;
+            .map_err(|e| format!("No text item at index {}: {}", idx, e))?;
         content
     };
 
     // Write to clipboard
     let _ = app.clipboard().write_text(&content);
-
-    // Simulate Cmd+V paste on macOS
-    #[cfg(target_os = "macos")]
-    {
-        use core_graphics::event::{CGEvent, CGEventFlags};
-        use core_graphics::event_source::CGEventSource;
-        use core_graphics::event_source::CGEventSourceStateID::HIDSystemState;
-
-        let source = CGEventSource::new(HIDSystemState).map_err(|_| "Failed to create CGEventSource".to_string())?;
-        let post_tap = core_graphics::event::CGEventTapLocation::HID;
-
-        let cmd_down = CGEvent::new_keyboard_event(source.clone(), 55, true)
-            .map_err(|_| "Failed to create Cmd down event".to_string())?;
-        cmd_down.set_flags(CGEventFlags::CGEventFlagCommand);
-        cmd_down.post(post_tap);
-
-        let v_down = CGEvent::new_keyboard_event(source.clone(), 9, true)
-            .map_err(|_| "Failed to create V down event".to_string())?;
-        v_down.set_flags(CGEventFlags::CGEventFlagCommand);
-        v_down.post(post_tap);
-
-        let v_up = CGEvent::new_keyboard_event(source.clone(), 9, false)
-            .map_err(|_| "Failed to create V up event".to_string())?;
-        v_up.set_flags(CGEventFlags::CGEventFlagCommand);
-        v_up.post(post_tap);
-
-        let cmd_up = CGEvent::new_keyboard_event(source, 55, false)
-            .map_err(|_| "Failed to create Cmd up event".to_string())?;
-        cmd_up.post(post_tap);
-    }
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        std::process::Command::new("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-Command",
-                "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| format!("SendKeys error: {}", e))?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let _ = std::process::Command::new("xdotool")
-            .args(["key", "--clearmodifiers", "ctrl+v"])
-            .spawn();
-    }
-    Ok(())
+    simulate_paste()
 }
 
 pub fn run() {
@@ -348,37 +310,7 @@ pub fn run() {
                                         if webview_window.is_visible().unwrap_or(false) {
                                             let _ = webview_window.hide();
                                         } else {
-                                            // Position floating window on right side, vertically centered
-                                            let monitor = app.primary_monitor()
-                                                .ok()
-                                                .flatten()
-                                                .or_else(|| {
-                                                    app.available_monitors()
-                                                        .ok()
-                                                        .and_then(|m| m.into_iter().next())
-                                                });
-                                            if let Some(monitor) = monitor {
-                                                let scale = monitor.scale_factor();
-                                                let mon_size = monitor.size();
-                                                let win_size = webview_window.inner_size().unwrap_or_else(|_| {
-                                                    tauri::PhysicalSize::new(280, 520)
-                                                });
-                                                // Convert physical → logical coordinates
-                                                let mon_w = mon_size.width as f64 / scale;
-                                                let win_w = win_size.width as f64 / scale;
-                                                let mon_h = mon_size.height as f64 / scale;
-                                                let win_h = win_size.height as f64 / scale;
-                                                let new_x = mon_w - win_w - 20.0; // 20px margin from right edge
-                                                let new_y = (mon_h - win_h) / 2.0; // vertically centered
-                                                let _ = webview_window.set_position(
-                                                    tauri::Position::Logical(
-                                                        tauri::LogicalPosition::new(
-                                                            new_x.max(0.0),
-                                                            new_y.max(0.0),
-                                                        ),
-                                                    ),
-                                                );
-                                            }
+                                            crate::tray::position_floating_window(app, &webview_window);
                                             let _ = webview_window.show();
                                             let _ = webview_window.set_focus();
                                         }
@@ -435,6 +367,17 @@ pub fn run() {
                 if let Some(win) = app.get_webview_window("floating") {
                     let _ = win.set_decorations(false);
                 }
+            }
+
+            // Intercept floating window close (red dot) — hide instead of destroy.
+            if let Some(floating) = app.get_webview_window("floating") {
+                let floating_clone = floating.clone();
+                floating.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = floating_clone.hide();
+                    }
+                });
             }
 
             Ok(())
@@ -497,6 +440,9 @@ pub fn run() {
                     let _ = webview_window.show();
                     let _ = webview_window.set_focus();
                 }
+            }
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                db::stop_auto_cleanup();
             }
         });
 }

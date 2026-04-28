@@ -2,11 +2,40 @@ use tauri::{
     AppHandle, Emitter, Manager, Runtime,
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    WebviewWindow,
 };
 use tauri_plugin_dialog::DialogExt;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
 use std::sync::Mutex;
+
+/// Position a floating window on the right side of the primary monitor, vertically centered.
+pub fn position_floating_window<R: Runtime>(app: &AppHandle<R>, window: &tauri::WebviewWindow<R>) {
+    let monitor = app.primary_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| {
+            app.available_monitors()
+                .ok()
+                .and_then(|m| m.into_iter().next())
+        });
+    if let Some(monitor) = monitor {
+        let scale = monitor.scale_factor();
+        let mon_size = monitor.size();
+        let win_size = window.inner_size().unwrap_or_else(|_| {
+            tauri::PhysicalSize::new(280, 520)
+        });
+        let mon_w = mon_size.width as f64 / scale;
+        let win_w = win_size.width as f64 / scale;
+        let mon_h = mon_size.height as f64 / scale;
+        let win_h = win_size.height as f64 / scale;
+        let new_x = mon_w - win_w - 20.0;
+        let new_y = (mon_h - win_h) / 2.0;
+        let _ = window.set_position(tauri::Position::Logical(
+            tauri::LogicalPosition::new(new_x.max(0.0), new_y.max(0.0)),
+        ));
+    }
+}
 
 /// Global flag indicating whether screen recording is in progress.
 static RECORDING_ACTIVE: AtomicBool = AtomicBool::new(false);
@@ -16,6 +45,9 @@ static RECORDING_PID: AtomicU32 = AtomicU32::new(0);
 
 /// Stored locale: 0 = zh, 1 = en
 static STORED_LOCALE: AtomicU8 = AtomicU8::new(0);
+
+/// Guard flag: set on DoubleClick so the delayed single-click handler can abort.
+static TRAY_DOUBLE_CLICKED: AtomicBool = AtomicBool::new(false);
 
 // ---------------------------------------------------------------------------
 // Type-erased menu item handle — stores a set_text closure to avoid generics
@@ -175,30 +207,7 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
             }
             "quick-paste" => {
                 if let Some(webview_window) = app.get_webview_window("floating") {
-                    let monitor = app.primary_monitor()
-                        .ok()
-                        .flatten()
-                        .or_else(|| {
-                            app.available_monitors()
-                                .ok()
-                                .and_then(|m| m.into_iter().next())
-                        });
-                    if let Some(monitor) = monitor {
-                        let scale = monitor.scale_factor();
-                        let mon_size = monitor.size();
-                        let win_size = webview_window.inner_size().unwrap_or_else(|_| {
-                            tauri::PhysicalSize::new(280, 520)
-                        });
-                        let mon_w = mon_size.width as f64 / scale;
-                        let win_w = win_size.width as f64 / scale;
-                        let mon_h = mon_size.height as f64 / scale;
-                        let win_h = win_size.height as f64 / scale;
-                        let new_x = mon_w - win_w - 20.0;
-                        let new_y = (mon_h - win_h) / 2.0;
-                        let _ = webview_window.set_position(tauri::Position::Logical(
-                            tauri::LogicalPosition::new(new_x.max(0.0), new_y.max(0.0)),
-                        ));
-                    }
+                    position_floating_window(&app, &webview_window);
                     let _ = webview_window.show();
                     let _ = webview_window.set_focus();
                 }
@@ -227,51 +236,41 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
                     button_state: MouseButtonState::Up,
                     ..
                 } => {
-                    // Single left click: toggle floating popup
-                    let app = tray.app_handle();
-                    if let Some(webview_window) = app.get_webview_window("floating") {
-                        if webview_window.is_visible().unwrap_or(false) {
-                            let _ = webview_window.hide();
-                        } else {
-                            // Position floating window on right side
-                            let monitor = app.primary_monitor()
-                                .ok()
-                                .flatten()
-                                .or_else(|| {
-                                    app.available_monitors()
-                                        .ok()
-                                        .and_then(|m| m.into_iter().next())
-                                });
-                            if let Some(monitor) = monitor {
-                                let scale = monitor.scale_factor();
-                                let mon_size = monitor.size();
-                                let win_size = webview_window.inner_size().unwrap_or_else(|_| {
-                                    tauri::PhysicalSize::new(280, 520)
-                                });
-                                let mon_w = mon_size.width as f64 / scale;
-                                let win_w = win_size.width as f64 / scale;
-                                let mon_h = mon_size.height as f64 / scale;
-                                let win_h = win_size.height as f64 / scale;
-                                let new_x = mon_w - win_w - 20.0;
-                                let new_y = (mon_h - win_h) / 2.0;
-                                let _ = webview_window.set_position(tauri::Position::Logical(
-                                    tauri::LogicalPosition::new(new_x.max(0.0), new_y.max(0.0)),
-                                ));
-                            }
-                            let _ = webview_window.show();
-                            let _ = webview_window.set_focus();
+                    // Delayed single-click: wait 200ms to see if a double-click follows
+                    let app = tray.app_handle().clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(200));
+                        // If DoubleClick fired during the wait, abort
+                        if TRAY_DOUBLE_CLICKED.swap(false, Ordering::SeqCst) {
+                            return;
                         }
-                    }
+                        // Single-click confirmed — toggle floating popup
+                        if let Some(webview_window) = app.get_webview_window("floating") {
+                            if webview_window.is_visible().unwrap_or(false) {
+                                let _ = webview_window.hide();
+                            } else {
+                                position_floating_window(&app, &webview_window);
+                                let _ = webview_window.show();
+                                let _ = webview_window.set_focus();
+                            }
+                        }
+                    });
                 }
                 TrayIconEvent::DoubleClick {
                     button: MouseButton::Left,
                     ..
                 } => {
-                    // Double click: show main window
+                    // Signal the delayed single-click handler to abort
+                    TRAY_DOUBLE_CLICKED.store(true, Ordering::SeqCst);
+                    // Show and focus main window
                     let app = tray.app_handle();
                     if let Some(webview_window) = app.get_webview_window("main") {
                         let _ = webview_window.show();
                         let _ = webview_window.set_focus();
+                    }
+                    // Also hide floating if it was visible
+                    if let Some(webview_window) = app.get_webview_window("floating") {
+                        let _ = webview_window.hide();
                     }
                 }
                 _ => {}
