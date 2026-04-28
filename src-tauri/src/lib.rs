@@ -475,6 +475,10 @@ pub fn run() {
             db::read_data_file,
             db::get_setting,
             db::set_setting,
+            db::create_snippet,
+            db::update_snippet,
+            db::delete_snippet,
+            db::list_snippets,
             reveal_in_folder,
         ])
         .build(tauri::generate_context!())

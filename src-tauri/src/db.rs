@@ -60,6 +60,14 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
             value TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS snippets (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+
         ",
     )?;
 
@@ -941,20 +949,74 @@ fn clean_old_items_internal(app: &tauri::AppHandle, days: u32) -> Result<u64, St
             rusqlite::params![cutoff],
         )
         .map_err(|e| format!("Clean error: {}", e))?;
-
-    if count > 0 {
-        let _ = conn.execute("VACUUM", []);
-    }
+    if count > 0 { let _ = conn.execute("VACUUM", []); }
     drop(conn);
 
     if !file_paths.is_empty() {
         if let Ok(app_data_dir) = app.path().app_data_dir() {
-            for rel_path in file_paths {
-                let full_path = app_data_dir.join(&rel_path);
-                let _ = std::fs::remove_file(full_path);
+            for rel_path in &file_paths {
+                let _ = std::fs::remove_file(app_data_dir.join(rel_path));
             }
         }
     }
-
     Ok(count as u64)
+}
+
+// --- Snippets ---
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct Snippet {
+    pub id: String,
+    pub title: String,
+    pub content: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[tauri::command]
+pub fn create_snippet(state: tauri::State<'_, DbState>, title: String, content: String) -> Result<Snippet, String> {
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+    let snippet = Snippet { id: id.clone(), title, content, created_at: now, updated_at: now };
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    conn.execute(
+        "INSERT INTO snippets (id, title, content, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![snippet.id, snippet.title, snippet.content, snippet.created_at, snippet.updated_at],
+    ).map_err(|e| format!("Insert snippet error: {}", e))?;
+    Ok(snippet)
+}
+
+#[tauri::command]
+pub fn update_snippet(state: tauri::State<'_, DbState>, id: String, title: String, content: String) -> Result<(), String> {
+    let now = chrono::Utc::now().timestamp_millis();
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    conn.execute(
+        "UPDATE snippets SET title = ?1, content = ?2, updated_at = ?3 WHERE id = ?4",
+        rusqlite::params![title, content, now, id],
+    ).map_err(|e| format!("Update snippet error: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_snippet(state: tauri::State<'_, DbState>, id: String) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    conn.execute("DELETE FROM snippets WHERE id = ?1", rusqlite::params![id])
+        .map_err(|e| format!("Delete snippet error: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_snippets(state: tauri::State<'_, DbState>) -> Result<Vec<Snippet>, String> {
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    let mut stmt = conn.prepare(
+        "SELECT id, title, content, created_at, updated_at FROM snippets ORDER BY updated_at DESC"
+    ).map_err(|e| format!("Prepare error: {}", e))?;
+    let rows = stmt.query_map([], |row| Ok(Snippet {
+        id: row.get(0)?,
+        title: row.get(1)?,
+        content: row.get(2)?,
+        created_at: row.get(3)?,
+        updated_at: row.get(4)?,
+    })).map_err(|e| format!("Query error: {}", e))?;
+    Ok(rows.filter_map(|r| r.ok()).collect())
 }
