@@ -1075,3 +1075,170 @@ pub fn generate_video_thumbnail(app: tauri::AppHandle, item_id: String) -> Resul
         }
     }
 }
+
+// --- Import ZIP ---
+
+#[tauri::command]
+pub fn import_items(app: tauri::AppHandle, state: tauri::State<'_, DbState>, path: String) -> Result<u32, String> {
+    let file = std::fs::File::open(&path).map_err(|e| format!("Open ZIP error: {}", e))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("ZIP read error: {}", e))?;
+    let app_data_dir = app.path().app_data_dir().map_err(|e| format!("{:?}", e))?;
+    let data_dir = app_data_dir.join("data");
+    let _ = std::fs::create_dir_all(&data_dir);
+
+    let mut imported = 0u32;
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+
+    for i in 0..archive.len() {
+        let mut entry = match archive.by_index(i) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let name = entry.name().to_string();
+        let now = chrono::Utc::now().timestamp_millis();
+        let id = uuid::Uuid::new_v4().to_string();
+
+        if name.starts_with("text/") {
+            let mut content = String::new();
+            if std::io::Read::read_to_string(&mut entry, &mut content).is_ok() && !content.is_empty() {
+                let hash = crate::clipboard::compute_hash(content.as_bytes());
+                // Skip if already exists (by hash)
+                let exists: bool = conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM clipboard_items WHERE hash = ?1)",
+                    rusqlite::params![hash],
+                    |row| row.get(0),
+                ).unwrap_or(false);
+                if !exists {
+                    let _ = conn.execute(
+                        "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, metadata, pinned) VALUES (?1, 'text', ?2, ?3, ?4, '{}', 0)",
+                        rusqlite::params![id, content, hash, now],
+                    );
+                    imported += 1;
+                }
+            }
+        } else if name.starts_with("images/") {
+            let mut buf = Vec::new();
+            if std::io::Read::read_to_end(&mut entry, &mut buf).is_ok() && !buf.is_empty() {
+                let hash = crate::clipboard::compute_hash(&buf);
+                let exists: bool = conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM clipboard_items WHERE hash = ?1)",
+                    rusqlite::params![hash],
+                    |row| row.get(0),
+                ).unwrap_or(false);
+                if !exists {
+                    let ext = name.rsplit('.').next().unwrap_or("png");
+                    let file_name = format!("{}.{}", id, ext);
+                    let file_full = data_dir.join(&file_name);
+                    if std::fs::write(&file_full, &buf).is_ok() {
+                        let relative = format!("data/{}", file_name);
+                        let _ = conn.execute(
+                            "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, metadata, pinned, file_path) VALUES (?1, 'image', '', ?2, ?3, '{}', 0, ?4)",
+                            rusqlite::params![id, hash, now, relative],
+                        );
+                        imported += 1;
+                    }
+                }
+            }
+        } else if name.starts_with("videos/") {
+            let mut buf = Vec::new();
+            if std::io::Read::read_to_end(&mut entry, &mut buf).is_ok() && !buf.is_empty() {
+                let hash = crate::clipboard::compute_hash(&buf);
+                let exists: bool = conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM clipboard_items WHERE hash = ?1)",
+                    rusqlite::params![hash],
+                    |row| row.get(0),
+                ).unwrap_or(false);
+                if !exists {
+                    let ext = name.rsplit('.').next().unwrap_or("mp4");
+                    let file_name = format!("{}.{}", id, ext);
+                    let file_full = data_dir.join(&file_name);
+                    if std::fs::write(&file_full, &buf).is_ok() {
+                        let relative = format!("data/{}", file_name);
+                        let _ = conn.execute(
+                            "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, metadata, pinned, file_path) VALUES (?1, 'video', '', ?2, ?3, '{}', 0, ?4)",
+                            rusqlite::params![id, hash, now, relative],
+                        );
+                        imported += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(imported)
+}
+
+// --- Smart Dedup ---
+
+use std::collections::HashSet;
+
+#[tauri::command]
+pub fn find_similar_items(state: tauri::State<'_, DbState>, id: String, limit: u32) -> Result<Vec<ClipboardItem>, String> {
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    let source_content: String = conn.query_row(
+        "SELECT content FROM clipboard_items WHERE id = ?1",
+        rusqlite::params![id],
+        |row| row.get(0),
+    ).map_err(|e| format!("Item not found: {}", e))?;
+
+    let source_tokens: HashSet<String> = source_content
+        .split_whitespace()
+        .map(|s| s.to_lowercase())
+        .collect();
+    if source_tokens.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let mut stmt = conn.prepare(
+        "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary, file_path
+         FROM clipboard_items WHERE id != ?1 AND content_type = 'text'
+         ORDER BY timestamp DESC LIMIT 100"
+    ).map_err(|e| format!("Prepare error: {}", e))?;
+
+    let rows: Vec<ClipboardItem> = stmt.query_map(rusqlite::params![id], row_to_item)
+        .map_err(|e| format!("Query error: {}", e))?
+        .filter_map(|r| r.ok())
+        .collect();
+    drop(stmt);
+    drop(conn);
+
+    let mut scored: Vec<(f64, ClipboardItem)> = rows.into_iter().filter_map(|item| {
+        let tokens: HashSet<String> = item.content
+            .split_whitespace()
+            .map(|s| s.to_lowercase())
+            .collect();
+        if tokens.is_empty() { return None; }
+        let intersection = source_tokens.intersection(&tokens).count() as f64;
+        let union = source_tokens.union(&tokens).count() as f64;
+        let jaccard = intersection / union;
+        if jaccard > 0.7 {
+            Some((jaccard, item))
+        } else {
+            None
+        }
+    }).collect();
+
+    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    Ok(scored.into_iter().take(limit as usize).map(|(_, item)| item).collect())
+}
+
+// --- Window State ---
+
+#[tauri::command]
+pub fn save_window_state(app: tauri::AppHandle, x: f64, y: f64, width: f64, height: f64, is_maximized: bool) -> Result<(), String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| format!("{:?}", e))?;
+    let state_file = app_data_dir.join("window_state.json");
+    let data = serde_json::json!({ "x": x, "y": y, "width": width, "height": height, "is_maximized": is_maximized });
+    std::fs::write(&state_file, data.to_string()).map_err(|e| format!("Write error: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_window_state(app: tauri::AppHandle) -> Result<Option<serde_json::Value>, String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| format!("{:?}", e))?;
+    let state_file = app_data_dir.join("window_state.json");
+    if !state_file.exists() { return Ok(None); }
+    let content = std::fs::read_to_string(&state_file).map_err(|e| format!("Read error: {}", e))?;
+    let val: serde_json::Value = serde_json::from_str(&content).map_err(|e| format!("Parse error: {}", e))?;
+    Ok(Some(val))
+}

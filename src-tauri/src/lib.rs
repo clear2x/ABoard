@@ -480,6 +480,10 @@ pub fn run() {
             db::delete_snippet,
             db::list_snippets,
             db::generate_video_thumbnail,
+            db::import_items,
+            db::find_similar_items,
+            db::save_window_state,
+            db::load_window_state,
             reveal_in_folder,
         ])
         .build(tauri::generate_context!())
