@@ -48,10 +48,29 @@ export default function App() {
       // Start other services in parallel, non-blocking
       listen("open-settings", () => setSettingsOpen(true)).catch(console.error);
       appWindow!.onCloseRequested(async (event) => {
+        // Save window state before hiding
+        try {
+          const pos = await appWindow!.outerPosition();
+          const size = await appWindow!.innerSize();
+          const maximized = await appWindow!.isMaximized();
+          await invoke("save_window_state", {
+            x: pos.x, y: pos.y,
+            width: size.width, height: size.height,
+            isMaximized: maximized,
+          });
+        } catch {}
         event.preventDefault();
         await appWindow!.hide();
       }).catch(console.error);
       startClipboardListener().catch(console.error);
+
+      // Restore window position
+      try {
+        const state = await invoke<{ x: number; y: number; width: number; height: number; is_maximized: boolean } | null>("load_window_state");
+        if (state && !state.is_maximized) {
+          await appWindow!.setPosition(new (await import("@tauri-apps/api/dpi")).LogicalPosition(state.x, state.y));
+        }
+      } catch {}
     }
 
     if (!aiBannerDismissed()) {
