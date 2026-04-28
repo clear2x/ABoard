@@ -1,5 +1,6 @@
 import { Show, For, createSignal, onMount } from "solid-js";
 import type { JSX } from "solid-js";
+import { invoke } from "@tauri-apps/api/core";
 import type { ClipboardItem } from "../stores/clipboard";
 import { copyItemContent, copiedId, getItemContent } from "../stores/clipboard";
 import { t } from "../stores/i18n";
@@ -76,23 +77,48 @@ interface Props {
 export default function ClipboardItemCard(props: Props) {
   const [hovered, setHovered] = createSignal(false);
   const [resolvedSrc, setResolvedSrc] = createSignal<string | null>(null);
+  const [videoThumb, setVideoThumb] = createSignal<string | null>(null);
+  const [showVideoPlayer, setShowVideoPlayer] = createSignal(false);
   const tags = () => (props.item.ai_tags || []).filter((t) => t.length >= 2 && !/^[\s\p{P}\p{S}]+$/u.test(t));
   const justCopied = () => copiedId() === props.item.id;
   const dtype = () => displayType(props.item);
   const avatar = () => typeAvatar(dtype());
   const query = () => props.searchQuery ?? "";
+  const isDuplicate = () => (props.item.ai_tags || []).includes("duplicate");
 
-  // Resolve image content: if file_path exists, load from backend
+  // Resolve image content: check thumbnail first, then fallback to full content
   const imageSrc = () => {
     const c = props.item.content;
-    if (c.startsWith("data:")) return c;
     if (resolvedSrc()) return resolvedSrc()!;
+    if (c.startsWith("data:")) return c;
     return c;
   };
 
   onMount(() => {
-    if (props.item.type === "image" && props.item.file_path && !props.item.content.startsWith("data:")) {
-      getItemContent(props.item).then((dataUrl) => setResolvedSrc(dataUrl));
+    // Image: try thumbnail, then fallback to full content
+    if (props.item.type === "image" && props.item.file_path) {
+      const thumbPath = `thumbs/${props.item.id}.webp`;
+      invoke<string>("read_data_file", { relativePath: thumbPath })
+        .then((dataUrl) => {
+          if (dataUrl) setResolvedSrc(dataUrl);
+        })
+        .catch(() => {
+          // No thumbnail — load full content as before
+          if (!props.item.content.startsWith("data:")) {
+            getItemContent(props.item).then((dataUrl) => setResolvedSrc(dataUrl));
+          }
+        });
+    }
+
+    // Video: generate and load thumbnail
+    if (props.item.type === "video" && props.item.file_path) {
+      invoke<string>("generate_video_thumbnail", { itemId: props.item.id })
+        .then((relPath) => {
+          if (relPath) {
+            setVideoThumb(`aboard-file://${relPath}`);
+          }
+        })
+        .catch(() => {});
     }
   });
 
@@ -168,15 +194,33 @@ export default function ClipboardItemCard(props: Props) {
 
             {/* Video preview */}
             <Show when={props.item.type === "video"}>
-              <div class="mt-1 flex items-center gap-2 bg-white/30 dark:bg-slate-700/30 rounded-lg p-3 border border-white/50 dark:border-white/10">
-                <i class="ph ph-video-camera text-2xl text-rose-400" />
-                <div class="flex-1 min-w-0">
-                  <p class="text-xs text-gray-600 dark:text-gray-300 truncate">
-                    {props.item.file_path ? props.item.file_path.split("/").pop() : "Video recording"}
-                  </p>
-                  <p class="text-[10px] text-gray-400">MP4</p>
+              <Show when={videoThumb()} fallback={
+                <div class="mt-1 flex items-center gap-2 bg-white/30 dark:bg-slate-700/30 rounded-lg p-3 border border-white/50 dark:border-white/10">
+                  <i class="ph ph-video-camera text-2xl text-rose-400" />
+                  <div class="flex-1 min-w-0">
+                    <p class="text-xs text-gray-600 dark:text-gray-300 truncate">
+                      {props.item.file_path ? props.item.file_path.split("/").pop() : "Video recording"}
+                    </p>
+                    <p class="text-[10px] text-gray-400">MP4</p>
+                  </div>
                 </div>
-              </div>
+              }>
+                <div class="mt-1 relative group cursor-pointer rounded-lg overflow-hidden border border-white/50 dark:border-white/10"
+                  onClick={(e) => { e.stopPropagation(); setShowVideoPlayer(true); }}
+                >
+                  <img
+                    src={videoThumb()!}
+                    alt="Video thumbnail"
+                    class="w-full max-h-[160px] object-cover"
+                    loading="lazy"
+                  />
+                  <div class="absolute inset-0 flex items-center justify-center bg-black/20 opacity-80 group-hover:opacity-100 transition-opacity">
+                    <div class="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center shadow-lg">
+                      <i class="ph ph-play text-xl text-gray-700 ml-0.5" />
+                    </div>
+                  </div>
+                </div>
+              </Show>
             </Show>
 
             {/* Link content — with preview card matching ui.html */}
@@ -257,12 +301,41 @@ export default function ClipboardItemCard(props: Props) {
           </div>
         </div>
 
+        {/* Dedup badge */}
+        <Show when={isDuplicate()}>
+          <span class="absolute top-2 right-2 text-[10px] bg-orange-100 text-orange-600 px-1 rounded">
+            {t("ctx.duplicate")}
+          </span>
+        </Show>
+
         {/* Copied feedback */}
         <Show when={justCopied()}>
           <div class="absolute inset-0 flex items-center justify-center rounded-xl pointer-events-none bg-blue-500/15 backdrop-blur-[2px]">
             <span class="text-xs font-medium px-2 py-1 rounded-full bg-blue-500 text-white">
               {t("ctx.copied")}
             </span>
+          </div>
+        </Show>
+
+        {/* Video player overlay */}
+        <Show when={showVideoPlayer()}>
+          <div class="absolute inset-0 z-50 flex items-center justify-center rounded-xl bg-black/80 backdrop-blur-sm"
+            onClick={(e) => { e.stopPropagation(); setShowVideoPlayer(false); }}
+          >
+            <div class="w-full max-w-[320px]" onClick={(e) => e.stopPropagation()}>
+              <video
+                src={props.item.file_path ? `aboard-file://${props.item.file_path}` : ""}
+                controls
+                autoplay
+                class="w-full rounded-lg"
+                style={{ "max-height": "240px" }}
+              />
+              <button class="mt-2 text-xs text-white/70 hover:text-white transition-colors"
+                onClick={(e) => { e.stopPropagation(); setShowVideoPlayer(false); }}
+              >
+                {t("window.close")}
+              </button>
+            </div>
           </div>
         </Show>
       </div>
@@ -323,11 +396,40 @@ export default function ClipboardItemCard(props: Props) {
         </p>
       </Show>
 
+      {/* Dedup badge */}
+      <Show when={isDuplicate()}>
+        <span class="absolute top-2 right-2 text-[10px] bg-orange-100 text-orange-600 px-1 rounded">
+          {t("ctx.duplicate")}
+        </span>
+      </Show>
+
       <Show when={justCopied()}>
         <div class="absolute inset-0 flex items-center justify-center rounded-xl pointer-events-none bg-blue-500/15 backdrop-blur-[2px]">
           <span class="text-xs font-medium px-2 py-1 rounded-full bg-blue-500 text-white">
             {t("ctx.copied")}
           </span>
+        </div>
+      </Show>
+
+      {/* Video player overlay */}
+      <Show when={showVideoPlayer()}>
+        <div class="absolute inset-0 z-50 flex items-center justify-center rounded-xl bg-black/80 backdrop-blur-sm"
+          onClick={(e) => { e.stopPropagation(); setShowVideoPlayer(false); }}
+        >
+          <div class="w-full max-w-[280px]" onClick={(e) => e.stopPropagation()}>
+            <video
+              src={props.item.file_path ? `aboard-file://${props.item.file_path}` : ""}
+              controls
+              autoplay
+              class="w-full rounded-lg"
+              style={{ "max-height": "200px" }}
+            />
+            <button class="mt-2 text-xs text-white/70 hover:text-white transition-colors"
+              onClick={(e) => { e.stopPropagation(); setShowVideoPlayer(false); }}
+            >
+              {t("window.close")}
+            </button>
+          </div>
         </div>
       </Show>
     </div>
