@@ -64,11 +64,12 @@ export default function App() {
       }).catch(console.error);
       startClipboardListener().catch(console.error);
 
-      // Restore window position
+      // Restore window position (values saved as physical pixels)
       try {
         const state = await invoke<{ x: number; y: number; width: number; height: number; is_maximized: boolean } | null>("load_window_state");
         if (state && !state.is_maximized) {
-          await appWindow!.setPosition(new (await import("@tauri-apps/api/dpi")).LogicalPosition(state.x, state.y));
+          const { PhysicalPosition } = await import("@tauri-apps/api/dpi");
+          await appWindow!.setPosition(new PhysicalPosition(state.x, state.y));
         }
       } catch {}
     }
