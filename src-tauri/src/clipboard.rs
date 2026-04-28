@@ -641,6 +641,19 @@ fn persist_and_emit<R: Runtime>(app: &tauri::AppHandle<R>, mut item: ClipboardIt
                     if std::fs::write(&file_path, &bytes).is_ok() {
                         let relative = format!("data/{}", file_name);
                         item.file_path = Some(relative);
+
+                        // Generate thumbnail (200px wide, webp)
+                        let thumbs_dir = app_data_dir.join("thumbs");
+                        let _ = std::fs::create_dir_all(&thumbs_dir);
+                        if let Ok(img) = image::load_from_memory(&bytes) {
+                            let thumb = img.thumbnail(200, u32::MAX);
+                            let thumb_path = thumbs_dir.join(format!("{}.webp", item.id));
+                            let mut thumb_buf = std::io::Cursor::new(Vec::new());
+                            if thumb.write_to(&mut thumb_buf, image::ImageFormat::WebP).is_ok() {
+                                let _ = std::fs::write(&thumb_path, thumb_buf.into_inner());
+                            }
+                        }
+
                         // Keep the base64 content for the event payload (frontend uses it for immediate display)
                         // but clear it for DB storage to save space
                         let event_content = item.content.clone();
