@@ -917,9 +917,9 @@ pub fn set_setting(state: tauri::State<'_, DbState>, key: String, value: String)
 /// Start a background task that runs auto-cleanup every 6 hours.
 pub fn start_auto_cleanup(app: tauri::AppHandle) {
     let app_clone = app.clone();
-    tokio::spawn(async move {
+    std::thread::spawn(move || {
         // Initial delay: 5 minutes after startup
-        tokio::time::sleep(std::time::Duration::from_secs(300)).await;
+        std::thread::sleep(std::time::Duration::from_secs(300));
         loop {
             // Read cleanup_days from DB
             let db_state = app_clone.state::<DbState>();
@@ -946,7 +946,7 @@ pub fn start_auto_cleanup(app: tauri::AppHandle) {
             }
 
             // Run every 6 hours
-            tokio::time::sleep(std::time::Duration::from_secs(6 * 3600)).await;
+            std::thread::sleep(std::time::Duration::from_secs(6 * 3600));
         }
     });
 }
