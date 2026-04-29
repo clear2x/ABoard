@@ -188,7 +188,7 @@ export default function ClipboardItemCard(props: Props) {
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onClick={() => props.onSelect(props.item.id)}
-        onDoubleClick={handleDoubleClick}
+        onDblClick={handleDoubleClick}
         onContextMenu={(e) => {
           e.preventDefault();
           props.onContextMenu(e, props.item.id, props.item.pinned);
@@ -293,19 +293,6 @@ export default function ClipboardItemCard(props: Props) {
                       ));
                     })()}
                   </div>
-                </Show>
-
-                {/* Character and word count (US-009) */}
-                <Show when={props.item.type !== "image" && props.item.type !== "video" && dtype() !== "link"}>
-                  {(() => {
-                    const chars = props.item.content.length;
-                    const words = props.item.content.split(/\s+/).filter(Boolean).length;
-                    return (
-                      <span class="text-xs text-gray-400 mt-1 block">
-                        {chars} {t("clipboard.chars")} &middot; {words} {t("clipboard.words")}
-                      </span>
-                    );
-                  })()}
                 </Show>
 
                 {/* Tags — matching ui.html */}
@@ -418,7 +405,7 @@ export default function ClipboardItemCard(props: Props) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => props.onSelect(props.item.id)}
-      onDoubleClick={handleDoubleClick}
+      onDblClick={handleDoubleClick}
       onContextMenu={(e) => {
         e.preventDefault();
         props.onContextMenu(e, props.item.id, props.item.pinned);
