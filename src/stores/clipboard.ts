@@ -272,12 +272,18 @@ export function addItem(item: ClipboardItem) {
 }
 
 /// Reorder items by moving an item from fromIndex to toIndex.
+/// Persists the new sort order to the backend.
 export function reorderItems(fromIndex: number, toIndex: number) {
   setItems((prev) => {
     if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return prev;
     const next = [...prev];
     const [moved] = next.splice(fromIndex, 1);
     next.splice(toIndex, 0, moved);
+    // Persist sort_order to backend
+    const orders: [string, string][] = next.map((item, i) => [item.id, String(i)]);
+    invoke("update_sort_order", { orders }).catch((e) => {
+      console.error("[store] Failed to persist sort order:", e);
+    });
     return next;
   });
 }

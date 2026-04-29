@@ -313,6 +313,11 @@ const t_map: Translations = {
   "settings.pressNewShortcut": { zh: "按下新快捷键...", en: "Press new shortcut..." },
   "settings.imported": { zh: "已导入 {n} 条", en: "Imported {n} items" },
   "settings.importError": { zh: "导入失败", en: "Import failed" },
+  "settings.connectionOk": { zh: "连接成功", en: "Connected" },
+  "settings.connectionFailed": { zh: "连接失败", en: "Connection Failed" },
+  "settings.testConnection": { zh: "测试连接", en: "Test Connection" },
+  "settings.advancedParams": { zh: "高级参数", en: "Advanced Parameters" },
+  "settings.apiKeyRequired": { zh: "云端模式需要填写 API 密钥", en: "API key is required for cloud mode" },
 };
 
 // --- Translation function ---

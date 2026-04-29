@@ -2,7 +2,7 @@
 
 mod ai;
 mod clipboard;
-mod db;
+pub mod db;
 mod tray;
 
 use std::sync::Mutex;
@@ -409,6 +409,8 @@ pub fn run() {
             ai::ai_infer_auto,
             ai::ai_embedded_load,
             ai::ai_embedded_download,
+            ai::ai_list_cloud_models,
+            ai::ai_infer_stream,
             db::update_ai_metadata,
             db::update_item_content,
             db::update_sort_order,

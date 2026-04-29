@@ -89,38 +89,29 @@ pub fn init_ai(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
     let app_data_dir = app.path().app_data_dir()?;
     let models_dir = app_data_dir.join("models");
 
-    // Try embedded model first as default
-    let embedded_path = embedded::EmbeddedProvider::default_model_exists(&models_dir);
-
-    let provider: Box<dyn InferenceProvider> = if embedded_path.is_some() {
-        // Use embedded candle model if GGUF file exists
-        Box::new(embedded::EmbeddedProvider::new(embedded_path.unwrap()))
-    } else {
-        match config.active_provider {
-            ProviderType::Local => {
-                let local = if let Some(ref model_path) = config.model_path {
-                    local::LocalProvider::new(model_path.clone())
-                } else {
-                    local::LocalProvider::new(String::new())
-                };
-                Box::new(local)
-            }
-            ProviderType::OpenAi => {
-                let p = cloud::OpenAiProvider::new(
-                    config.openai_api_key.clone(),
-                    config.openai_endpoint.clone(),
-                    config.openai_model.clone(),
-                );
-                Box::new(p)
-            }
-            ProviderType::Anthropic => {
-                let p = cloud::AnthropicProvider::new(
-                    config.anthropic_api_key.clone(),
-                    config.anthropic_model.clone(),
-                );
-                Box::new(p)
-            }
-            ProviderType::Auto => {
+    // Determine initial provider based on config, NOT embedded model presence
+    let provider: Box<dyn InferenceProvider> = match config.active_provider {
+        ProviderType::OpenAi => {
+            let p = cloud::OpenAiProvider::new(
+                config.openai_api_key.clone(),
+                config.openai_endpoint.clone(),
+                config.openai_model.clone(),
+            );
+            Box::new(p)
+        }
+        ProviderType::Anthropic => {
+            let p = cloud::AnthropicProvider::new(
+                config.anthropic_api_key.clone(),
+                config.anthropic_model.clone(),
+            );
+            Box::new(p)
+        }
+        ProviderType::Local | ProviderType::Auto => {
+            // For Local/Auto: try embedded model first, then fall back
+            let embedded_path = embedded::EmbeddedProvider::default_model_exists(&models_dir);
+            if let Some(path) = embedded_path {
+                Box::new(embedded::EmbeddedProvider::new(path))
+            } else {
                 let local = if let Some(ref model_path) = config.model_path {
                     local::LocalProvider::new(model_path.clone())
                 } else {
@@ -684,4 +675,59 @@ pub async fn ai_embedded_download(
     let model_path = embedded::EmbeddedProvider::download_default_model(&models_dir).await?;
 
     Ok(format!("Model downloaded to: {}", model_path.display()))
+}
+
+/// List available models from the configured OpenAI-compatible endpoint.
+#[tauri::command]
+pub async fn ai_list_cloud_models(
+    state: tauri::State<'_, AiState>,
+) -> Result<Vec<String>, String> {
+    let config = state.config.lock().await;
+    let api_key = config
+        .openai_api_key
+        .clone()
+        .ok_or("OpenAI API key not configured")?;
+    let endpoint = config.openai_endpoint.clone();
+    drop(config);
+
+    cloud::list_openai_models(&api_key, &endpoint).await
+}
+
+/// Perform streaming AI inference, emitting incremental chunks via events.
+#[tauri::command]
+pub async fn ai_infer_stream(
+    state: tauri::State<'_, AiState>,
+    request: InferenceRequest,
+) -> Result<InferenceResponse, String> {
+    if request.prompt.len() > MAX_PROMPT_LEN {
+        return Err(format!("Prompt too long (max {} bytes)", MAX_PROMPT_LEN));
+    }
+
+    let config = state.config.lock().await.clone();
+    let api_key = config
+        .openai_api_key
+        .clone()
+        .ok_or("OpenAI API key not configured for streaming")?;
+    let endpoint = config.openai_endpoint.clone();
+    let model = config.openai_model.clone();
+    let app_handle = state.app_handle.clone();
+
+    let client = reqwest::Client::new();
+    cloud::infer_openai_stream(
+        &client,
+        &api_key,
+        &endpoint,
+        &model,
+        request,
+        move |chunk: &str, done: bool| {
+            let _ = app_handle.emit(
+                "ai-stream-chunk",
+                serde_json::json!({
+                    "text": chunk,
+                    "done": done,
+                }),
+            );
+        },
+    )
+    .await
 }

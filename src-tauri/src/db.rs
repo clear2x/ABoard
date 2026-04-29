@@ -630,13 +630,10 @@ pub fn update_ai_metadata(
     Ok(())
 }
 
-/// Read a file from the data directory and return it as a base64 data URL.
-/// Used by the frontend to display images stored as files.
-#[tauri::command]
-pub fn read_data_file(app: tauri::AppHandle, relative_path: String) -> Result<String, String> {
-    let app_data_dir = app.path().app_data_dir()
-        .map_err(|e| format!("App data dir error: {}", e))?;
-    let full_path = app_data_dir.join(&relative_path);
+/// Validate that a relative path does not escape the allowed data directories.
+/// Returns Ok(()) if the path is safe, Err with a description otherwise.
+pub fn validate_data_path(app_data_dir: &std::path::Path, relative_path: &str) -> Result<(), String> {
+    let full_path = app_data_dir.join(relative_path);
 
     // Security: ensure the path doesn't escape the data or thumbs directories
     let canonical_data = app_data_dir.join("data").canonicalize()
@@ -649,6 +646,19 @@ pub fn read_data_file(app: tauri::AppHandle, relative_path: String) -> Result<St
         }
     }
 
+    Ok(())
+}
+
+/// Read a file from the data directory and return it as a base64 data URL.
+/// Used by the frontend to display images stored as files.
+#[tauri::command]
+pub fn read_data_file(app: tauri::AppHandle, relative_path: String) -> Result<String, String> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| format!("App data dir error: {}", e))?;
+
+    validate_data_path(&app_data_dir, &relative_path)?;
+
+    let full_path = app_data_dir.join(&relative_path);
     let bytes = std::fs::read(&full_path)
         .map_err(|e| format!("Read error: {}", e))?;
 

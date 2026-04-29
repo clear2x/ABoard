@@ -1,5 +1,6 @@
 import { createSignal } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 /// AI action result data passed to the result popup.
 export interface AiActionResult {
@@ -206,6 +207,75 @@ export async function rewriteContent(
       actionType: "error",
       itemId,
     });
+  } finally {
+    setProcessing(null);
+  }
+}
+
+/**
+ * Call AI inference with streaming support.
+ * Shows incremental results in the popup as chunks arrive.
+ * Falls back to non-streaming if streaming fails.
+ */
+export async function translateContentStreamed(
+  content: string,
+  itemId: string
+): Promise<void> {
+  setProcessing("translate");
+  try {
+    const isChinese = containsChinese(content);
+    const systemPrompt = isChinese
+      ? "你是一个翻译助手。将以下中文翻译为自然流畅的英文。只返回翻译结果。"
+      : "你是一个翻译助手。将以下内容翻译为自然流畅的中文。只返回翻译结果。";
+
+    // Set up initial popup for streaming
+    setResultPopup({
+      originalContent: content,
+      resultText: "",
+      actionType: "translate",
+      itemId,
+    });
+
+    let accumulated = "";
+    const unlisten = await listen<{ text: string; done: boolean }>("ai-stream-chunk", (event) => {
+      accumulated += event.payload.text;
+      setResultPopup((prev) =>
+        prev ? { ...prev, resultText: accumulated } : prev
+      );
+    });
+
+    try {
+      const response = await invoke<{ text: string; tokens_used: number; duration_ms: number; provider: string }>(
+        "ai_infer_stream",
+        {
+          request: {
+            prompt: content,
+            system_prompt: systemPrompt,
+            max_tokens: Math.max(content.length * 2, 500),
+            temperature: 0.3,
+          },
+        }
+      );
+
+      setResultPopup((prev) =>
+        prev
+          ? {
+              ...prev,
+              resultText: response.text || accumulated,
+              durationMs: response.duration_ms,
+              tokensUsed: response.tokens_used,
+            }
+          : prev
+      );
+    } finally {
+      unlisten();
+    }
+  } catch (e) {
+    console.error("[ai-actions] Stream failed, falling back:", e);
+    // Fallback to non-streaming
+    setProcessing(null);
+    await translateContent(content, itemId);
+    return;
   } finally {
     setProcessing(null);
   }
