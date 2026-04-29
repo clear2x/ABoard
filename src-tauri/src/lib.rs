@@ -411,6 +411,7 @@ pub fn run() {
             ai::ai_embedded_download,
             db::update_ai_metadata,
             db::update_item_content,
+            db::update_sort_order,
             db::insert_clipboard_item,
             db::semantic_search,
             db::export_items,

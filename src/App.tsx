@@ -1,4 +1,4 @@
-import { onMount, createSignal, Show } from "solid-js";
+import { onMount, onCleanup, createSignal, Show } from "solid-js";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -39,7 +39,8 @@ export default function App() {
 
   onMount(async () => {
     initLocale();
-    initTheme();
+    const cleanupTheme = initTheme();
+    onCleanup(cleanupTheme);
 
     if (isTauri) {
       // Load history FIRST — don't block on other setup

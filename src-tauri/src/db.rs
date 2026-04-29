@@ -138,6 +138,11 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
 
     // Migrate: add last_used column to snippets (compatible with existing databases)
     let _ = conn.execute("ALTER TABLE snippets ADD COLUMN last_used INTEGER NOT NULL DEFAULT 0", []);
+    // Migrate: add sort_order column for manual reordering
+    let _ = conn.execute(
+        "ALTER TABLE clipboard_items ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0",
+        [],
+    );
 
     // Migrate FTS5: rebuild with ai_tags and ai_summary columns if needed
     let fts_needs_rebuild = {
@@ -262,7 +267,7 @@ pub async fn get_history(
         .prepare(
             "SELECT id, content_type, content, hash, timestamp, metadata, pinned, pinned_at, ai_type, ai_tags, ai_summary, file_path
              FROM clipboard_items
-             ORDER BY pinned DESC, pinned_at DESC, timestamp DESC
+             ORDER BY sort_order ASC, pinned DESC, pinned_at DESC, timestamp DESC
              LIMIT ?1 OFFSET ?2",
         )
         .map_err(|e| {
@@ -534,12 +539,30 @@ pub fn update_item_content(
         return Err(format!("Invalid ID format: {}", id));
     }
     let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    let hash = crate::clipboard::compute_hash(content.as_bytes());
     // Also update FTS index: delete old entry and insert new one
     conn.execute(
-        "UPDATE clipboard_items SET content = ?1 WHERE id = ?2",
-        rusqlite::params![content, id],
+        "UPDATE clipboard_items SET content = ?1, hash = ?2 WHERE id = ?3",
+        rusqlite::params![content, hash, id],
     )
     .map_err(|e| format!("Update content error: {}", e))?;
+    Ok(())
+}
+
+/// Update the sort_order of clipboard items in bulk.
+/// Accepts an array of [id, sort_order] pairs.
+#[tauri::command]
+pub fn update_sort_order(state: tauri::State<'_, DbState>, orders: Vec<[String; 2]>) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    for pair in &orders {
+        let id = &pair[0];
+        let sort_str = &pair[1];
+        let order: i32 = sort_str.parse().map_err(|e| format!("Invalid sort order: {}", e))?;
+        // Validate ID looks like UUID
+        if !id.contains('-') { continue; }
+        conn.execute("UPDATE clipboard_items SET sort_order = ?1 WHERE id = ?2", rusqlite::params![order, id])
+            .map_err(|e| format!("Update error: {}", e))?;
+    }
     Ok(())
 }
 
@@ -615,11 +638,13 @@ pub fn read_data_file(app: tauri::AppHandle, relative_path: String) -> Result<St
         .map_err(|e| format!("App data dir error: {}", e))?;
     let full_path = app_data_dir.join(&relative_path);
 
-    // Security: ensure the path doesn't escape the data directory
+    // Security: ensure the path doesn't escape the data or thumbs directories
     let canonical_data = app_data_dir.join("data").canonicalize()
         .unwrap_or_else(|_| app_data_dir.join("data"));
+    let canonical_thumbs = app_data_dir.join("thumbs").canonicalize()
+        .unwrap_or_else(|_| app_data_dir.join("thumbs"));
     if let Ok(canonical_file) = full_path.canonicalize() {
-        if !canonical_file.starts_with(&canonical_data) && !canonical_file.starts_with(&app_data_dir) {
+        if !canonical_file.starts_with(&canonical_data) && !canonical_file.starts_with(&canonical_thumbs) {
             return Err("Path traversal not allowed".to_string());
         }
     }
@@ -1001,7 +1026,7 @@ fn clean_old_items_internal(app: &tauri::AppHandle, days: u32) -> Result<u64, St
             rusqlite::params![cutoff],
         )
         .map_err(|e| format!("Clean error: {}", e))?;
-    if count > 0 { let _ = conn.execute("VACUUM", []); }
+    if count > 0 { let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)"); }
     drop(conn);
 
     if !file_paths.is_empty() {

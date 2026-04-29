@@ -1,5 +1,6 @@
 import { Show, onMount, onCleanup } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { emit } from "@tauri-apps/api/event";
 import {
   resultPopup,
   setResultPopup,
@@ -76,6 +77,8 @@ export default function AiResultPopup() {
         metadata,
       });
 
+      emit("clipboard-update");
+
       addItem({
         id,
         type: "text",
@@ -110,7 +113,10 @@ export default function AiResultPopup() {
     <Show when={result()}>
       <div class="fixed inset-0 z-50 flex items-center justify-center">
         {/* Backdrop */}
-        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={close} />
+        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={(e) => {
+          if (window.getSelection()?.toString().length) return;
+          close();
+        }} />
 
         {/* Popup body */}
         <div class="relative z-10 w-[500px] max-h-[80vh] flex flex-col glass-panel rounded-2xl animate-scale-in overflow-hidden">

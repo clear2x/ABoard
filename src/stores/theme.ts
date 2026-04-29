@@ -26,7 +26,7 @@ export function setTheme(mode: ThemeMode) {
   applyTheme(mode);
 }
 
-export function initTheme() {
+export function initTheme(): () => void {
   const saved = localStorage.getItem(STORAGE_KEY) as ThemeMode | null;
   const mode = saved || "system";
   setThemeInternal(mode);
@@ -40,4 +40,8 @@ export function initTheme() {
     }
   };
   mediaQuery.addEventListener("change", handler);
+
+  return () => {
+    mediaQuery.removeEventListener("change", handler);
+  };
 }

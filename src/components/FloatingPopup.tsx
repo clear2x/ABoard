@@ -64,7 +64,8 @@ export default function FloatingPopup() {
 
   onMount(async () => {
     initLocale();
-    initTheme();
+    const cleanupTheme = initTheme();
+    onCleanup(cleanupTheme);
     await loadHistory(0, 20);
     setPopupItems(items().slice(0, 20));
 
@@ -107,6 +108,21 @@ export default function FloatingPopup() {
       } else if (e.key === "Escape") {
         e.preventDefault();
         getCurrentWindow().hide();
+      } else if (e.key === " " && list[current]) {
+        e.preventDefault();
+        const item = list[current];
+        if (item.pinned) {
+          unpinItem(item.id);
+          setPopupItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, pinned: false } : i)));
+        } else {
+          pinItem(item.id);
+          setPopupItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, pinned: true } : i)));
+        }
+      } else if (e.key === "Backspace" && list[current]) {
+        e.preventDefault();
+        const item = list[current];
+        deleteItems([item.id]);
+        setPopupItems((prev) => prev.filter((i) => i.id !== item.id));
       }
     };
     document.addEventListener("keydown", handler);
@@ -141,11 +157,19 @@ export default function FloatingPopup() {
   async function selectAndPaste(item: ClipboardItem) {
     if (!item) return;
     try {
-      await invoke("paste_to_active", { content: item.content });
+      if (item.type === "image") {
+        await invoke("copy_image_to_clipboard", { itemId: item.id });
+        await getCurrentWindow().hide();
+      } else if (item.type === "video") {
+        await getCurrentWindow().hide();
+      } else {
+        await invoke("paste_to_active", { content: item.content });
+        await getCurrentWindow().hide();
+      }
     } catch (e) {
       console.error("[FloatingPopup] Paste failed:", e);
+      await getCurrentWindow().hide();
     }
-    await getCurrentWindow().hide();
   }
 
   async function handleCopy(e: MouseEvent, item: ClipboardItem) {
@@ -307,9 +331,18 @@ export default function FloatingPopup() {
                             <i class={`ph ${icon().icon}`} />
                           </Show>
                         </div>
-                        <div class="text-xs text-gray-600 leading-tight truncate flex-1 min-w-0">
-                          {itemLabel(item)}
-                        </div>
+                        <Show
+                          when={dtype() === "code"}
+                          fallback={
+                            <div class="text-xs text-gray-600 leading-tight truncate flex-1 min-w-0">
+                              {itemLabel(item)}
+                            </div>
+                          }
+                        >
+                          <div class="text-xs font-mono text-gray-600 leading-tight flex-1 min-w-0 whitespace-pre-wrap truncate">
+                            {item.content.slice(0, 100)}
+                          </div>
+                        </Show>
                         <Show when={hoveredId() === item.id}>
                           <ItemActions item={item} />
                         </Show>
@@ -366,7 +399,7 @@ export default function FloatingPopup() {
                             </div>
                           }
                         >
-                          <div class="text-xs font-mono text-gray-600 leading-tight flex-1 min-w-0 truncate">
+                          <div class="text-xs font-mono text-gray-600 leading-tight flex-1 min-w-0 whitespace-pre-wrap truncate">
                             {item.content.slice(0, 100)}
                           </div>
                         </Show>
@@ -392,6 +425,8 @@ export default function FloatingPopup() {
           <i class="ph ph-arrows-out-simple" /> {t("float.openMainWindow")}
         </span>
         <div class="flex items-center gap-2">
+          <span class="text-[10px] text-gray-400">{t("float.shortcutPin")}</span>
+          <span class="text-[10px] text-gray-400">{t("float.shortcutDelete")}</span>
           <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 text-[10px]">
             Shift+Enter: {t("float.plainText")}
           </span>

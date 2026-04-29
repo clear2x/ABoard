@@ -236,6 +236,13 @@ const t_map: Translations = {
   "settings.showHideWindow": { zh: "显示 / 隐藏主窗口", en: "Show / Hide Main Window" },
   "settings.quickPastePanel": { zh: "快速粘贴面板", en: "Quick Paste Panel" },
 
+  // ConfirmDialog
+  "dialog.cancel": { zh: "取消", en: "Cancel" },
+  "dialog.delete": { zh: "删除", en: "Delete" },
+  "dialog.deleteConfirm": { zh: "确认删除？", en: "Delete?" },
+  "dialog.yes": { zh: "是", en: "Yes" },
+  "dialog.no": { zh: "否", en: "No" },
+
   // Floating Popup redesign
   "float.search": { zh: "搜索剪贴板...", en: "Search clipboard..." },
   "float.pinned": { zh: "已固定", en: "Pinned" },
@@ -243,6 +250,8 @@ const t_map: Translations = {
   "float.clear": { zh: "清空", en: "Clear" },
   "float.openMainWindow": { zh: "打开主窗口", en: "Open Main Window" },
   "float.plainText": { zh: "纯文本", en: "Plain text" },
+  "float.shortcutPin": { zh: "空格: 置顶", en: "Space: Pin" },
+  "float.shortcutDelete": { zh: "退格: 删除", en: "Backspace: Delete" },
 
   // Missing translations - Sidebar
   "sidebar.clipboardData": { zh: "剪贴板数据", en: "Clipboard Data" },

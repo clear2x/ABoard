@@ -1,4 +1,5 @@
 import { Show, createEffect, on } from "solid-js";
+import { t } from "../stores/i18n";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -46,14 +47,14 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
               class="px-4 py-2 text-sm rounded-[var(--radius-md)] transition-smooth border bg-white/50 text-gray-600 border-white/80"
               onClick={props.onCancel}
             >
-              {props.cancelLabel ?? "Cancel"}
+              {props.cancelLabel ?? t("dialog.cancel")}
             </button>
             <button
               class="px-4 py-2 text-sm rounded-[var(--radius-md)] transition-smooth text-white hover:opacity-80"
               style={{ background: "var(--color-destructive)" }}
               onClick={props.onConfirm}
             >
-              {props.confirmLabel ?? "Delete"}
+              {props.confirmLabel ?? t("dialog.delete")}
             </button>
           </div>
         </div>
