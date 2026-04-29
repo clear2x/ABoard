@@ -5,7 +5,7 @@ import type { ClipboardItem } from "../stores/clipboard";
 import { copyItemContent, copiedId, getItemContent } from "../stores/clipboard";
 import { t } from "../stores/i18n";
 
-function truncateText(text: string, maxLen: number = 120): string {
+export function truncateText(text: string, maxLen: number = 120): string {
   if (text.length <= maxLen) return text;
   return text.slice(0, maxLen) + "...";
 }
@@ -37,12 +37,12 @@ function highlightText(text: string, query: string): JSX.Element {
   );
 }
 
-function displayType(item: ClipboardItem): string {
+export function displayType(item: ClipboardItem): string {
   return item.ai_type || item.type;
 }
 
 /** Detect if content looks like markdown (US-010) */
-function isMarkdown(content: string): boolean {
+export function isMarkdown(content: string): boolean {
   return /^(#|\*\*|\* |- |1\. |\[.*\]\(.*\)|```)/m.test(content);
 }
 
@@ -67,7 +67,7 @@ function renderMarkdown(text: string): string {
 }
 
 /** Map content type to avatar config */
-function typeAvatar(type: string): { letter: string; bg: string; color: string; icon?: string } {
+export function typeAvatar(type: string): { letter: string; bg: string; color: string; icon?: string } {
   switch (type) {
     case "code":
       return { letter: "", bg: "bg-purple-50", color: "text-purple-500", icon: "ph-code" };

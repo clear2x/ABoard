@@ -1,5 +1,44 @@
 use crate::ai::{InferenceProvider, InferenceRequest, InferenceResponse};
 
+/// Classify an error message as retryable (transient) or not.
+fn is_retryable_error(err: &str) -> bool {
+    err.contains("timed out")
+        || err.contains("connect")
+        || err.contains("connection")
+}
+
+/// Parse SSE lines into text chunks. Returns (full_text, tokens_used, final_chunk_seen).
+/// This is the core parsing logic extracted for testability.
+#[allow(dead_code)]
+fn parse_sse_lines(lines: &[&str]) -> (String, u32, bool) {
+    let mut full_text = String::new();
+    let mut tokens_used: u32 = 0;
+    let mut done_seen = false;
+
+    for line in lines {
+        let line = line.trim();
+        if !line.starts_with("data: ") {
+            continue;
+        }
+        let data = &line[6..];
+        if data == "[DONE]" {
+            done_seen = true;
+            break;
+        }
+
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+            if let Some(delta) = json["choices"][0]["delta"]["content"].as_str() {
+                full_text.push_str(delta);
+            }
+            if let Some(usage) = json.get("usage") {
+                tokens_used = usage["total_tokens"].as_u64().unwrap_or(0) as u32;
+            }
+        }
+    }
+
+    (full_text, tokens_used, done_seen)
+}
+
 /// Maximum number of retries for transient errors.
 const MAX_RETRIES: u32 = 2;
 
@@ -32,7 +71,7 @@ where
                 tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
             }
             Err(e) => {
-                let should_retry = e.contains("timed out") || e.contains("connect") || e.contains("connection");
+                let should_retry = is_retryable_error(&e);
                 if !should_retry || attempt >= MAX_RETRIES {
                     return Err(e);
                 }
@@ -380,4 +419,158 @@ where
         provider: "openai".to_string(),
         duration_ms,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- is_retryable_error tests ---
+
+    #[test]
+    fn test_retryable_timeout() {
+        assert!(is_retryable_error("request timed out after 30s"));
+    }
+
+    #[test]
+    fn test_retryable_connect() {
+        assert!(is_retryable_error("connection refused"));
+    }
+
+    #[test]
+    fn test_retryable_connection() {
+        assert!(is_retryable_error("error: connect ECONNREFUSED"));
+    }
+
+    #[test]
+    fn test_not_retryable_auth_error() {
+        assert!(!is_retryable_error("Invalid API key"));
+    }
+
+    #[test]
+    fn test_not_retryable_parse_error() {
+        assert!(!is_retryable_error("Failed to parse response"));
+    }
+
+    // --- parse_sse_lines tests ---
+
+    #[test]
+    fn test_parse_single_chunk() {
+        let lines = vec![
+            r#"data: {"choices":[{"delta":{"content":"Hello"}}]}"#,
+        ];
+        let (text, tokens, done) = parse_sse_lines(&lines);
+        assert_eq!(text, "Hello");
+        assert_eq!(tokens, 0);
+        assert!(!done);
+    }
+
+    #[test]
+    fn test_parse_multiple_chunks() {
+        let lines = vec![
+            r#"data: {"choices":[{"delta":{"content":"Hello"}}]}"#,
+            r#"data: {"choices":[{"delta":{"content":" world"}}]}"#,
+        ];
+        let (text, _, _) = parse_sse_lines(&lines);
+        assert_eq!(text, "Hello world");
+    }
+
+    #[test]
+    fn test_parse_done_marker() {
+        let lines = vec![
+            r#"data: {"choices":[{"delta":{"content":"Hi"}}]}"#,
+            "data: [DONE]",
+        ];
+        let (text, _, done) = parse_sse_lines(&lines);
+        assert_eq!(text, "Hi");
+        assert!(done);
+    }
+
+    #[test]
+    fn test_parse_with_usage() {
+        let lines = vec![
+            r#"data: {"choices":[{"delta":{"content":"x"}}],"usage":{"total_tokens":42}}"#,
+        ];
+        let (_, tokens, _) = parse_sse_lines(&lines);
+        assert_eq!(tokens, 42);
+    }
+
+    #[test]
+    fn test_parse_empty_delta() {
+        let lines = vec![
+            r#"data: {"choices":[{"delta":{"content":""}}]}"#,
+        ];
+        let (text, _, _) = parse_sse_lines(&lines);
+        assert_eq!(text, "");
+    }
+
+    #[test]
+    fn test_parse_ignores_non_data_lines() {
+        let lines = vec![
+            "",
+            ": comment",
+            r#"data: {"choices":[{"delta":{"content":"ok"}}]}"#,
+            "event: ping",
+        ];
+        let (text, _, _) = parse_sse_lines(&lines);
+        assert_eq!(text, "ok");
+    }
+
+    #[test]
+    fn test_parse_invalid_json_ignored() {
+        let lines = vec![
+            "data: {invalid json}",
+            r#"data: {"choices":[{"delta":{"content":"valid"}}]}"#,
+        ];
+        let (text, _, _) = parse_sse_lines(&lines);
+        assert_eq!(text, "valid");
+    }
+
+    #[test]
+    fn test_parse_empty_input() {
+        let (text, tokens, done) = parse_sse_lines(&[]);
+        assert_eq!(text, "");
+        assert_eq!(tokens, 0);
+        assert!(!done);
+    }
+
+    // --- OpenAiProvider tests ---
+
+    #[test]
+    fn test_openai_provider_name() {
+        let p = OpenAiProvider::new(Some("key".into()), "http://localhost".into(), "gpt-4".into());
+        assert_eq!(p.name(), "openai");
+    }
+
+    #[test]
+    fn test_openai_available_with_key() {
+        let p = OpenAiProvider::new(Some("key".into()), "http://localhost".into(), "gpt-4".into());
+        assert!(p.is_available());
+    }
+
+    #[test]
+    fn test_openai_not_available_without_key() {
+        let p = OpenAiProvider::new(None, "http://localhost".into(), "gpt-4".into());
+        assert!(!p.is_available());
+    }
+
+    // --- AnthropicProvider tests ---
+
+    #[test]
+    fn test_anthropic_provider_name() {
+        let p = AnthropicProvider::new(Some("key".into()), "claude-3".into());
+        assert_eq!(p.name(), "anthropic");
+    }
+
+    #[test]
+    fn test_anthropic_available_with_key() {
+        let p = AnthropicProvider::new(Some("key".into()), "claude-3".into());
+        assert!(p.is_available());
+    }
+
+    #[test]
+    fn test_anthropic_not_available_without_key() {
+        let p = AnthropicProvider::new(None, "claude-3".into());
+        assert!(!p.is_available());
+    }
 }
