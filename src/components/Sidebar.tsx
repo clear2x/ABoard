@@ -90,9 +90,11 @@ export default function Sidebar() {
 
   async function copySnippetContent(snippet: Snippet) {
     try {
-      await navigator.clipboard.writeText(snippet.content);
+      await invoke("paste_to_active", { content: snippet.content });
+      await invoke("touch_snippet", { id: snippet.id });
+      await loadSnippets();
     } catch (e) {
-      console.error("[sidebar] Failed to copy snippet:", e);
+      console.error("[sidebar] Failed to paste snippet:", e);
     }
   }
 

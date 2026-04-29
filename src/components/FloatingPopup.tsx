@@ -274,7 +274,7 @@ export default function FloatingPopup() {
         </div>
 
         {/* Search bar */}
-        <div class="relative flex items-center bg-white/60 border border-white/80 rounded-lg px-3 py-1.5 shadow-sm">
+        <div class="relative flex items-center bg-white/60 border border-white/80 dark:border-white/10 rounded-lg px-3 py-1.5 shadow-sm">
           <i class="ph ph-magnifying-glass text-sm text-gray-400" />
           <input
             type="text"
@@ -283,7 +283,7 @@ export default function FloatingPopup() {
             onInput={(e) => { setSearchText((e.target as HTMLInputElement).value); setSelectedIndex(0); }}
             class="bg-transparent border-none outline-none text-xs ml-2 w-full text-gray-600 placeholder-gray-400"
           />
-          <span class="text-[10px] bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 shrink-0">⌘K</span>
+          <span class="text-[10px] bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 dark:border-gray-500/50 shrink-0">⌘K</span>
         </div>
       </div>
 
@@ -427,10 +427,10 @@ export default function FloatingPopup() {
         <div class="flex items-center gap-2">
           <span class="text-[10px] text-gray-400">{t("float.shortcutPin")}</span>
           <span class="text-[10px] text-gray-400">{t("float.shortcutDelete")}</span>
-          <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 text-[10px]">
+          <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 dark:border-gray-500/50 text-[10px]">
             Shift+Enter: {t("float.plainText")}
           </span>
-          <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 text-[10px]">
+          <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 dark:border-gray-500/50 text-[10px]">
             ⌘⌥O
           </span>
         </div>

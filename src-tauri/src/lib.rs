@@ -59,9 +59,16 @@ fn simulate_paste() -> Result<(), String> {
     }
     #[cfg(target_os = "linux")]
     {
-        let _ = std::process::Command::new("xdotool")
+        let which_result = std::process::Command::new("which")
+            .arg("xdotool")
+            .output();
+        if which_result.is_err() || !which_result.unwrap().status.success() {
+            return Err("xdotool not installed. Install with: sudo apt install xdotool".to_string());
+        }
+        std::process::Command::new("xdotool")
             .args(["key", "--clearmodifiers", "ctrl+v"])
-            .spawn();
+            .spawn()
+            .map_err(|e| format!("xdotool error: {}", e))?;
     }
     Ok(())
 }

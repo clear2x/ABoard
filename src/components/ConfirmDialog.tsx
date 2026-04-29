@@ -44,7 +44,7 @@ export default function ConfirmDialog(props: ConfirmDialogProps) {
           <div class="flex justify-end gap-3">
             <button
               ref={cancelButtonRef}
-              class="px-4 py-2 text-sm rounded-[var(--radius-md)] transition-smooth border bg-white/50 text-gray-600 border-white/80"
+              class="px-4 py-2 text-sm rounded-[var(--radius-md)] transition-smooth border bg-white/50 text-gray-600 border-white/80 dark:border-white/10"
               onClick={props.onCancel}
             >
               {props.cancelLabel ?? t("dialog.cancel")}

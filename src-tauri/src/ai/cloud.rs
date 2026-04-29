@@ -1,4 +1,5 @@
 use crate::ai::{InferenceProvider, InferenceRequest, InferenceResponse};
+use crate::ai::config::ApiStyle;
 
 /// Classify an error message as retryable (transient) or not.
 fn is_retryable_error(err: &str) -> bool {
@@ -90,15 +91,17 @@ pub struct OpenAiProvider {
     api_key: Option<String>,
     endpoint: String,
     model: String,
+    api_style: ApiStyle,
 }
 
 impl OpenAiProvider {
-    pub fn new(api_key: Option<String>, endpoint: String, model: String) -> Self {
+    pub fn new(api_key: Option<String>, endpoint: String, model: String, api_style: ApiStyle) -> Self {
         Self {
             client: reqwest::Client::new(),
             api_key,
             endpoint,
             model,
+            api_style,
         }
     }
 }
@@ -106,78 +109,15 @@ impl OpenAiProvider {
 #[async_trait::async_trait]
 impl InferenceProvider for OpenAiProvider {
     async fn infer(&self, request: InferenceRequest) -> Result<InferenceResponse, String> {
-        let api_key = self
-            .api_key
-            .as_ref()
-            .ok_or_else(|| "OpenAI API key not configured".to_string())?;
-
-        let start = std::time::Instant::now();
-
-        let mut messages = Vec::new();
-
-        if let Some(ref sys) = request.system_prompt {
-            messages.push(serde_json::json!({
-                "role": "system",
-                "content": sys
-            }));
-        }
-
-        messages.push(serde_json::json!({
-            "role": "user",
-            "content": request.prompt
-        }));
-
-        let body = serde_json::json!({
-            "model": self.model,
-            "messages": messages,
-            "max_tokens": request.max_tokens.unwrap_or(512),
-            "temperature": request.temperature.unwrap_or(0.7),
-            "top_p": request.top_p.unwrap_or(0.9),
-        });
-
-        let url = format!("{}/chat/completions", self.endpoint.trim_end_matches('/'));
-        let client = &self.client;
-
-        let response = request_with_retry(|| {
-            let client = client.clone();
-            let url = url.clone();
-            let api_key = api_key.clone();
-            let body = body.clone();
-            async move {
-                client
-                    .post(&url)
-                    .header("Authorization", format!("Bearer {}", api_key))
-                    .header("Content-Type", "application/json")
-                    .json(&body)
-                    .send()
-                    .await
-                    .map_err(|e| format!("OpenAI request failed: {}", e))
+        match self.api_style {
+            ApiStyle::ChatCompletions => self.infer_chat_completions(request).await,
+            ApiStyle::Completions => self.infer_completions(request).await,
+            ApiStyle::Responses => self.infer_responses(request).await,
+            ApiStyle::Messages => {
+                // Messages style is for Anthropic; treat as chat/completions fallback
+                self.infer_chat_completions(request).await
             }
-        })
-        .await?;
-
-        let json: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse OpenAI response: {}", e))?;
-
-        let text = json["choices"][0]["message"]["content"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
-
-        let tokens_used = json["usage"]["total_tokens"]
-            .as_u64()
-            .unwrap_or(0) as u32;
-
-        let duration_ms = start.elapsed().as_millis() as u64;
-
-        Ok(InferenceResponse {
-            text,
-            tokens_used,
-            provider: "openai".to_string(),
-            duration_ms,
-        })
+        }
     }
 
     fn name(&self) -> &str {
@@ -189,19 +129,158 @@ impl InferenceProvider for OpenAiProvider {
     }
 }
 
+impl OpenAiProvider {
+    /// Chat Completions API: POST {endpoint}/chat/completions
+    async fn infer_chat_completions(&self, request: InferenceRequest) -> Result<InferenceResponse, String> {
+        let api_key = self.api_key.as_ref()
+            .ok_or_else(|| "OpenAI API key not configured".to_string())?;
+        let start = std::time::Instant::now();
+
+        let mut messages = Vec::new();
+        if let Some(ref sys) = request.system_prompt {
+            messages.push(serde_json::json!({ "role": "system", "content": sys }));
+        }
+        messages.push(serde_json::json!({ "role": "user", "content": request.prompt }));
+
+        let body = serde_json::json!({
+            "model": self.model,
+            "messages": messages,
+            "max_tokens": request.max_tokens.unwrap_or(512),
+            "temperature": request.temperature.unwrap_or(0.7),
+            "top_p": request.top_p.unwrap_or(0.9),
+        });
+
+        let url = format!("{}/chat/completions", self.endpoint.trim_end_matches('/'));
+        let response = send_with_retry(&self.client, &url, api_key, &body).await?;
+        let json: serde_json::Value = response.json().await
+            .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+        let text = json["choices"][0]["message"]["content"].as_str().unwrap_or("").to_string();
+        let tokens_used = json["usage"]["total_tokens"].as_u64().unwrap_or(0) as u32;
+
+        Ok(InferenceResponse {
+            text, tokens_used, provider: "openai".to_string(), duration_ms: start.elapsed().as_millis() as u64,
+        })
+    }
+
+    /// Legacy Completions API: POST {endpoint}/completions
+    async fn infer_completions(&self, request: InferenceRequest) -> Result<InferenceResponse, String> {
+        let api_key = self.api_key.as_ref()
+            .ok_or_else(|| "OpenAI API key not configured".to_string())?;
+        let start = std::time::Instant::now();
+
+        let mut prompt = String::new();
+        if let Some(ref sys) = request.system_prompt {
+            prompt.push_str(sys);
+            prompt.push('\n');
+        }
+        prompt.push_str(&request.prompt);
+
+        let body = serde_json::json!({
+            "model": self.model,
+            "prompt": prompt,
+            "max_tokens": request.max_tokens.unwrap_or(512),
+            "temperature": request.temperature.unwrap_or(0.7),
+            "top_p": request.top_p.unwrap_or(0.9),
+        });
+
+        let url = format!("{}/completions", self.endpoint.trim_end_matches('/'));
+        let response = send_with_retry(&self.client, &url, api_key, &body).await?;
+        let json: serde_json::Value = response.json().await
+            .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+        let text = json["choices"][0]["text"].as_str().unwrap_or("").to_string();
+        let tokens_used = json["usage"]["total_tokens"].as_u64().unwrap_or(0) as u32;
+
+        Ok(InferenceResponse {
+            text, tokens_used, provider: "openai".to_string(), duration_ms: start.elapsed().as_millis() as u64,
+        })
+    }
+
+    /// Responses API: POST {endpoint}/responses
+    async fn infer_responses(&self, request: InferenceRequest) -> Result<InferenceResponse, String> {
+        let api_key = self.api_key.as_ref()
+            .ok_or_else(|| "OpenAI API key not configured".to_string())?;
+        let start = std::time::Instant::now();
+
+        let mut input = Vec::new();
+        if let Some(ref sys) = request.system_prompt {
+            input.push(serde_json::json!({ "role": "system", "content": sys }));
+        }
+        input.push(serde_json::json!({ "role": "user", "content": request.prompt }));
+
+        let body = serde_json::json!({
+            "model": self.model,
+            "input": input,
+            "max_output_tokens": request.max_tokens.unwrap_or(512),
+            "temperature": request.temperature.unwrap_or(0.7),
+            "top_p": request.top_p.unwrap_or(0.9),
+        });
+
+        let url = format!("{}/responses", self.endpoint.trim_end_matches('/'));
+        let response = send_with_retry(&self.client, &url, api_key, &body).await?;
+        let json: serde_json::Value = response.json().await
+            .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+        let text = json["output"][0]["content"][0]["text"].as_str().unwrap_or("").to_string();
+        let tokens_used = json["usage"]["total_tokens"].as_u64().unwrap_or(0) as u32;
+
+        Ok(InferenceResponse {
+            text, tokens_used, provider: "openai".to_string(), duration_ms: start.elapsed().as_millis() as u64,
+        })
+    }
+}
+
+/// Shared retry-wrapped POST for all OpenAI-style endpoints.
+async fn send_with_retry(
+    client: &reqwest::Client,
+    url: &str,
+    api_key: &str,
+    body: &serde_json::Value,
+) -> Result<reqwest::Response, String> {
+    let url = url.to_string();
+    let api_key = api_key.to_string();
+    let body = body.clone();
+    let client = client.clone();
+    request_with_retry(move || {
+        let client = client.clone();
+        let url = url.clone();
+        let api_key = api_key.clone();
+        let body = body.clone();
+        async move {
+            client
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", api_key))
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| format!("OpenAI request failed: {}", e))
+        }
+    })
+    .await
+}
+
 /// Anthropic Claude API inference provider.
 pub struct AnthropicProvider {
     client: reqwest::Client,
     api_key: Option<String>,
     model: String,
+    endpoint: String,
 }
 
 impl AnthropicProvider {
-    pub fn new(api_key: Option<String>, model: String) -> Self {
+    pub fn new(api_key: Option<String>, model: String, endpoint: String) -> Self {
+        let endpoint = if endpoint.is_empty() {
+            "https://api.anthropic.com/v1/messages".to_string()
+        } else {
+            format!("{}/messages", endpoint.trim_end_matches('/').trim_end_matches("/messages"))
+        };
         Self {
             client: reqwest::Client::new(),
             api_key,
             model,
+            endpoint,
         }
     }
 }
@@ -239,15 +318,17 @@ impl InferenceProvider for AnthropicProvider {
             body["top_p"] = serde_json::json!(top_p);
         }
 
+        let url = self.endpoint.clone();
         let client = &self.client;
 
         let response = request_with_retry(|| {
             let client = client.clone();
             let api_key = api_key.clone();
             let body = body.clone();
+            let url = url.clone();
             async move {
                 client
-                    .post("https://api.anthropic.com/v1/messages")
+                    .post(&url)
                     .header("x-api-key", &api_key)
                     .header("anthropic-version", "2023-06-01")
                     .header("content-type", "application/json")
@@ -538,19 +619,19 @@ mod tests {
 
     #[test]
     fn test_openai_provider_name() {
-        let p = OpenAiProvider::new(Some("key".into()), "http://localhost".into(), "gpt-4".into());
+        let p = OpenAiProvider::new(Some("key".into()), "http://localhost".into(), "gpt-4".into(), ApiStyle::ChatCompletions);
         assert_eq!(p.name(), "openai");
     }
 
     #[test]
     fn test_openai_available_with_key() {
-        let p = OpenAiProvider::new(Some("key".into()), "http://localhost".into(), "gpt-4".into());
+        let p = OpenAiProvider::new(Some("key".into()), "http://localhost".into(), "gpt-4".into(), ApiStyle::ChatCompletions);
         assert!(p.is_available());
     }
 
     #[test]
     fn test_openai_not_available_without_key() {
-        let p = OpenAiProvider::new(None, "http://localhost".into(), "gpt-4".into());
+        let p = OpenAiProvider::new(None, "http://localhost".into(), "gpt-4".into(), ApiStyle::ChatCompletions);
         assert!(!p.is_available());
     }
 
@@ -558,19 +639,19 @@ mod tests {
 
     #[test]
     fn test_anthropic_provider_name() {
-        let p = AnthropicProvider::new(Some("key".into()), "claude-3".into());
+        let p = AnthropicProvider::new(Some("key".into()), "claude-3".into(), String::new());
         assert_eq!(p.name(), "anthropic");
     }
 
     #[test]
     fn test_anthropic_available_with_key() {
-        let p = AnthropicProvider::new(Some("key".into()), "claude-3".into());
+        let p = AnthropicProvider::new(Some("key".into()), "claude-3".into(), String::new());
         assert!(p.is_available());
     }
 
     #[test]
     fn test_anthropic_not_available_without_key() {
-        let p = AnthropicProvider::new(None, "claude-3".into());
+        let p = AnthropicProvider::new(None, "claude-3".into(), String::new());
         assert!(!p.is_available());
     }
 }

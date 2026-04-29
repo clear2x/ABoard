@@ -915,10 +915,13 @@ fn capture_screenshot<R: Runtime>(app: AppHandle<R>) {
     let dest_path = data_dir.join(&file_name);
     let tmp_path = std::env::temp_dir().join(format!("aboard_screenshot_{}.png", id));
 
-    // Try gnome-screenshot first, then scrot, then import (ImageMagick)
+    // Try gnome-screenshot with area selection first, then gnome-screenshot full, then scrot, then import
     let result = std::process::Command::new("gnome-screenshot")
+        .arg("-a")  // area selection (interactive)
         .arg("-f").arg(&tmp_path)
         .status()
+        .or_else(|_| std::process::Command::new("gnome-screenshot")
+            .arg("-f").arg(&tmp_path).status())
         .or_else(|_| std::process::Command::new("scrot").arg(&tmp_path).status())
         .or_else(|_| std::process::Command::new("import").arg("-window").arg("root").arg(&tmp_path).status());
 
@@ -963,21 +966,70 @@ fn capture_screenshot<R: Runtime>(app: AppHandle<R>) {
 }
 
 #[cfg(target_os = "linux")]
-fn stop_recording() {}
+static LINUX_RECORDING_CHILD: std::sync::Mutex<Option<std::process::Child>> = std::sync::Mutex::new(None);
+
+#[cfg(target_os = "linux")]
+fn stop_recording() {
+    if let Ok(mut guard) = LINUX_RECORDING_CHILD.lock() {
+        if let Some(ref mut child) = *guard {
+            // Send SIGINT to ffmpeg
+            unsafe { libc::kill(child.id() as i32, libc::SIGINT); }
+            let _ = child.wait();
+        }
+        *guard = None;
+    }
+}
 
 #[cfg(target_os = "linux")]
 fn start_screen_recording<R: Runtime>(app: AppHandle<R>, _record_item: MenuItem<R>) {
-    let locale = get_stored_locale();
-    let (title, msg) = if locale == "zh" {
-        ("暂不支持", "Linux 上的录屏功能尚未实现。")
-    } else {
-        ("Not Supported", "Screen recording is not yet supported on Linux.")
+    // Check if ffmpeg is available
+    let ffmpeg_check = std::process::Command::new("which")
+        .arg("ffmpeg")
+        .output();
+
+    if ffmpeg_check.is_err() || !ffmpeg_check.unwrap().status.success() {
+        let locale = get_stored_locale();
+        let (title, msg) = if locale == "zh" {
+            ("需要 ffmpeg", "Linux 录屏需要安装 ffmpeg。请运行: sudo apt install ffmpeg")
+        } else {
+            ("ffmpeg Required", "Screen recording on Linux requires ffmpeg. Install with: sudo apt install ffmpeg")
+        };
+        let _ = app.dialog()
+            .message(msg)
+            .title(title)
+            .kind(tauri_plugin_dialog::MessageDialogKind::Info)
+            .show(|_| {});
+        return;
+    }
+
+    let app_data_dir = match app.path().app_data_dir() {
+        Ok(dir) => dir,
+        Err(_) => return,
     };
-    let _ = app.dialog()
-        .message(msg)
-        .title(title)
-        .kind(tauri_plugin_dialog::MessageDialogKind::Info)
-        .show(|_| {});
+    let data_dir = app_data_dir.join("data");
+    let _ = std::fs::create_dir_all(&data_dir);
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let file_name = format!("{}.mp4", id);
+    let dest_path = data_dir.join(&file_name);
+    let tmp_path = std::env::temp_dir().join(format!("aboard_recording_{}.mp4", id));
+
+    match std::process::Command::new("ffmpeg")
+        .args(["-f", "x11grab", "-i", ":0.0", "-y", tmp_path.to_str().unwrap_or("")])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    {
+        Ok(child) => {
+            if let Ok(mut guard) = LINUX_RECORDING_CHILD.lock() {
+                *guard = Some(child);
+            }
+            let _ = _record_item.set_text("⏹ Stop Recording");
+        }
+        Err(e) => {
+            eprintln!("[tray] Failed to start ffmpeg recording: {}", e);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

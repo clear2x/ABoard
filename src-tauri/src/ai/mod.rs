@@ -96,6 +96,7 @@ pub fn init_ai(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
                 config.openai_api_key.clone(),
                 config.openai_endpoint.clone(),
                 config.openai_model.clone(),
+                config.api_style.clone(),
             );
             Box::new(p)
         }
@@ -103,6 +104,7 @@ pub fn init_ai(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
             let p = cloud::AnthropicProvider::new(
                 config.anthropic_api_key.clone(),
                 config.anthropic_model.clone(),
+                config.anthropic_endpoint.clone(),
             );
             Box::new(p)
         }
@@ -256,6 +258,7 @@ pub async fn ai_set_provider(
                 config.openai_api_key.clone(),
                 config.openai_endpoint.clone(),
                 config.openai_model.clone(),
+                config.api_style.clone(),
             );
             Box::new(p)
         }
@@ -263,6 +266,7 @@ pub async fn ai_set_provider(
             let p = cloud::AnthropicProvider::new(
                 config.anthropic_api_key.clone(),
                 config.anthropic_model.clone(),
+                config.anthropic_endpoint.clone(),
             );
             Box::new(p)
         }
@@ -464,6 +468,7 @@ pub async fn ai_set_config(
                 config.openai_api_key.clone(),
                 config.openai_endpoint.clone(),
                 config.openai_model.clone(),
+                config.api_style.clone(),
             );
             Box::new(p)
         }
@@ -471,6 +476,7 @@ pub async fn ai_set_config(
             let p = cloud::AnthropicProvider::new(
                 config.anthropic_api_key.clone(),
                 config.anthropic_model.clone(),
+                config.anthropic_endpoint.clone(),
             );
             Box::new(p)
         }
@@ -589,6 +595,7 @@ pub async fn ai_infer_auto(
                 config.openai_api_key.clone(),
                 config.openai_endpoint.clone(),
                 config.openai_model.clone(),
+                config.api_style.clone(),
             );
             Box::new(p)
         }
@@ -596,6 +603,7 @@ pub async fn ai_infer_auto(
             let p = cloud::AnthropicProvider::new(
                 config.anthropic_api_key.clone(),
                 config.anthropic_model.clone(),
+                config.anthropic_endpoint.clone(),
             );
             Box::new(p)
         }

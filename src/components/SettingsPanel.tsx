@@ -295,7 +295,7 @@ export default function SettingsPanel(props: Props) {
         </div>
 
         {/* Icon tab bar — bg-white/10 border-white/30 matching ui.html */}
-        <div class="flex justify-around items-center px-6 py-4 border-b border-white/50 bg-white/25">
+        <div class="flex justify-around items-center px-6 py-4 border-b border-white/50 dark:border-white/10 bg-white/25">
           {TABS.map((tab) => {
             const isActive = () => activeTab() === tab.key;
             const tabLabels: Record<string, string> = {
@@ -317,7 +317,7 @@ export default function SettingsPanel(props: Props) {
                     <i class={`${tab.icon} text-xl text-gray-500`} />
                   </div>
                 }>
-                  <div class="bg-blue-100/80 p-1 rounded-md shadow-sm border border-blue-200/50">
+                  <div class="bg-blue-100/80 p-1 rounded-md shadow-sm border border-blue-200/50 dark:border-blue-800/50">
                     <i class={`${tab.icon} text-xl text-blue-600`} />
                   </div>
                 </Show>
@@ -338,13 +338,13 @@ export default function SettingsPanel(props: Props) {
                 <label class="block mb-2 text-xs font-medium text-gray-500">{t("settings.language")}</label>
                 <div class="flex gap-2">
                   <button class="px-4 py-2 text-sm rounded-lg transition-colors"
-                    classList={{ "bg-blue-500 text-white": locale() === "zh" }}
-                    style={locale() !== "zh" ? { background: "rgba(255,255,255,0.5)", color: "#4b5563", border: "1px solid rgba(255,255,255,0.8)" } : {}}
+                    classList={{ "bg-blue-500 text-white": locale() === "zh", "bg-white/50 text-gray-600 border border-white/80 dark:border-white/10": locale() !== "zh" }}
+                    style={locale() !== "zh" ? { background: "rgba(255,255,255,0.5)", color: "#4b5563" } : {}}
                     onClick={() => setLocale("zh")}
                   >{t("settings.language.zh")}</button>
                   <button class="px-4 py-2 text-sm rounded-lg transition-colors"
-                    classList={{ "bg-blue-500 text-white": locale() === "en" }}
-                    style={locale() !== "en" ? { background: "rgba(255,255,255,0.5)", color: "#4b5563", border: "1px solid rgba(255,255,255,0.8)" } : {}}
+                    classList={{ "bg-blue-500 text-white": locale() === "en", "bg-white/50 text-gray-600 border border-white/80 dark:border-white/10": locale() !== "en" }}
+                    style={locale() !== "en" ? { background: "rgba(255,255,255,0.5)", color: "#4b5563" } : {}}
                     onClick={() => setLocale("en")}
                   >English</button>
                 </div>
@@ -365,7 +365,7 @@ export default function SettingsPanel(props: Props) {
                     class="flex-1 p-3 rounded-xl flex flex-col justify-center items-center cursor-pointer relative overflow-hidden transition-all"
                     classList={{
                       "bg-blue-50/70 border border-blue-400 shadow-sm": provider() === "Local",
-                      "bg-white/40 border border-white/80 opacity-70 hover:opacity-100": provider() !== "Local",
+                      "bg-white/40 border border-white/80 dark:border-white/10 opacity-70 hover:opacity-100": provider() !== "Local",
                     }}
                     onClick={() => setProvider("Local")}
                   >
@@ -382,7 +382,7 @@ export default function SettingsPanel(props: Props) {
                     class="flex-1 p-3 rounded-xl flex flex-col justify-center items-center cursor-pointer transition-all"
                     classList={{
                       "bg-blue-50/70 border border-blue-400 shadow-sm": provider() === "OpenAi" || provider() === "Anthropic",
-                      "bg-white/40 border border-white/80 opacity-70 hover:opacity-100": provider() !== "OpenAi" && provider() !== "Anthropic",
+                      "bg-white/40 border border-white/80 dark:border-white/10 opacity-70 hover:opacity-100": provider() !== "OpenAi" && provider() !== "Anthropic",
                     }}
                     onClick={() => setProvider("OpenAi")}
                   >
@@ -400,7 +400,7 @@ export default function SettingsPanel(props: Props) {
                       class="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
                       classList={{
                         "bg-white/70 border border-blue-400 text-blue-700 shadow-sm": provider() === "OpenAi",
-                        "bg-white/30 border border-white/60 text-gray-500 hover:bg-white/50": provider() !== "OpenAi",
+                        "bg-white/30 border border-white/60 dark:border-white/10 text-gray-500 hover:bg-white/50": provider() !== "OpenAi",
                       }}
                       onClick={() => setProvider("OpenAi")}
                     >
@@ -410,7 +410,7 @@ export default function SettingsPanel(props: Props) {
                       class="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
                       classList={{
                         "bg-white/70 border border-blue-400 text-blue-700 shadow-sm": provider() === "Anthropic",
-                        "bg-white/30 border border-white/60 text-gray-500 hover:bg-white/50": provider() !== "Anthropic",
+                        "bg-white/30 border border-white/60 dark:border-white/10 text-gray-500 hover:bg-white/50": provider() !== "Anthropic",
                       }}
                       onClick={() => setProvider("Anthropic")}
                     >
@@ -435,7 +435,7 @@ export default function SettingsPanel(props: Props) {
                   {/* Model selector — embedded model */}
                   <div class="flex justify-between items-center text-sm">
                     <span class="font-medium text-gray-700">{t("ai.model")}</span>
-                    <div class="flex items-center gap-2 bg-white/60 border border-white/80 px-3 py-1.5 rounded-lg text-xs shadow-sm w-[180px] justify-between">
+                    <div class="flex items-center gap-2 bg-white/60 border border-white/80 dark:border-white/10 px-3 py-1.5 rounded-lg text-xs shadow-sm w-[180px] justify-between">
                       <span class="truncate">{selectedModel()}</span>
                     </div>
                   </div>
@@ -460,7 +460,7 @@ export default function SettingsPanel(props: Props) {
                       }
                     }
                   }} disabled={embeddedStatus() === "loading" || embeddedStatus() === "downloading"}
-                    class="w-full px-3 py-2 text-xs font-medium rounded-lg disabled:opacity-40 border transition-colors bg-blue-50/70 text-blue-700 border-blue-200"
+                    class="w-full px-3 py-2 text-xs font-medium rounded-lg disabled:opacity-40 border transition-colors bg-blue-50/70 text-blue-700 border-blue-200 dark:border-blue-800/50"
                   >
                     {embeddedStatus() === "loading" ? t("settings.loading") :
                      embeddedStatus() === "downloading" ? t("settings.downloadingModel") :
@@ -469,7 +469,7 @@ export default function SettingsPanel(props: Props) {
                   </button>
 
                   <Show when={embeddedStatus() === "error" && message()}>
-                    <div class="rounded-lg p-2 text-xs text-red-600 bg-red-50 border border-red-200">
+                    <div class="rounded-lg p-2 text-xs text-red-600 bg-red-50 border border-red-200 dark:border-red-800/50">
                       {message()}
                     </div>
                   </Show>
@@ -481,7 +481,7 @@ export default function SettingsPanel(props: Props) {
                       const v = parseInt((e.target as HTMLInputElement).value, 10);
                       if (!isNaN(v) && v > 0) setContextLength(v);
                     }}
-                      class="bg-white/60 border border-white/80 px-3 py-1.5 rounded-lg text-xs w-[180px] shadow-sm outline-none text-right font-mono"
+                      class="bg-white/60 border border-white/80 dark:border-white/10 px-3 py-1.5 rounded-lg text-xs w-[180px] shadow-sm outline-none text-right font-mono"
                     />
                   </div>
 
@@ -505,7 +505,7 @@ export default function SettingsPanel(props: Props) {
 
                   {/* Model running status card */}
                   <Show when={embeddedStatus() === "ready"}>
-                    <div class="bg-[#f0fdf4]/60 border border-green-200/60 p-3 rounded-lg flex items-center justify-between">
+                    <div class="bg-[#f0fdf4]/60 border border-green-200/60 dark:border-green-800/50 p-3 rounded-lg flex items-center justify-between">
                       <div>
                         <div class="flex items-center gap-1.5 text-green-700 text-xs font-semibold mb-0.5">
                           <span class="relative flex h-2 w-2">
@@ -528,7 +528,7 @@ export default function SettingsPanel(props: Props) {
                     <label class="block mb-1 text-xs font-medium text-gray-500">{t("ai.apiKey")}</label>
                     <div class="relative">
                       <input type={showOpenaiKey() ? "text" : "password"} value={openaiKey()} onInput={(e) => setOpenaiKey((e.target as HTMLInputElement).value)}
-                        placeholder="sk-..." class="w-full border border-white/80 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none bg-white/50 text-gray-700" />
+                        placeholder="sk-..." class="w-full border border-white/80 dark:border-white/10 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none bg-white/50 text-gray-700" />
                       <button class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                         onClick={() => setShowOpenaiKey((v) => !v)} type="button">
                         <i class={`ph ${showOpenaiKey() ? "ph-eye-slash" : "ph-eye"} text-sm`} />
@@ -538,15 +538,15 @@ export default function SettingsPanel(props: Props) {
                   <div>
                     <label class="block mb-1 text-xs font-medium text-gray-500">{t("ai.endpoint")}</label>
                     <input type="text" value={openaiEndpoint()} onInput={(e) => setOpenaiEndpoint((e.target as HTMLInputElement).value)}
-                      placeholder="https://api.openai.com/v1" class="w-full border border-white/80 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white/50 text-gray-700" />
+                      placeholder="https://api.openai.com/v1" class="w-full border border-white/80 dark:border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white/50 text-gray-700" />
                   </div>
                   <div>
                     <label class="block mb-1 text-xs font-medium text-gray-500">{t("ai.model")}</label>
                     <div class="flex gap-1">
                       <input type="text" value={openaiModel()} onInput={(e) => setOpenaiModel((e.target as HTMLInputElement).value)}
-                        placeholder="gpt-4o-mini" class="flex-1 border border-white/80 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white/50 text-gray-700" />
+                        placeholder="gpt-4o-mini" class="flex-1 border border-white/80 dark:border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white/50 text-gray-700" />
                       <button
-                        class="shrink-0 px-2 py-2 rounded-lg border border-white/80 bg-white/50 text-gray-500 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                        class="shrink-0 px-2 py-2 rounded-lg border border-white/80 dark:border-white/10 bg-white/50 text-gray-500 hover:text-blue-500 hover:bg-blue-50 transition-colors"
                         onClick={async () => {
                           try {
                             const models = await invoke<string[]>("ai_list_cloud_models");

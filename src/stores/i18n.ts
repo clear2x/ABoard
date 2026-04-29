@@ -318,6 +318,14 @@ const t_map: Translations = {
   "settings.testConnection": { zh: "测试连接", en: "Test Connection" },
   "settings.advancedParams": { zh: "高级参数", en: "Advanced Parameters" },
   "settings.apiKeyRequired": { zh: "云端模式需要填写 API 密钥", en: "API key is required for cloud mode" },
+  "settings.apiStyle": { zh: "API 风格", en: "API Style" },
+  "settings.apiStyleChat": { zh: "Chat Completions", en: "Chat Completions" },
+  "settings.apiStyleCompletions": { zh: "Completions", en: "Completions" },
+  "settings.apiStyleResponses": { zh: "Responses", en: "Responses" },
+  "settings.apiStyleMessages": { zh: "Messages", en: "Messages" },
+  "settings.anthropicEndpoint": { zh: "Anthropic 端点 URL", en: "Anthropic Endpoint URL" },
+  "sidebar.snippetsSection": { zh: "常用片段", en: "Snippets" },
+  "settings.accentColor": { zh: "主题色", en: "Accent Color" },
 };
 
 // --- Translation function ---

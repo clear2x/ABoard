@@ -11,11 +11,31 @@ pub enum ProviderType {
     Auto,
 }
 
+/// API request/response style for cloud providers.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum ApiStyle {
+    ChatCompletions,
+    Completions,
+    Responses,
+    Messages,
+}
+
+impl Default for ApiStyle {
+    fn default() -> Self {
+        Self::ChatCompletions
+    }
+}
+
 /// AI configuration persisted to ai-config.json.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiConfig {
     pub active_provider: ProviderType,
+
+    // API request/response style
+    #[serde(default)]
+    pub api_style: ApiStyle,
 
     // Local provider settings
     pub model_path: Option<String>,
@@ -30,6 +50,7 @@ pub struct AiConfig {
 
     // Anthropic settings
     pub anthropic_api_key: Option<String>,
+    pub anthropic_endpoint: String,
     pub anthropic_model: String,
 }
 
@@ -37,6 +58,7 @@ impl Default for AiConfig {
     fn default() -> Self {
         Self {
             active_provider: ProviderType::Local,
+            api_style: ApiStyle::ChatCompletions,
             model_path: None,
             context_length: 2048,
             temperature: 0.7,
@@ -45,6 +67,7 @@ impl Default for AiConfig {
             openai_endpoint: "https://api.openai.com/v1".to_string(),
             openai_model: "gpt-4o-mini".to_string(),
             anthropic_api_key: None,
+            anthropic_endpoint: String::new(),
             anthropic_model: "claude-sonnet-4-20250514".to_string(),
         }
     }
