@@ -49,9 +49,6 @@ static STORED_LOCALE: AtomicU8 = AtomicU8::new(0);
 /// Guard flag: set on DoubleClick so the delayed single-click handler can abort.
 static TRAY_DOUBLE_CLICKED: AtomicBool = AtomicBool::new(false);
 
-/// Stored reference to the "Recent" submenu for locale updates.
-static RECENT_SUBMENU_TEXT: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
-
 // ---------------------------------------------------------------------------
 // Type-erased menu item handle — stores a set_text closure to avoid generics
 // ---------------------------------------------------------------------------
@@ -141,9 +138,9 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
     state.insert("quit", quit_i.clone());
 
     let screenshot_i = MenuItem::with_id(app, "screenshot", texts.screenshot, true, None::<&str>)?;
-    let record_i = MenuItem::with_id(app, "record", "Screen Recording", true, None::<&str>)?;
+    let record_i = MenuItem::with_id(app, "record", texts.screen_recording, true, None::<&str>)?;
     #[cfg(target_os = "macos")]
-    let reset_perm_i = MenuItem::with_id(app, "reset-permission", "Reset Screen Recording Permission…", true, None::<&str>)?;
+    let reset_perm_i = MenuItem::with_id(app, "reset-permission", texts.reset_permission, true, None::<&str>)?;
     state.insert("screenshot", screenshot_i.clone());
     state.insert("record", record_i.clone());
     #[cfg(target_os = "macos")]
