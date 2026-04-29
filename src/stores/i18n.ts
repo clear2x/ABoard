@@ -48,6 +48,8 @@ const t_map: Translations = {
   "clipboard.cancel": { zh: "取消", en: "Cancel" },
   "clipboard.confirmDelete": { zh: "确认删除", en: "Delete Items" },
   "clipboard.confirmDeleteMsg": { zh: "确定要删除 {count} 条记录吗？此操作无法撤销。", en: "Are you sure you want to delete {count} item(s)? This cannot be undone." },
+  "clipboard.chars": { zh: "字符", en: "chars" },
+  "clipboard.words": { zh: "词", en: "words" },
 
   // Search
   "search.placeholder": { zh: "搜索剪贴板...", en: "Search clipboard..." },
@@ -240,6 +242,7 @@ const t_map: Translations = {
   "float.recent": { zh: "最近复制", en: "Recently Copied" },
   "float.clear": { zh: "清空", en: "Clear" },
   "float.openMainWindow": { zh: "打开主窗口", en: "Open Main Window" },
+  "float.plainText": { zh: "纯文本", en: "Plain text" },
 
   // Missing translations - Sidebar
   "sidebar.clipboardData": { zh: "剪贴板数据", en: "Clipboard Data" },

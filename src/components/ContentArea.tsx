@@ -10,6 +10,7 @@ import {
   unpinItem,
   loading,
   selectedIds,
+  setSelectedIds,
   toggleSelect,
   clearSelection,
   selectAll,
@@ -18,12 +19,14 @@ import {
   categoryFilter,
   reorderItems,
   searchQuery,
+  type ClipboardItem,
 } from "../stores/clipboard";
 import { t } from "../stores/i18n";
 import ClipboardItemCard from "./ClipboardItemCard";
 import ContextMenu from "./ContextMenu";
 import ConfirmDialog from "./ConfirmDialog";
 import ImagePreview from "./ImagePreview";
+import ItemDetailModal from "./ItemDetailModal";
 
 const TIME_FILTERS = [
   { key: "all", labelKey: "filter.all" },
@@ -67,6 +70,9 @@ export default function ContentArea() {
 
   // Image preview state
   const [previewSrc, setPreviewSrc] = createSignal<string | null>(null);
+
+  // Item detail modal state (US-006)
+  const [detailItem, setDetailItem] = createSignal<ClipboardItem | null>(null);
 
   // Filtered items based on category + time filter
   const filteredItems = createMemo(() => {
@@ -122,6 +128,16 @@ export default function ContentArea() {
     if (e.key === "Escape" && batchMode()) {
       setBatchMode(false);
       clearSelection();
+    }
+    // Ctrl+A / Cmd+A to toggle select all in batch mode (US-005)
+    if ((e.metaKey || e.ctrlKey) && e.key === "a" && batchMode()) {
+      e.preventDefault();
+      const allIds = filteredItems().map(i => i.id) as string[];
+      if (allIds.every(id => selectedIds().has(id))) {
+        setSelectedIds(new Set<string>());
+      } else {
+        setSelectedIds(new Set<string>(allIds));
+      }
     }
     // Arrow key navigation (US-003)
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -366,6 +382,7 @@ export default function ContentArea() {
                       onDelete={handleItemDelete}
                       onPin={handleItemPin}
                       onImageClick={(src) => setPreviewSrc(src)}
+                      onDoubleClick={() => setDetailItem(item)}
                     />
                   </div>
                 );
@@ -406,6 +423,8 @@ export default function ContentArea() {
       <Show when={previewSrc() !== null}>
         <ImagePreview src={previewSrc()!} onClose={() => setPreviewSrc(null)} />
       </Show>
+
+      <ItemDetailModal item={detailItem()} onClose={() => setDetailItem(null)} />
     </div>
   );
 }

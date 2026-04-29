@@ -1,6 +1,6 @@
 import { Show, onMount, createSignal, onCleanup } from "solid-js";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { searchQuery, setSearchQuery, searchHistory, semanticSearchHistory, loadHistory } from "../stores/clipboard";
+import { searchQuery, setSearchQuery, searchHistory, semanticSearchHistory, loadHistory, monitoringPaused } from "../stores/clipboard";
 import { t } from "../stores/i18n";
 
 interface Props {
@@ -85,6 +85,11 @@ export default function TitleBar(props: Props) {
       </Show>
 
       {/* Search bar — centered in the title bar */}
+      <Show when={monitoringPaused()}>
+        <div class="flex items-center gap-1 text-gray-500 shrink-0" title="Monitoring paused">
+          <i class="ph ph-pause-circle text-sm" />
+        </div>
+      </Show>
       <div class="flex-1 max-w-xl mx-auto relative flex items-center bg-white/70 border border-white/80 rounded-lg px-3 py-1.5 shadow-sm dark:bg-slate-700/50 dark:border-white/10" data-tauri-no-drag>
         <i class="ph ph-magnifying-glass text-gray-400 dark:text-gray-500" />
         <input

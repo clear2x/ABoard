@@ -124,6 +124,38 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
     #[cfg(target_os = "macos")]
     state.insert("reset-permission", reset_perm_i.clone());
 
+    // Build "Recent" submenu with the 5 most recent text items from DB
+    let recent_submenu = Submenu::with_items(app, "Recent", true, &[])?;
+    {
+        let db_state = app.state::<crate::db::DbState>();
+        if let Ok(conn) = db_state.conn.lock() {
+            if let Ok(mut stmt) = conn.prepare(
+                "SELECT id, content FROM clipboard_items WHERE content_type = 'text' ORDER BY timestamp DESC LIMIT 5"
+            ) {
+                let items: Vec<(String, String)> = stmt.query_map([], |row: &rusqlite::Row<'_>| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })
+                    .ok()
+                    .map(|r: rusqlite::MappedRows<_>| r.filter_map(|v: Result<(String, String), _>| v.ok()).collect())
+                    .unwrap_or_default();
+                drop(stmt);
+                for (id, content) in items {
+                    let label = if content.len() > 50 {
+                        let mut end = 50;
+                        while !content.is_char_boundary(end) && end > 0 {
+                            end -= 1;
+                        }
+                        format!("{}...", &content[..end])
+                    } else {
+                        content.clone()
+                    };
+                    let mi = MenuItem::with_id(app, &format!("recent-{}", id), label, true, None::<&str>)?;
+                    recent_submenu.append(&mi)?;
+                }
+            }
+        };
+    }
+
     let menu = {
         #[cfg(target_os = "macos")]
         {
@@ -132,6 +164,7 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
                 &record_i,
                 &reset_perm_i,
                 &PredefinedMenuItem::separator(app)?,
+                &recent_submenu,
                 &quick_paste_i,
                 &show_i,
                 &pause_i,
@@ -145,6 +178,7 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
                 &screenshot_i,
                 &record_i,
                 &PredefinedMenuItem::separator(app)?,
+                &recent_submenu,
                 &quick_paste_i,
                 &show_i,
                 &pause_i,
@@ -163,11 +197,24 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
         let (w, h) = rgba.dimensions();
         tauri::image::Image::new_owned(rgba.into_raw(), w, h)
     });
+    // Set tooltip with item count
+    let tooltip_text = {
+        let db_state = app.state::<crate::db::DbState>();
+        let result = match db_state.conn.lock() {
+            Ok(conn) => {
+                let count: u32 = conn.query_row("SELECT COUNT(*) FROM clipboard_items", [], |row| row.get(0)).unwrap_or(0);
+                format!("ABoard — {} items", count)
+            }
+            Err(_) => "ABoard".to_string(),
+        };
+        result
+    };
+
     let _tray = TrayIconBuilder::new()
         .icon(icon)
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .tooltip("ABoard - Clipboard Manager")
+        .tooltip(&tooltip_text)
         .on_menu_event(move |app, event| match event.id().as_ref() {
             "screenshot" => {
                 capture_screenshot(app.clone());
@@ -226,6 +273,23 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
             }
             "quit" => {
                 app.exit(0);
+            }
+            id if id.starts_with("recent-") => {
+                // Copy recent item content to clipboard
+                if let Some(item_id) = id.strip_prefix("recent-") {
+                    use tauri_plugin_clipboard_manager::ClipboardExt;
+                    let db_state = app.state::<crate::db::DbState>();
+                    if let Ok(conn) = db_state.conn.lock() {
+                        let content: Result<String, _> = conn.query_row(
+                            "SELECT content FROM clipboard_items WHERE id = ?1",
+                            rusqlite::params![item_id],
+                            |row| row.get(0),
+                        );
+                        if let Ok(text) = content {
+                            let _ = app.clipboard().write_text(&text);
+                        }
+                    };
+                }
             }
             _ => (),
         })

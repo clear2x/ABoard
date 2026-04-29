@@ -68,8 +68,11 @@ export default function App() {
       try {
         const state = await invoke<{ x: number; y: number; width: number; height: number; is_maximized: boolean } | null>("load_window_state");
         if (state && !state.is_maximized) {
-          const { PhysicalPosition } = await import("@tauri-apps/api/dpi");
+          const { PhysicalPosition, PhysicalSize } = await import("@tauri-apps/api/dpi");
           await appWindow!.setPosition(new PhysicalPosition(state.x, state.y));
+          if (state.width && state.height) {
+            await appWindow!.setSize(new PhysicalSize(state.width, state.height));
+          }
         }
       } catch {}
     }
