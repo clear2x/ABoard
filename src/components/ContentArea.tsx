@@ -36,20 +36,20 @@ const TIME_FILTERS = [
   { key: "last7days", labelKey: "filter.last7days" },
 ] as const;
 
-function isToday(ts: number): boolean {
+export function isToday(ts: number): boolean {
   const d = new Date(ts);
   const now = new Date();
   return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
 }
 
-function isYesterday(ts: number): boolean {
+export function isYesterday(ts: number): boolean {
   const d = new Date(ts);
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   return d.getDate() === yesterday.getDate() && d.getMonth() === yesterday.getMonth() && d.getFullYear() === yesterday.getFullYear();
 }
 
-function isLast7Days(ts: number): boolean {
+export function isLast7Days(ts: number): boolean {
   return Date.now() - ts < 7 * 24 * 60 * 60 * 1000;
 }
 

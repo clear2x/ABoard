@@ -797,6 +797,42 @@ mod tests {
     }
 
     #[test]
+    fn test_is_file_paths_single_uri() {
+        assert!(is_file_paths("file:///Users/test/doc.txt"));
+    }
+
+    #[test]
+    fn test_is_file_paths_multiple_unix() {
+        assert!(is_file_paths("/a.txt\n/b.txt\n/c.txt"));
+    }
+
+    #[test]
+    fn test_is_file_paths_windows_paths() {
+        assert!(is_file_paths("C:\\Users\\test\nC:\\Windows\\sys"));
+    }
+
+    #[test]
+    fn test_is_file_paths_home_dir() {
+        assert!(is_file_paths("~/doc1.txt\n~/doc2.txt\n~/doc3.txt"));
+    }
+
+    #[test]
+    fn test_is_file_paths_not_paths() {
+        assert!(!is_file_paths("Just some regular text"));
+    }
+
+    #[test]
+    fn test_is_file_paths_single_line_not_uri() {
+        assert!(!is_file_paths("/single/path.txt"));
+    }
+
+    #[test]
+    fn test_detect_content_type_file_uri() {
+        let (ct, _) = detect_content_type("file:///tmp/test.json");
+        assert_eq!(ct, "file-paths");
+    }
+
+    #[test]
     fn test_toggle_monitoring() {
         let initial = MONITORING_PAUSED.load(Ordering::SeqCst);
         let new_state = toggle_monitoring();

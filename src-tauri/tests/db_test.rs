@@ -385,3 +385,355 @@ fn test_path_nonexistent_allowed() {
     let result = validate_data_path(&app_dir, "data/does-not-exist.png");
     assert!(result.is_ok(), "Non-existent paths within data/ should be allowed");
 }
+
+// ---------------------------------------------------------------------------
+// CRUD operation tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_insert_and_query_item() {
+    let conn = setup_test_db();
+    conn.execute(
+        "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp)
+         VALUES ('item-1', 'text', 'Hello world', 'hash1', 1000)",
+        [],
+    ).unwrap();
+
+    let content: String = conn.query_row(
+        "SELECT content FROM clipboard_items WHERE id = 'item-1'",
+        [],
+        |r| r.get(0),
+    ).unwrap();
+    assert_eq!(content, "Hello world");
+}
+
+#[test]
+fn test_delete_items() {
+    let conn = setup_test_db();
+    insert_test_item(&conn, "a", "alpha", 0);
+    insert_test_item(&conn, "b", "beta", 0);
+    insert_test_item(&conn, "c", "charlie", 0);
+
+    conn.execute("DELETE FROM clipboard_items WHERE id IN ('a', 'c')", []).unwrap();
+
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM clipboard_items", [], |r| r.get(0)).unwrap();
+    assert_eq!(count, 1);
+
+    let remaining: String = conn.query_row(
+        "SELECT id FROM clipboard_items", [], |r| r.get(0),
+    ).unwrap();
+    assert_eq!(remaining, "b");
+}
+
+#[test]
+fn test_pin_item() {
+    let conn = setup_test_db();
+    insert_test_item(&conn, "a", "alpha", 0);
+
+    conn.execute(
+        "UPDATE clipboard_items SET pinned = 1, pinned_at = 5000 WHERE id = 'a'",
+        [],
+    ).unwrap();
+
+    let (pinned, pinned_at): (i32, Option<i64>) = conn.query_row(
+        "SELECT pinned, pinned_at FROM clipboard_items WHERE id = 'a'",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    ).unwrap();
+    assert_eq!(pinned, 1);
+    assert_eq!(pinned_at, Some(5000));
+}
+
+#[test]
+fn test_unpin_item() {
+    let conn = setup_test_db();
+    conn.execute(
+        "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, pinned, pinned_at)
+         VALUES ('a', 'text', 'alpha', 'h1', 1000, 1, 5000)",
+        [],
+    ).unwrap();
+
+    conn.execute(
+        "UPDATE clipboard_items SET pinned = 0, pinned_at = NULL WHERE id = 'a'",
+        [],
+    ).unwrap();
+
+    let (pinned, pinned_at): (i32, Option<i64>) = conn.query_row(
+        "SELECT pinned, pinned_at FROM clipboard_items WHERE id = 'a'",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    ).unwrap();
+    assert_eq!(pinned, 0);
+    assert_eq!(pinned_at, None);
+}
+
+#[test]
+fn test_clean_old_items_preserves_pinned() {
+    let conn = setup_test_db();
+    // Old pinned item
+    conn.execute(
+        "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, pinned)
+         VALUES ('old-pinned', 'text', 'old', 'h1', 100, 1)",
+        [],
+    ).unwrap();
+    // Old unpinned item
+    conn.execute(
+        "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, pinned)
+         VALUES ('old-unpinned', 'text', 'old2', 'h2', 100, 0)",
+        [],
+    ).unwrap();
+    // Recent item
+    conn.execute(
+        "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, pinned)
+         VALUES ('recent', 'text', 'new', 'h3', 9999, 0)",
+        [],
+    ).unwrap();
+
+    let cutoff = 500;
+    conn.execute(
+        "DELETE FROM clipboard_items WHERE pinned = 0 AND timestamp < ?1",
+        rusqlite::params![cutoff],
+    ).unwrap();
+
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM clipboard_items", [], |r| r.get(0)).unwrap();
+    assert_eq!(count, 2, "Should keep pinned + recent");
+
+    let ids: Vec<String> = {
+        let mut stmt = conn.prepare("SELECT id FROM clipboard_items ORDER BY id").unwrap();
+        stmt.query_map([], |r| r.get(0)).unwrap().filter_map(|r| r.ok()).collect()
+    };
+    assert!(ids.contains(&"old-pinned".to_string()));
+    assert!(ids.contains(&"recent".to_string()));
+    assert!(!ids.contains(&"old-unpinned".to_string()));
+}
+
+#[test]
+fn test_update_ai_metadata() {
+    let conn = setup_test_db();
+    insert_test_item(&conn, "a", "some code here", 0);
+
+    conn.execute(
+        "UPDATE clipboard_items SET ai_type = 'code', ai_tags = 'rust,system', ai_summary = 'Rust code snippet'
+         WHERE id = 'a'",
+        [],
+    ).unwrap();
+
+    let (ai_type, ai_tags, ai_summary): (String, String, String) = conn.query_row(
+        "SELECT ai_type, ai_tags, ai_summary FROM clipboard_items WHERE id = 'a'",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    ).unwrap();
+    assert_eq!(ai_type, "code");
+    assert_eq!(ai_tags, "rust,system");
+    assert_eq!(ai_summary, "Rust code snippet");
+}
+
+#[test]
+fn test_update_item_content() {
+    let conn = setup_test_db();
+    insert_test_item(&conn, "a", "original", 0);
+
+    conn.execute(
+        "UPDATE clipboard_items SET content = 'updated' WHERE id = 'a'",
+        [],
+    ).unwrap();
+
+    let content: String = conn.query_row(
+        "SELECT content FROM clipboard_items WHERE id = 'a'",
+        [],
+        |r| r.get(0),
+    ).unwrap();
+    assert_eq!(content, "updated");
+}
+
+// ---------------------------------------------------------------------------
+// Snippet CRUD tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_snippet_crud() {
+    let conn = setup_test_db();
+
+    // Create
+    conn.execute(
+        "INSERT INTO snippets (id, title, content, created_at, last_used) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params!["s1", "Greeting", "Hello ${name}!", 1000, 0],
+    ).unwrap();
+
+    // Read
+    let (title, content): (String, String) = conn.query_row(
+        "SELECT title, content FROM snippets WHERE id = 's1'",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    ).unwrap();
+    assert_eq!(title, "Greeting");
+    assert_eq!(content, "Hello ${name}!");
+
+    // Update
+    conn.execute(
+        "UPDATE snippets SET title = 'Greeting Updated', content = 'Hi ${name}!' WHERE id = 's1'",
+        [],
+    ).unwrap();
+    let title: String = conn.query_row(
+        "SELECT title FROM snippets WHERE id = 's1'", [],
+        |r| r.get(0),
+    ).unwrap();
+    assert_eq!(title, "Greeting Updated");
+
+    // Delete
+    conn.execute("DELETE FROM snippets WHERE id = 's1'", []).unwrap();
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM snippets", [], |r| r.get(0)).unwrap();
+    assert_eq!(count, 0);
+}
+
+#[test]
+fn test_snippet_touch_updates_last_used() {
+    let conn = setup_test_db();
+    conn.execute(
+        "INSERT INTO snippets (id, title, content, created_at, last_used) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params!["s1", "Test", "content", 1000, 0],
+    ).unwrap();
+
+    let now = chrono::Utc::now().timestamp_millis();
+    conn.execute(
+        "UPDATE snippets SET last_used = ?1 WHERE id = ?2",
+        rusqlite::params![now, "s1"],
+    ).unwrap();
+
+    let last_used: i64 = conn.query_row(
+        "SELECT last_used FROM snippets WHERE id = 's1'",
+        [],
+        |r| r.get(0),
+    ).unwrap();
+    assert!(last_used > 0);
+}
+
+#[test]
+fn test_snippets_ordered_by_last_used() {
+    let conn = setup_test_db();
+    conn.execute(
+        "INSERT INTO snippets (id, title, content, created_at, last_used) VALUES ('a', 'A', 'c', 100, 300)",
+        [],
+    ).unwrap();
+    conn.execute(
+        "INSERT INTO snippets (id, title, content, created_at, last_used) VALUES ('b', 'B', 'c', 200, 100)",
+        [],
+    ).unwrap();
+    conn.execute(
+        "INSERT INTO snippets (id, title, content, created_at, last_used) VALUES ('c', 'C', 'c', 300, 500)",
+        [],
+    ).unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT id FROM snippets ORDER BY last_used DESC"
+    ).unwrap();
+    let ids: Vec<String> = stmt.query_map([], |r| r.get(0)).unwrap().filter_map(|r| r.ok()).collect();
+    assert_eq!(ids, vec!["c", "a", "b"]);
+}
+
+// ---------------------------------------------------------------------------
+// Settings tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_settings_crud() {
+    let conn = setup_test_db();
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);"
+    ).unwrap();
+
+    // Set
+    conn.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+        rusqlite::params!["locale", "zh"],
+    ).unwrap();
+
+    // Get
+    let value: String = conn.query_row(
+        "SELECT value FROM settings WHERE key = 'locale'",
+        [],
+        |r| r.get(0),
+    ).unwrap();
+    assert_eq!(value, "zh");
+
+    // Update
+    conn.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+        rusqlite::params!["locale", "en"],
+    ).unwrap();
+    let value: String = conn.query_row(
+        "SELECT value FROM settings WHERE key = 'locale'",
+        [],
+        |r| r.get(0),
+    ).unwrap();
+    assert_eq!(value, "en");
+}
+
+// ---------------------------------------------------------------------------
+// Image/video content type tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_image_item_with_file_path() {
+    let conn = setup_test_db();
+    conn.execute(
+        "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, file_path)
+         VALUES ('img-1', 'image', '', 'h1', 1000, 'data/test.png')",
+        [],
+    ).unwrap();
+
+    let (ct, file_path): (String, Option<String>) = conn.query_row(
+        "SELECT content_type, file_path FROM clipboard_items WHERE id = 'img-1'",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    ).unwrap();
+    assert_eq!(ct, "image");
+    assert_eq!(file_path, Some("data/test.png".to_string()));
+}
+
+#[test]
+fn test_video_item_with_file_path() {
+    let conn = setup_test_db();
+    conn.execute(
+        "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, file_path)
+         VALUES ('vid-1', 'video', '', 'h1', 1000, 'data/vid.mp4')",
+        [],
+    ).unwrap();
+
+    let file_path: String = conn.query_row(
+        "SELECT file_path FROM clipboard_items WHERE id = 'vid-1'",
+        [],
+        |r| r.get(0),
+    ).unwrap();
+    assert_eq!(file_path, "data/vid.mp4");
+}
+
+// ---------------------------------------------------------------------------
+// FTS5 multi-field search test
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_fts5_search_by_tags() {
+    let conn = setup_test_db();
+    conn.execute(
+        "INSERT INTO clipboard_items (id, content_type, content, hash, timestamp, ai_tags)
+         VALUES ('f1', 'text', 'code snippet', 'h1', 1000, 'rust, systems')",
+        [],
+    ).unwrap();
+    conn.execute(
+        "INSERT INTO clipboard_items_fts (rowid, content, ai_tags) VALUES (1, 'code snippet', 'rust, systems')",
+        [],
+    ).unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT clipboard_items.id FROM clipboard_items
+         JOIN clipboard_items_fts ON clipboard_items_fts.rowid = clipboard_items.rowid
+         WHERE clipboard_items_fts MATCH ?1"
+    ).unwrap();
+
+    let results: Vec<String> = stmt.query_map(["rust"], |r| r.get(0))
+        .unwrap()
+        .filter_map(|r| r.ok())
+        .collect();
+    assert_eq!(results, vec!["f1"]);
+}

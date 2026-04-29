@@ -306,3 +306,103 @@ impl InferenceProvider for EmbeddedProvider {
         self.loaded.load(Ordering::Relaxed) || self.model_path.exists()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_prompt_user_only() {
+        let prompt = EmbeddedProvider::format_prompt(None, "Hello");
+        assert!(prompt.contains("<|im_start|>user\nHello<|im_end|>"));
+        assert!(prompt.contains("<|im_start|>assistant"));
+        assert!(!prompt.contains("<|im_start|>system"));
+    }
+
+    #[test]
+    fn test_format_prompt_with_system() {
+        let prompt = EmbeddedProvider::format_prompt(Some("You are helpful"), "Hello");
+        assert!(prompt.contains("<|im_start|>system\nYou are helpful<|im_end|>"));
+        assert!(prompt.contains("<|im_start|>user\nHello<|im_end|>"));
+    }
+
+    #[test]
+    fn test_format_prompt_truncates_long_system() {
+        let long_system = "x".repeat(300);
+        let prompt = EmbeddedProvider::format_prompt(Some(&long_system), "Hello");
+        // System prompt should be truncated to 200 chars
+        let system_part = prompt.split("<|im_end|>").next().unwrap();
+        // The system content between tags should be 200 chars
+        let content_start = system_part.find("system\n").unwrap() + 7;
+        let system_content = &system_part[content_start..];
+        assert_eq!(system_content.len(), 200);
+    }
+
+    #[test]
+    fn test_format_prompt_short_system_not_truncated() {
+        let short_system = "Be concise";
+        let prompt = EmbeddedProvider::format_prompt(Some(short_system), "Hello");
+        assert!(prompt.contains(&format!("system\n{}<|im_end|>", short_system)));
+    }
+
+    #[test]
+    fn test_default_model_exists_no_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = EmbeddedProvider::default_model_exists(tmp.path());
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_default_model_exists_with_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let model_path = tmp.path().join(DEFAULT_MODEL_FILENAME);
+        std::fs::write(&model_path, b"fake model").unwrap();
+        let result = EmbeddedProvider::default_model_exists(tmp.path());
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), model_path);
+    }
+
+    #[test]
+    fn test_default_model_exists_with_q4_0_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let model_path = tmp.path().join("my-q4_0-model.gguf");
+        std::fs::write(&model_path, b"fake").unwrap();
+        let result = EmbeddedProvider::default_model_exists(tmp.path());
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().file_name().unwrap(), "my-q4_0-model.gguf");
+    }
+
+    #[test]
+    fn test_default_model_exists_ignores_non_q4_0() {
+        let tmp = tempfile::tempdir().unwrap();
+        let model_path = tmp.path().join("model-q4_k_m.gguf");
+        std::fs::write(&model_path, b"fake").unwrap();
+        let result = EmbeddedProvider::default_model_exists(tmp.path());
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_provider_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("test.gguf");
+        let provider = EmbeddedProvider::new(path);
+        assert_eq!(provider.name(), "embedded");
+    }
+
+    #[test]
+    fn test_new_provider_not_loaded() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("test.gguf");
+        let provider = EmbeddedProvider::new(path);
+        assert!(!provider.loaded.load(Ordering::Relaxed));
+        assert!(!provider.loading.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn test_tokenizer_path_derived_from_model_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("models").join("test.gguf");
+        let provider = EmbeddedProvider::new(path);
+        assert_eq!(provider.tokenizer_path, tmp.path().join("models").join("tokenizer.json"));
+    }
+}
