@@ -139,7 +139,7 @@ export default function Sidebar() {
   });
 
   return (
-    <div class="w-[160px] min-w-[160px] bg-white/20 border-r border-white/40 flex flex-col gap-6 overflow-y-auto no-scrollbar shrink-0 p-3 dark:bg-slate-800/30 dark:border-white/10">
+    <div class="w-[160px] min-w-[160px] glass-panel-inner flex flex-col gap-6 overflow-y-auto no-scrollbar shrink-0 p-3">
       {/* Logo */}
       <div class="flex items-center gap-2 font-bold text-gray-700 dark:text-gray-200 px-2 pt-2">
         <i class="ph-fill ph-clipboard-text text-blue-600 text-xl" />

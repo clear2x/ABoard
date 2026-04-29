@@ -90,20 +90,22 @@ jobs:
 
           echo "=== Before signing ==="
           codesign -dvvv "${APP_BUNDLE}" 2>&1 || true
-          spctl -a -v "${APP_BUNDLE}" 2>&1 || true
 
-          echo "=== Ad-hoc signing with entitlements ==="
+          echo "=== Ad-hoc signing (no hardened runtime) ==="
+          # NOTE: Do NOT use --options runtime with ad-hoc signing (-).
+          # Hardened runtime requires a valid Developer ID chain; ad-hoc
+          # lacks that, so macOS Tahoe treats it as "damaged" and blocks
+          # even the right-click → Open bypass.  Without --options runtime,
+          # the app gets a valid ad-hoc signature that shows "unverified
+          # developer" — which users CAN bypass via right-click → Open.
           codesign --force --deep --sign - \
             --entitlements "${ENTITLEMENTS}" \
-            --options runtime \
             "${APP_BUNDLE}"
 
           echo "=== After signing ==="
           codesign -dvvv "${APP_BUNDLE}" 2>&1
-          spctl -a -v "${APP_BUNDLE}" 2>&1 || true
 
           echo "=== Re-creating DMG ==="
-          # Determine arch from args
           ARCH="aarch64"
           DMG_NAME="ABoard_${{ github.ref_name }}_aarch64.dmg"
           if echo "${{ matrix.args }}" | grep -q "x86_64"; then
@@ -123,7 +125,7 @@ jobs:
           echo "=== DMG size ==="
           ls -lh "${DMG_DIR}/${DMG_NAME}"
 
-          # Upload signed DMG (replace the unsigned one)
+          # Upload signed DMG (replace the unsigned one from tauri-action)
           echo "Uploading signed DMG to release..."
           gh release upload "${{ github.ref_name }}" "${DMG_DIR}/${DMG_NAME}" --clobber
 

@@ -218,12 +218,12 @@ export default function ContentArea() {
 
   return (
     <div
-      class="flex-1 flex flex-col bg-white/10 relative dark:bg-slate-900/20 min-w-0"
+      class="flex-1 flex flex-col bg-transparent relative min-w-0"
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
       {/* Filter tabs */}
-      <div class="flex flex-nowrap gap-4 px-6 pt-4 pb-2 border-b border-white/30 dark:border-slate-600/50 text-sm text-gray-500 sticky top-0 bg-white/20 backdrop-blur-md z-10 whitespace-nowrap overflow-x-auto no-scrollbar dark:bg-slate-800/30 dark:text-gray-400"
+      <div class="flex flex-nowrap gap-4 px-6 pt-4 pb-2 border-b border-[var(--color-border)] text-sm text-[var(--color-text-muted)] sticky top-0 glass-panel-inner backdrop-blur-md z-10 whitespace-nowrap overflow-x-auto no-scrollbar"
       >
         <For each={TIME_FILTERS}>
           {(filter) => {
@@ -258,7 +258,7 @@ export default function ContentArea() {
 
       {/* Batch mode toolbar */}
       <Show when={batchMode()}>
-        <div class="flex items-center gap-2 px-4 py-2 bg-white/10 border-b border-white/20 dark:border-slate-600/50"
+        <div class="flex items-center gap-2 px-4 py-2 border-b border-[var(--color-border)]"
         >
           <button class="px-3 py-1.5 text-xs rounded-lg hover:bg-white/30 transition-colors text-gray-600" onClick={selectAll}>
             {t("clipboard.selectAll")}

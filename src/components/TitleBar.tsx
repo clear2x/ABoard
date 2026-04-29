@@ -76,7 +76,7 @@ export default function TitleBar(props: Props) {
     <div
       ref={headerRef}
       data-tauri-drag-region
-      class="flex items-center h-14 px-4 border-b border-white/40 shrink-0 select-none bg-white/30 dark:bg-slate-800/50"
+      class="flex items-center h-14 px-4 border-b border-[var(--color-border)] shrink-0 select-none glass-panel-inner"
       onMouseDown={handleMouseDown}
     >
       {/* Spacer for native macOS traffic lights (overlay titleBarStyle) */}
@@ -90,18 +90,18 @@ export default function TitleBar(props: Props) {
           <i class="ph ph-pause-circle text-sm" />
         </div>
       </Show>
-      <div class="flex-1 max-w-xl mx-auto relative flex items-center bg-white/70 border border-white/80 rounded-lg px-3 py-1.5 shadow-sm dark:bg-slate-700/50 dark:border-white/10" data-tauri-no-drag>
-        <i class="ph ph-magnifying-glass text-gray-400 dark:text-gray-500" />
+      <div class="flex-1 max-w-xl mx-auto relative flex items-center glass-card rounded-lg px-3 py-1.5" data-tauri-no-drag>
+        <i class="ph ph-magnifying-glass text-[var(--color-text-muted)]" />
         <input
           type="text"
           value={searchQuery()}
           onInput={handleSearchInput}
           placeholder={semanticMode() ? t("search.semantic") : t("search.placeholderFull")}
-          class="bg-transparent border-none outline-none text-sm ml-2 w-full placeholder-gray-400 text-gray-700 dark:text-gray-200"
+          class="bg-transparent border-none outline-none text-sm ml-2 w-full placeholder-[var(--color-text-muted)] text-[var(--color-text-primary)]"
         />
         <div class="flex items-center gap-1 shrink-0">
-          <span class="text-[10px] bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 dark:bg-gray-600/50 dark:text-gray-400 dark:border-gray-500/50">⌘K</span>
-          <i class={`ph ph-funnel ml-2 cursor-pointer transition-colors ${semanticMode() ? "text-blue-500" : "text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"}`}
+          <span class="text-[10px] bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] px-1.5 rounded border border-[var(--color-border)]">⌘K</span>
+          <i class={`ph ph-funnel ml-2 cursor-pointer transition-colors ${semanticMode() ? "text-blue-500" : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"}`}
              onClick={() => setSemanticMode(!semanticMode())}
           />
         </div>

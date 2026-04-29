@@ -271,7 +271,7 @@ export default function ClipboardItemCard(props: Props) {
                       <Show
                         when={isMarkdown(props.item.content)}
                         fallback={
-                          <p class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
+                          <p class="text-sm text-[var(--color-text-primary)] leading-relaxed break-words overflow-wrap-anywhere">
                             {highlightText(truncateText(props.item.content), query())}
                           </p>
                         }
@@ -430,7 +430,7 @@ export default function ClipboardItemCard(props: Props) {
       <Show
         when={props.item.type === "image"}
         fallback={
-          <p class="break-all leading-relaxed text-sm text-gray-700">
+          <p class="break-words overflow-wrap-anywhere leading-relaxed text-sm text-[var(--color-text-primary)]">
             {highlightText(truncateText(props.item.content), query())}
           </p>
         }
