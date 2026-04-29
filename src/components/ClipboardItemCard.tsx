@@ -41,6 +41,31 @@ function displayType(item: ClipboardItem): string {
   return item.ai_type || item.type;
 }
 
+/** Detect if content looks like markdown (US-010) */
+function isMarkdown(content: string): boolean {
+  return /^(#|\*\*|\* |- |1\. |\[.*\]\(.*\)|```)/m.test(content);
+}
+
+/** Simple regex-based markdown rendering (no deps) (US-010) */
+function renderMarkdown(text: string): string {
+  let html = text
+    // Headers: # text, ## text, ### text
+    .replace(/^### (.+)$/gm, '<strong class="text-base">$1</strong>')
+    .replace(/^## (.+)$/gm, '<strong class="text-lg">$1</strong>')
+    .replace(/^(?!<strong>)# (.+)$/gm, '<strong class="text-xl">$1</strong>')
+    // Inline code: `code`
+    .replace(/`([^`]+)`/g, '<code class="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs font-mono">$1</code>')
+    // Bold: **text**
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    // Italic: *text*
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    // List items: - item
+    .replace(/^- (.+)$/gm, '<span class="ml-3">&bull; $1</span>')
+    // Ordered list: 1. item
+    .replace(/^\d+\. (.+)$/gm, '<span class="ml-3">$&</span>');
+  return html;
+}
+
 /** Map content type to avatar config */
 function typeAvatar(type: string): { letter: string; bg: string; color: string; icon?: string } {
   switch (type) {
@@ -78,6 +103,7 @@ interface Props {
   onDelete?: (id: string) => void;
   onPin?: (id: string, pinned: boolean) => void;
   onImageClick?: (src: string) => void;
+  onDoubleClick?: () => void;
   "data-item-id"?: string;
 }
 
@@ -145,7 +171,11 @@ export default function ClipboardItemCard(props: Props) {
   };
 
   const handleDoubleClick = () => {
-    copyItemContent(props.item);
+    if (props.onDoubleClick) {
+      props.onDoubleClick();
+    } else {
+      copyItemContent(props.item);
+    }
   };
 
   // Timeline mode — reference-style card matching ui.html
@@ -238,9 +268,19 @@ export default function ClipboardItemCard(props: Props) {
                   when={dtype() === "code"}
                   fallback={
                     <Show when={props.item.type !== "image" && props.item.type !== "video"}>
-                      <p class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
-                        {highlightText(truncateText(props.item.content), query())}
-                      </p>
+                      <Show
+                        when={isMarkdown(props.item.content)}
+                        fallback={
+                          <p class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
+                            {highlightText(truncateText(props.item.content), query())}
+                          </p>
+                        }
+                      >
+                        <div class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed relative">
+                          <span class="absolute top-0 right-0 text-[9px] bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1 rounded">MD</span>
+                          <p class="pr-6 whitespace-pre-wrap break-words" innerHTML={renderMarkdown(truncateText(props.item.content, 200))} />
+                        </div>
+                      </Show>
                     </Show>
                   }
                 >
@@ -253,6 +293,19 @@ export default function ClipboardItemCard(props: Props) {
                       ));
                     })()}
                   </div>
+                </Show>
+
+                {/* Character and word count (US-009) */}
+                <Show when={props.item.type !== "image" && props.item.type !== "video" && dtype() !== "link"}>
+                  {(() => {
+                    const chars = props.item.content.length;
+                    const words = props.item.content.split(/\s+/).filter(Boolean).length;
+                    return (
+                      <span class="text-xs text-gray-400 mt-1 block">
+                        {chars} {t("clipboard.chars")} &middot; {words} {t("clipboard.words")}
+                      </span>
+                    );
+                  })()}
                 </Show>
 
                 {/* Tags — matching ui.html */}

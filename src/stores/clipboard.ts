@@ -34,6 +34,9 @@ const [copiedId, setCopiedId] = createSignal<string | null>(null);
 const [storageSize, setStorageSize] = createSignal<number>(0);
 const [itemCount, setItemCount] = createSignal<number>(0);
 
+// Monitoring paused indicator
+const [monitoringPaused, setMonitoringPaused] = createSignal(false);
+
 // Category and time filters for the new UI
 const [categoryFilter, setCategoryFilter] = createSignal<string>("all");
 const [timeFilter, setTimeFilter] = createSignal<string>("all");
@@ -55,6 +58,7 @@ export {
   setTimeFilter,
   storageSize,
   itemCount,
+  monitoringPaused,
 };
 
 export function viewMode() { return viewModeInternal(); }
@@ -296,6 +300,11 @@ export async function startClipboardListener() {
         : item
     ));
   });
+
+  // Listen for monitoring toggle events
+  listen<{ paused: boolean }>("monitoring-toggled", (event) => {
+    setMonitoringPaused(event.payload.paused);
+  }).catch(console.error);
 }
 
 export function stopClipboardListener() {

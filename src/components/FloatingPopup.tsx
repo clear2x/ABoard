@@ -93,6 +93,14 @@ export default function FloatingPopup() {
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedIndex(Math.max(current - 1, 0));
+      } else if (e.key === "Enter" && e.shiftKey) {
+        e.preventDefault();
+        const item = list[current];
+        if (item) {
+          const plain = item.content.replace(/<[^>]*>/g, "");
+          invoke("paste_to_active", { content: plain });
+          getCurrentWindow().hide();
+        }
       } else if (e.key === "Enter") {
         e.preventDefault();
         selectAndPaste(list[current]);
@@ -383,9 +391,14 @@ export default function FloatingPopup() {
         <span class="flex items-center gap-1">
           <i class="ph ph-arrows-out-simple" /> {t("float.openMainWindow")}
         </span>
-        <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 text-[10px]">
-          ⌘⌥O
-        </span>
+        <div class="flex items-center gap-2">
+          <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 text-[10px]">
+            Shift+Enter: {t("float.plainText")}
+          </span>
+          <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 text-[10px]">
+            ⌘⌥O
+          </span>
+        </div>
       </div>
     </div>
   );

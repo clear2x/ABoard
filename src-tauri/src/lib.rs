@@ -422,6 +422,7 @@ pub fn run() {
             db::update_snippet,
             db::delete_snippet,
             db::list_snippets,
+            db::touch_snippet,
             db::generate_video_thumbnail,
             db::import_items,
             db::find_similar_items,
@@ -429,6 +430,7 @@ pub fn run() {
             db::load_window_state,
             db::get_shortcuts,
             db::update_shortcut,
+            db::get_item_count,
             reveal_in_folder,
         ])
         .build(tauri::generate_context!())

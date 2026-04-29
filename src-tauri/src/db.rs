@@ -136,6 +136,9 @@ pub fn init_db(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>>
         let _ = conn.execute(sql, []);
     }
 
+    // Migrate: add last_used column to snippets (compatible with existing databases)
+    let _ = conn.execute("ALTER TABLE snippets ADD COLUMN last_used INTEGER NOT NULL DEFAULT 0", []);
+
     // Migrate FTS5: rebuild with ai_tags and ai_summary columns if needed
     let fts_needs_rebuild = {
         let col_count: i64 = conn
@@ -897,6 +900,14 @@ pub async fn semantic_search(
     Ok(items)
 }
 
+/// Get the total count of clipboard items.
+#[tauri::command]
+pub fn get_item_count(state: tauri::State<'_, DbState>) -> Result<u32, String> {
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    let count: u32 = conn.query_row("SELECT COUNT(*) FROM clipboard_items", [], |row| row.get(0)).unwrap_or(0);
+    Ok(count)
+}
+
 // --- Settings ---
 
 #[tauri::command]
@@ -1050,7 +1061,7 @@ pub fn delete_snippet(state: tauri::State<'_, DbState>, id: String) -> Result<()
 pub fn list_snippets(state: tauri::State<'_, DbState>) -> Result<Vec<Snippet>, String> {
     let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
     let mut stmt = conn.prepare(
-        "SELECT id, title, content, created_at, updated_at FROM snippets ORDER BY updated_at DESC"
+        "SELECT id, title, content, created_at, updated_at FROM snippets ORDER BY last_used DESC, updated_at DESC"
     ).map_err(|e| format!("Prepare error: {}", e))?;
     let rows = stmt.query_map([], |row| Ok(Snippet {
         id: row.get(0)?,
@@ -1060,6 +1071,16 @@ pub fn list_snippets(state: tauri::State<'_, DbState>) -> Result<Vec<Snippet>, S
         updated_at: row.get(4)?,
     })).map_err(|e| format!("Query error: {}", e))?;
     Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
+/// Update last_used timestamp for a snippet.
+#[tauri::command]
+pub fn touch_snippet(state: tauri::State<'_, DbState>, id: String) -> Result<(), String> {
+    let now = chrono::Utc::now().timestamp_millis();
+    let conn = state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    conn.execute("UPDATE snippets SET last_used = ?1 WHERE id = ?2", rusqlite::params![now, id])
+        .map_err(|e| format!("Update error: {}", e))?;
+    Ok(())
 }
 
 // --- Video Thumbnail ---
