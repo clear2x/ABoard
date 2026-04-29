@@ -19,27 +19,53 @@ export interface ClipboardItem {
 
 export type ViewMode = "list" | "grid";
 
+// HMR-safe signal storage: keep signals alive across Vite hot reloads
+const G = globalThis as any;
+if (!G.__aboard_signals) G.__aboard_signals = {};
+const S = G.__aboard_signals;
+
 // Reactive signals
-const [items, setItems] = createSignal<ClipboardItem[]>([]);
-const [loading, setLoading] = createSignal(false);
-const [searchQuery, setSearchQuery] = createSignal("");
-const [selectedId, setSelectedId] = createSignal<string | null>(null);
-const [selectedIds, setSelectedIds] = createSignal<Set<string>>(new Set());
-const [viewModeInternal, setViewModeInternal] = createSignal<ViewMode>(
+if (!S.items) S.items = createSignal<ClipboardItem[]>([]);
+const [items, setItems] = S.items;
+
+if (!S.loading) S.loading = createSignal(false);
+const [loading, setLoading] = S.loading;
+
+if (!S.searchQuery) S.searchQuery = createSignal("");
+const [searchQuery, setSearchQuery] = S.searchQuery;
+
+if (!S.selectedId) S.selectedId = createSignal<string | null>(null);
+const [selectedId, setSelectedId] = S.selectedId;
+
+if (!S.selectedIds) S.selectedIds = createSignal<Set<string>>(new Set());
+const [selectedIds, setSelectedIds] = S.selectedIds;
+
+if (!S.viewModeInternal) S.viewModeInternal = createSignal<ViewMode>(
   (localStorage.getItem("aboard-view-mode") as ViewMode) || "list"
 );
-const [copiedId, setCopiedId] = createSignal<string | null>(null);
+const viewModeInternal = () => S.viewModeInternal[0]();
+function setViewModeInternal(mode: ViewMode) { S.viewModeInternal[1](mode); }
+
+if (!S.copiedId) S.copiedId = createSignal<string | null>(null);
+const [copiedId, setCopiedId] = S.copiedId;
 
 // Storage stats signals
-const [storageSize, setStorageSize] = createSignal<number>(0);
-const [itemCount, setItemCount] = createSignal<number>(0);
+if (!S.storageSize) S.storageSize = createSignal<number>(0);
+const [storageSize, setStorageSize] = S.storageSize;
+
+if (!S.itemCount) S.itemCount = createSignal<number>(0);
+const [itemCount, setItemCount] = S.itemCount;
 
 // Monitoring paused indicator
-const [monitoringPaused, setMonitoringPaused] = createSignal(false);
+if (!S.monitoringPaused) S.monitoringPaused = createSignal(false);
+const [monitoringPaused, setMonitoringPaused] = S.monitoringPaused;
 
 // Category and time filters for the new UI
-const [categoryFilter, setCategoryFilter] = createSignal<string>("all");
-const [timeFilter, setTimeFilter] = createSignal<string>("all");
+if (!S.categoryFilter) S.categoryFilter = createSignal<string>("all");
+const [categoryFilter, setCategoryFilter] = S.categoryFilter;
+
+if (!S.timeFilter) S.timeFilter = createSignal<string>("all");
+const [timeFilter, setTimeFilter] = S.timeFilter;
 
 export {
   items,
@@ -265,10 +291,9 @@ export async function unpinItem(id: string) {
 
 /// Add item to the reactive signal array for immediate display.
 export function addItem(item: ClipboardItem) {
-  setItems((prev) => {
-    if (prev.some((i) => i.hash === item.hash)) return prev;
-    return [item, ...prev];
-  });
+  const prev = items();
+  if (prev.some((i) => i.hash === item.hash)) return;
+  setItems([item, ...prev]);
 }
 
 /// Reorder items by moving an item from fromIndex to toIndex.
@@ -291,21 +316,49 @@ export function reorderItems(fromIndex: number, toIndex: number) {
 let unlistenFn: (() => void) | null = null;
 let unlistenAiFn: (() => void) | null = null;
 
+/// HMR-safe: always clean up old Tauri listeners before registering new ones.
+/// Uses globalThis to survive Vite hot reloads that re-evaluate module scope.
+async function registerTauriListener<T>(event: string, cb: (p: T) => void, globalKey: string): Promise<() => void> {
+  // Clean up previous instance (survives HMR)
+  const prev = (globalThis as any)[globalKey];
+  if (prev) { try { prev(); } catch {} }
+  const unlisten = await listen<T>(event, (e) => cb(e.payload));
+  (globalThis as any)[globalKey] = unlisten;
+  return unlisten;
+}
+
 /// Start listening to Tauri clipboard events.
 export async function startClipboardListener() {
-  if (unlistenFn) return;
-  unlistenFn = await listen<Record<string, unknown>>("clipboard-update", (event) => {
-    addItem(normalizeItem(event.payload));
-    loadStorageStats(); // Refresh stats after new clipboard capture
-  });
+  // Clean up any previous listeners (HMR-safe via registerTauriListener)
+  if (unlistenFn) { unlistenFn(); unlistenFn = null; }
+  if (unlistenAiFn) { unlistenAiFn(); unlistenAiFn = null; }
 
-  unlistenAiFn = await listen<{ item_id: string; ai_type: string; ai_tags: string[]; ai_summary?: string | null }>("ai-processed", (event) => {
-    setItems(prev => prev.map(item =>
-      item.id === event.payload.item_id
-        ? { ...item, ai_type: event.payload.ai_type, ai_tags: event.payload.ai_tags, ai_summary: event.payload.ai_summary ?? item.ai_summary }
-        : item
-    ));
-  });
+  unlistenFn = await registerTauriListener<Record<string, unknown>>(
+    "clipboard-update",
+    (payload) => {
+      const item = normalizeItem(payload);
+      // Direct signal update: read current value, prepend, set new array.
+      // Avoids createMemo reactivity issues with SolidJS + Tauri IPC callbacks.
+      const current = items();
+      if (!current.some((i) => i.hash === item.hash)) {
+        setItems([item, ...current]);
+      }
+      loadStorageStats();
+    },
+    "__aboard_clipboard_unlisten"
+  );
+
+  unlistenAiFn = await registerTauriListener<{ item_id: string; ai_type: string; ai_tags: string[]; ai_summary?: string | null }>(
+    "ai-processed",
+    (payload) => {
+      setItems(prev => prev.map(item =>
+        item.id === payload.item_id
+          ? { ...item, ai_type: payload.ai_type, ai_tags: payload.ai_tags, ai_summary: payload.ai_summary ?? item.ai_summary }
+          : item
+      ));
+    },
+    "__aboard_ai_unlisten"
+  );
 
   // Listen for monitoring toggle events
   listen<{ paused: boolean }>("monitoring-toggled", (event) => {
@@ -322,4 +375,8 @@ export function stopClipboardListener() {
     unlistenAiFn();
     unlistenAiFn = null;
   }
+  // Also clean global references
+  const g = (globalThis as any);
+  if (g.__aboard_clipboard_unlisten) { try { g.__aboard_clipboard_unlisten(); } catch {} delete g.__aboard_clipboard_unlisten; }
+  if (g.__aboard_ai_unlisten) { try { g.__aboard_ai_unlisten(); } catch {} delete g.__aboard_ai_unlisten; }
 }

@@ -2,7 +2,6 @@ use tauri::{
     AppHandle, Emitter, Manager, Runtime,
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    WebviewWindow,
 };
 use tauri_plugin_dialog::DialogExt;
 use std::collections::HashMap;
