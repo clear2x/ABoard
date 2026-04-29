@@ -49,6 +49,9 @@ static STORED_LOCALE: AtomicU8 = AtomicU8::new(0);
 /// Guard flag: set on DoubleClick so the delayed single-click handler can abort.
 static TRAY_DOUBLE_CLICKED: AtomicBool = AtomicBool::new(false);
 
+/// Stored reference to the "Recent" submenu for locale updates.
+static RECENT_SUBMENU_TEXT: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
 // ---------------------------------------------------------------------------
 // Type-erased menu item handle — stores a set_text closure to avoid generics
 // ---------------------------------------------------------------------------
@@ -62,6 +65,14 @@ impl TrayItemHandle {
         Self {
             set_text_fn: Box::new(move |text| {
                 let _ = item.set_text(text);
+            }),
+        }
+    }
+
+    fn from_submenu<R: Runtime>(submenu: Submenu<R>) -> Self {
+        Self {
+            set_text_fn: Box::new(move |text| {
+                let _ = submenu.set_text(text);
             }),
         }
     }
@@ -90,6 +101,13 @@ impl TrayMenuState {
             .insert(id.to_string(), TrayItemHandle::new(item));
     }
 
+    fn insert_submenu<R: Runtime>(&self, id: &str, submenu: Submenu<R>) {
+        self.items
+            .lock()
+            .unwrap()
+            .insert(id.to_string(), TrayItemHandle::from_submenu(submenu));
+    }
+
     fn set_text(&self, id: &str, text: &str) {
         if let Some(handle) = self.items.lock().unwrap().get(id) {
             handle.set_text(text);
@@ -104,18 +122,25 @@ impl TrayMenuState {
 /// Set up the system tray icon with context menu.
 pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
     let state = TrayMenuState::new();
+    let locale = get_stored_locale();
+    let texts = get_texts(&locale);
 
-    let quick_paste_i = MenuItem::with_id(app, "quick-paste", "Quick Paste", true, None::<&str>)?;
-    let show_i = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
-    let pause_i = MenuItem::with_id(app, "pause", "Pause Monitoring", true, None::<&str>)?;
-    let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let quick_paste_i = MenuItem::with_id(app, "quick-paste", texts.quick_paste, true, None::<&str>)?;
+    let show_i = MenuItem::with_id(app, "show", texts.show_window, true, None::<&str>)?;
+    let pause_text = if crate::clipboard::MONITORING_PAUSED.load(Ordering::SeqCst) {
+        texts.resume_monitoring
+    } else {
+        texts.pause_monitoring
+    };
+    let pause_i = MenuItem::with_id(app, "pause", pause_text, true, None::<&str>)?;
+    let quit_i = MenuItem::with_id(app, "quit", texts.quit, true, None::<&str>)?;
 
     state.insert("quick-paste", quick_paste_i.clone());
     state.insert("show", show_i.clone());
     state.insert("pause", pause_i.clone());
     state.insert("quit", quit_i.clone());
 
-    let screenshot_i = MenuItem::with_id(app, "screenshot", "Screenshot", true, None::<&str>)?;
+    let screenshot_i = MenuItem::with_id(app, "screenshot", texts.screenshot, true, None::<&str>)?;
     let record_i = MenuItem::with_id(app, "record", "Screen Recording", true, None::<&str>)?;
     #[cfg(target_os = "macos")]
     let reset_perm_i = MenuItem::with_id(app, "reset-permission", "Reset Screen Recording Permission…", true, None::<&str>)?;
@@ -125,7 +150,8 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
     state.insert("reset-permission", reset_perm_i.clone());
 
     // Build "Recent" submenu with the 5 most recent text items from DB
-    let recent_submenu = Submenu::with_items(app, "Recent", true, &[])?;
+    let recent_submenu = Submenu::with_items(app, texts.recent, true, &[])?;
+    state.insert_submenu("recent", recent_submenu.clone());
     {
         let db_state = app.state::<crate::db::DbState>();
         if let Ok(conn) = db_state.conn.lock() {
@@ -359,6 +385,7 @@ struct TrayTexts {
     pause_monitoring: &'static str,
     resume_monitoring: &'static str,
     quit: &'static str,
+    recent: &'static str,
 }
 
 const TEXTS_ZH: TrayTexts = TrayTexts {
@@ -371,6 +398,7 @@ const TEXTS_ZH: TrayTexts = TrayTexts {
     pause_monitoring: "暂停监听",
     resume_monitoring: "恢复监听",
     quit: "退出",
+    recent: "最近复制",
 };
 
 const TEXTS_EN: TrayTexts = TrayTexts {
@@ -383,6 +411,7 @@ const TEXTS_EN: TrayTexts = TrayTexts {
     pause_monitoring: "Pause Monitoring",
     resume_monitoring: "Resume Monitoring",
     quit: "Quit",
+    recent: "Recent",
 };
 
 fn get_texts(locale: &str) -> &'static TrayTexts {
@@ -444,6 +473,7 @@ pub fn update_tray_locale(app: tauri::AppHandle, locale: String) -> Result<(), S
     };
     state.set_text("pause", pause_text);
     state.set_text("quit", texts.quit);
+    state.set_text("recent", texts.recent);
 
     Ok(())
 }
