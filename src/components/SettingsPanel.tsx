@@ -11,10 +11,12 @@ interface AiConfig {
   active_provider: string;
   model_path?: string;
   context_length: number;
+  api_style: "chatCompletions" | "completions" | "responses" | "messages";
   openai_api_key?: string;
   openai_endpoint: string;
   openai_model: string;
   anthropic_api_key?: string;
+  anthropic_endpoint: string;
   anthropic_model: string;
   temperature?: number;
   top_p?: number;
@@ -74,6 +76,8 @@ export default function SettingsPanel(props: Props) {
   const [topP, setTopP] = createSignal(0.9);
   const [testingConnection, setTestingConnection] = createSignal(false);
   const [connectionResult, setConnectionResult] = createSignal<{ok: boolean; msg: string} | null>(null);
+  const [apiStyle, setApiStyle] = createSignal<AiConfig["api_style"]>("chatCompletions");
+  const [anthropicEndpoint, setAnthropicEndpoint] = createSignal("");
 
   // Privacy & storage state
   const [monitoringEnabled, setMonitoringEnabled] = createSignal(true);
@@ -193,6 +197,8 @@ export default function SettingsPanel(props: Props) {
       setOpenaiModel(config.openai_model || "gpt-4o-mini");
       setAnthropicKey(config.anthropic_api_key || "");
       setAnthropicModel(config.anthropic_model || "claude-sonnet-4-20250514");
+      setAnthropicEndpoint(config.anthropic_endpoint || "");
+      setApiStyle(config.api_style || "chatCompletions");
       setContextLength(config.context_length || 8192);
       setTemperature(config.temperature ?? 0.7);
       setTopP(config.top_p ?? 0.9);
@@ -233,10 +239,12 @@ export default function SettingsPanel(props: Props) {
         context_length: contextLength(),
         temperature: temperature(),
         top_p: topP(),
+        api_style: apiStyle(),
         openai_api_key: openaiKey() || undefined,
         openai_endpoint: openaiEndpoint(),
         openai_model: openaiModel(),
         anthropic_api_key: anthropicKey() || undefined,
+        anthropic_endpoint: anthropicEndpoint(),
         anthropic_model: anthropicModel(),
       };
       await invoke("ai_set_config", { config });
@@ -286,7 +294,7 @@ export default function SettingsPanel(props: Props) {
         }}
       >
         {/* Header — bg-white/30 matching ui.html */}
-        <div class="h-10 flex justify-center items-center font-medium text-sm text-gray-700 dark:text-gray-200 relative border-b border-white/40 bg-white/30 dark:bg-slate-800/50">
+        <div class="h-10 flex justify-center items-center font-medium text-sm text-gray-700 dark:text-gray-200 relative border-b border-white/40 dark:border-white/10 bg-white/30 dark:bg-slate-800/50">
           {t("settings.title")}
           <button class="absolute right-3 w-6 h-6 rounded flex items-center justify-center hover:bg-white/20 transition-colors text-gray-400"
             onClick={props.onClose}>
@@ -563,9 +571,29 @@ export default function SettingsPanel(props: Props) {
                       </button>
                     </div>
                   </div>
+                  {/* API Style dropdown */}
+                  <div>
+                    <label class="block mb-1 text-xs font-medium text-gray-500">{t("settings.apiStyle")}</label>
+                    <div class="flex gap-2">
+                      {([
+                        { value: "chatCompletions" as const, label: t("settings.apiStyleChat") },
+                        { value: "completions" as const, label: t("settings.apiStyleCompletions") },
+                        { value: "responses" as const, label: t("settings.apiStyleResponses") },
+                      ]).map((opt) => (
+                        <button
+                          class="px-2 py-1 text-xs rounded-lg transition-colors"
+                          classList={{
+                            "bg-blue-500 text-white": apiStyle() === opt.value,
+                            "bg-white/50 text-gray-600 border border-white/80 dark:border-white/10 hover:bg-white/70": apiStyle() !== opt.value,
+                          }}
+                          onClick={() => setApiStyle(opt.value)}
+                        >{opt.label}</button>
+                      ))}
+                    </div>
+                  </div>
                   {/* Test connection */}
                   <button
-                    class="w-full py-1.5 rounded-lg text-xs font-medium border border-white/80 transition-all flex items-center justify-center gap-1"
+                    class="w-full py-1.5 rounded-lg text-xs font-medium border border-white/80 dark:border-white/10 transition-all flex items-center justify-center gap-1"
                     classList={{
                       "bg-green-50 text-green-700 border-green-300": connectionResult()?.ok === true,
                       "bg-red-50 text-red-700 border-red-300": connectionResult()?.ok === false,
@@ -601,7 +629,7 @@ export default function SettingsPanel(props: Props) {
                     <label class="block mb-1 text-xs font-medium text-gray-500">{t("ai.apiKey")}</label>
                     <div class="relative">
                       <input type={showAnthropicKey() ? "text" : "password"} value={anthropicKey()} onInput={(e) => setAnthropicKey((e.target as HTMLInputElement).value)}
-                        placeholder="sk-ant-..." class="w-full border border-white/80 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none bg-white/50 text-gray-700" />
+                        placeholder="sk-ant-..." class="w-full border border-white/80 dark:border-white/10 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none bg-white/50 text-gray-700" />
                       <button class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                         onClick={() => setShowAnthropicKey((v) => !v)} type="button">
                         <i class={`ph ${showAnthropicKey() ? "ph-eye-slash" : "ph-eye"} text-sm`} />
@@ -611,11 +639,11 @@ export default function SettingsPanel(props: Props) {
                   <div>
                     <label class="block mb-1 text-xs font-medium text-gray-500">{t("ai.model")}</label>
                     <input type="text" value={anthropicModel()} onInput={(e) => setAnthropicModel((e.target as HTMLInputElement).value)}
-                      placeholder="claude-sonnet-4-20250514" class="w-full border border-white/80 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white/50 text-gray-700" />
+                      placeholder="claude-sonnet-4-20250514" class="w-full border border-white/80 dark:border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none bg-white/50 text-gray-700" />
                   </div>
                   {/* Test connection */}
                   <button
-                    class="w-full py-1.5 rounded-lg text-xs font-medium border border-white/80 transition-all flex items-center justify-center gap-1"
+                    class="w-full py-1.5 rounded-lg text-xs font-medium border border-white/80 dark:border-white/10 transition-all flex items-center justify-center gap-1"
                     classList={{
                       "bg-green-50 text-green-700 border-green-300": connectionResult()?.ok === true,
                       "bg-red-50 text-red-700 border-red-300": connectionResult()?.ok === false,
@@ -702,16 +730,16 @@ export default function SettingsPanel(props: Props) {
                         />
                       </button>
                     </div>
-                    <div class="flex justify-between items-center pt-2 border-t border-white/30 relative">
+                    <div class="flex justify-between items-center pt-2 border-t border-white/30 dark:border-white/10 relative">
                       <div class="text-xs text-gray-700">{t("settings.autoCleanup")}</div>
                       <button
-                        class="text-xs bg-white/50 px-2 py-0.5 rounded border border-white/80 cursor-pointer flex items-center gap-1"
+                        class="text-xs bg-white/50 px-2 py-0.5 rounded border border-white/80 dark:border-white/10 cursor-pointer flex items-center gap-1"
                         onClick={() => setShowCleanupDropdown((v) => !v)}
                       >
                         {t("settings.afterDays", { n: cleanupDays() })} <i class="ph ph-caret-down text-[10px]" />
                       </button>
                       <Show when={showCleanupDropdown()}>
-                        <div class="absolute right-0 top-7 z-50 bg-white/95 backdrop-blur-sm border border-white/80 rounded-lg shadow-lg py-1 min-w-[80px]">
+                        <div class="absolute right-0 top-7 z-50 bg-white/95 backdrop-blur-sm border border-white/80 dark:border-white/10 rounded-lg shadow-lg py-1 min-w-[80px]">
                           {([7, 14, 30, 60, 90] as const).map((d) => (
                             <button
                               class="w-full text-left px-3 py-1 text-xs hover:bg-blue-50 transition-colors"
@@ -744,7 +772,7 @@ export default function SettingsPanel(props: Props) {
                         <div class="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, (storageSize() / (50 * 1024 * 1024 * 1024)) * 100)}%` }} />
                       </div>
                     </div>
-                    <button class="w-full mt-2 bg-white/60 hover:bg-white/80 border border-white/80 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm disabled:opacity-40"
+                    <button class="w-full mt-2 bg-white/60 hover:bg-white/80 border border-white/80 dark:border-white/10 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm disabled:opacity-40"
                       disabled={cleaning()}
                       onClick={async () => {
                         setCleaning(true);
@@ -768,7 +796,7 @@ export default function SettingsPanel(props: Props) {
                         "text-red-500": cleanMessage().startsWith("Error"),
                       }}>{cleanMessage()}</p>
                     </Show>
-                    <button class="w-full mt-1 bg-white/60 hover:bg-white/80 border border-white/80 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm disabled:opacity-40"
+                    <button class="w-full mt-1 bg-white/60 hover:bg-white/80 border border-white/80 dark:border-white/10 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm disabled:opacity-40"
                       disabled={importing()}
                       onClick={async () => {
                         const selected = await open({ filters: [{ name: "ZIP", extensions: ["zip"] }] });
@@ -831,8 +859,8 @@ export default function SettingsPanel(props: Props) {
                   ] as { value: ThemeMode; label: string }[]).map((opt) => (
                     <button
                       class="px-4 py-2 text-sm rounded-lg transition-colors"
-                      classList={{ "bg-blue-500 text-white": theme() === opt.value }}
-                      style={theme() !== opt.value ? { background: "rgba(255,255,255,0.5)", color: "#4b5563", border: "1px solid rgba(255,255,255,0.8)" } : {}}
+                      classList={{ "bg-blue-500 text-white": theme() === opt.value, "bg-white/50 text-gray-600 border border-white/80 dark:border-white/10": theme() !== opt.value }}
+                      style={theme() !== opt.value ? { background: "rgba(255,255,255,0.5)", color: "#4b5563" } : {}}
                       onClick={() => setTheme(opt.value)}
                     >{opt.label}</button>
                   ))}
@@ -879,11 +907,11 @@ export default function SettingsPanel(props: Props) {
                         <span class="text-gray-700 truncate">{label()}</span>
                         <div class="flex items-center gap-1.5 shrink-0">
                           <Show when={isRecording()} fallback={
-                            <div class="bg-white/60 border border-white/80 px-2 py-0.5 rounded shadow-sm text-gray-600 font-mono text-[11px]">
+                            <div class="bg-white/60 border border-white/80 dark:border-white/10 px-2 py-0.5 rounded shadow-sm text-gray-600 font-mono text-[11px]">
                               {formatShortcut(sc.shortcut)}
                             </div>
                           }>
-                            <div class="bg-blue-50 border border-blue-200 px-2 py-0.5 rounded shadow-sm text-blue-600 text-[11px] animate-pulse">
+                            <div class="bg-blue-50 border border-blue-200 dark:border-blue-800/50 px-2 py-0.5 rounded shadow-sm text-blue-600 text-[11px] animate-pulse">
                               {t("settings.pressNewShortcut")}
                             </div>
                           </Show>
@@ -891,7 +919,7 @@ export default function SettingsPanel(props: Props) {
                             class="px-2 py-0.5 rounded text-[10px] transition-colors border"
                             classList={{
                               "bg-blue-500 text-white border-blue-500": isRecording(),
-                              "bg-white/60 text-gray-500 border-white/80 hover:bg-white/80": !isRecording(),
+                              "bg-white/60 text-gray-500 border-white/80 dark:border-white/10 hover:bg-white/80": !isRecording(),
                             }}
                             onClick={(e) => {
                               e.stopPropagation();

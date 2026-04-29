@@ -1,0 +1,18 @@
+# Ralph Progress Log — UX Polish Cleanup
+Started: Tue Apr 29 2026
+---
+US-001: PASS — Add API style config field (ApiStyle enum + anthropic_endpoint)
+US-002: PASS — Implement OpenAI Completions API format
+US-003: PASS — Implement OpenAI Responses API format
+US-004: PASS — Add Anthropic custom endpoint support
+US-005: PASS — Settings UI for API style + Anthropic endpoint (dropdown + input field)
+US-006: PASS — Snippet paste-to-active + touch_snippet MRU
+US-007: PASS — Floating popup snippet section (collapsible, searchable, paste via paste_to_active + touch_snippet)
+US-008: PASS — Fix dark mode borders (40+ fixes across 6 files)
+US-009: PASS — Linux screen recording via ffmpeg x11grab
+US-010: PASS — Linux screenshot area selection (gnome-screenshot -a)
+US-011: PASS — Linux xdotool missing dependency error
+US-012: PASS — Theme system with accent colors (blue/green/purple/orange/rose)
+US-013: PENDING — Migrate hardcoded blue to CSS vars (69 occurrences in 11 files, large refactoring)
+US-014: PENDING — Accent color picker in Settings (depends on US-013)
+US-015: PASS — i18n keys for new UI elements

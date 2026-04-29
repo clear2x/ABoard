@@ -6,6 +6,14 @@ import { items, loadHistory, type ClipboardItem, copyItemContent, pinItem, unpin
 import { initLocale, t } from "../stores/i18n";
 import { initTheme } from "../stores/theme";
 
+interface Snippet {
+  id: string;
+  title: string;
+  content: string;
+  created_at: number;
+  updated_at: number;
+}
+
 function displayType(item: ClipboardItem): string {
   return item.ai_type || item.type;
 }
@@ -43,6 +51,8 @@ export default function FloatingPopup() {
   const [windowPinned, setWindowPinned] = createSignal(false);
   const [dragItemId, setDragItemId] = createSignal<string | null>(null);
   const [dropTargetId, setDropTargetId] = createSignal<string | null>(null);
+  const [snippets, setSnippets] = createSignal<Snippet[]>([]);
+  const [snippetsCollapsed, setSnippetsCollapsed] = createSignal(false);
 
   function handlePopupDrop(fromId: string, toId: string) {
     if (fromId === toId) return;
@@ -82,6 +92,14 @@ export default function FloatingPopup() {
       unlisten();
       if (reloadTimer) clearTimeout(reloadTimer);
     });
+
+    // Load snippets
+    try {
+      const result = await invoke<Snippet[]>("list_snippets");
+      setSnippets(result);
+    } catch (e) {
+      console.error("[FloatingPopup] Failed to load snippets:", e);
+    }
 
     await getCurrentWindow().setFocus();
 
@@ -151,6 +169,12 @@ export default function FloatingPopup() {
     return popupItems().filter((i) => i.content.toLowerCase().includes(q));
   };
 
+  const filteredSnippets = () => {
+    const q = searchText().toLowerCase();
+    if (!q) return snippets();
+    return snippets().filter((s) => s.title.toLowerCase().includes(q));
+  };
+
   const pinnedItems = () => filteredItems().filter((i) => i.pinned);
   const recentItems = () => filteredItems().filter((i) => !i.pinned).slice(0, 8);
 
@@ -169,6 +193,16 @@ export default function FloatingPopup() {
     } catch (e) {
       console.error("[FloatingPopup] Paste failed:", e);
       await getCurrentWindow().hide();
+    }
+  }
+
+  async function pasteSnippet(snippet: Snippet) {
+    try {
+      await invoke("paste_to_active", { content: snippet.content });
+      await invoke("touch_snippet", { id: snippet.id });
+      await getCurrentWindow().hide();
+    } catch (e) {
+      console.error("[FloatingPopup] Snippet paste failed:", e);
     }
   }
 
@@ -412,6 +446,35 @@ export default function FloatingPopup() {
                 }}
               </For>
             </div>
+          </div>
+        </Show>
+
+        {/* Snippets section (collapsible) */}
+        <Show when={filteredSnippets().length > 0}>
+          <div>
+            <div
+              class="flex justify-between items-center text-xs mb-2 px-1 font-medium text-gray-500 cursor-pointer select-none"
+              onClick={() => setSnippetsCollapsed((c) => !c)}
+            >
+              <span class="flex items-center gap-1">
+                <i class={`ph ph-caret-${snippetsCollapsed() ? "right" : "down"} text-[10px]`} />
+                <i class="ph ph-notebook" /> {t("sidebar.snippets")}
+              </span>
+            </div>
+            <Show when={!snippetsCollapsed()}>
+              <div class="space-y-1">
+                <For each={filteredSnippets()}>
+                  {(snippet) => (
+                    <div
+                      class="glass-card p-2 rounded-lg cursor-pointer hover:bg-white/40 transition-colors"
+                      onClick={() => pasteSnippet(snippet)}
+                    >
+                      <div class="text-xs font-medium text-gray-700 truncate">{snippet.title}</div>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
           </div>
         </Show>
       </div>
