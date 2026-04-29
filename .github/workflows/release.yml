@@ -88,7 +88,7 @@ jobs:
           if echo "${{ matrix.args }}" | grep -q "\-\-target"; then
             TRIPLE="$(echo "${{ matrix.args }}" | awk '{print $2}')/"
           fi
-          TARGET="target/${TRIPLE}release"
+          TARGET="src-tauri/target/${TRIPLE}release"
 
           APP_BUNDLE="${TARGET}/bundle/macos/ABoard.app"
           DMG_DIR="${TARGET}/bundle/dmg"
@@ -144,7 +144,7 @@ jobs:
           if echo "${{ matrix.args }}" | grep -q "\-\-target"; then
             TRIPLE="$(echo "${{ matrix.args }}" | awk '{print $2}')/"
           fi
-          TARGET="target/${TRIPLE}release"
+          TARGET="src-tauri/target/${TRIPLE}release"
           APP_BUNDLE="${TARGET}/bundle/macos/ABoard.app"
           ZIP_NAME="ABoard_${{ github.ref_name }}_macos.zip"
 
