@@ -2,7 +2,7 @@ import { createSignal, onMount, onCleanup, Show, For } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
-import { theme, setTheme, type ThemeMode } from "../stores/theme";
+import { theme, setTheme, accentColor, setAccentColor, type ThemeMode } from "../stores/theme";
 import { locale, setLocale, t } from "../stores/i18n";
 import { storageSize, itemCount, loadStorageStats, loadHistory } from "../stores/clipboard";
 import type { Locale } from "../stores/i18n";
@@ -863,6 +863,32 @@ export default function SettingsPanel(props: Props) {
                       style={theme() !== opt.value ? { background: "rgba(255,255,255,0.5)", color: "#4b5563" } : {}}
                       onClick={() => setTheme(opt.value)}
                     >{opt.label}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label class="block mb-2 text-xs font-medium text-gray-500">{t("settings.accentColor")}</label>
+                <div class="flex gap-3">
+                  {([
+                    { value: "blue" as const, color: "#3b82f6" },
+                    { value: "green" as const, color: "#22c55e" },
+                    { value: "purple" as const, color: "#a855f7" },
+                    { value: "orange" as const, color: "#f97316" },
+                    { value: "rose" as const, color: "#f43f5e" },
+                  ]).map((swatch) => (
+                    <button
+                      class="w-8 h-8 rounded-full cursor-pointer transition-all border-2 flex items-center justify-center"
+                      style={{
+                        "background-color": swatch.color,
+                        "border-color": accentColor() === swatch.value ? swatch.color : "transparent",
+                        "box-shadow": accentColor() === swatch.value ? `0 0 0 2px var(--color-bg-card), 0 0 0 4px ${swatch.color}` : "none",
+                      }}
+                      onClick={() => setAccentColor(swatch.value)}
+                    >
+                      <Show when={accentColor() === swatch.value}>
+                        <i class="ph-fill ph-check text-white text-xs" />
+                      </Show>
+                    </button>
                   ))}
                 </div>
               </div>
