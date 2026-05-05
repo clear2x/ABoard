@@ -172,7 +172,7 @@ export default function AiResultPopup() {
             <div class="flex gap-2 pt-1">
               <Show when={result()?.actionType === "error"}>
                 <button
-                  class="px-4 py-2 text-xs font-medium rounded-lg transition-colors hover:opacity-80 bg-blue-500 text-white shadow-sm"
+                  class="px-4 py-2 text-xs font-medium rounded-lg transition-colors hover:opacity-80 bg-accent text-white shadow-sm"
                   onClick={close}
                 >
                   OK
@@ -180,7 +180,7 @@ export default function AiResultPopup() {
               </Show>
               <Show when={result()?.actionType !== "error"}>
                 <button
-                  class="px-4 py-2 text-xs font-medium rounded-lg transition-colors hover:opacity-80 bg-blue-500 text-white shadow-sm"
+                  class="px-4 py-2 text-xs font-medium rounded-lg transition-colors hover:opacity-80 bg-accent text-white shadow-sm"
                   onClick={handleCopy}
                 >
                   {t("ai.copyResult")}

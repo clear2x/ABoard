@@ -317,7 +317,7 @@ export default function SettingsPanel(props: Props) {
               <button
                 class="flex flex-col items-center gap-1.5 cursor-pointer transition-all"
                 classList={{ "opacity-90 hover:opacity-100": !isActive() }}
-                style={isActive() ? { color: "#2563eb" } : { color: "#6b7280" }}
+                style={isActive() ? { color: "var(--color-accent)" } : { color: "#6b7280" }}
                 onClick={() => setActiveTab(tab.key)}
               >
                 <Show when={isActive()} fallback={
@@ -346,12 +346,12 @@ export default function SettingsPanel(props: Props) {
                 <label class="block mb-2 text-xs font-medium text-gray-500">{t("settings.language")}</label>
                 <div class="flex gap-2">
                   <button class="px-4 py-2 text-sm rounded-lg transition-colors"
-                    classList={{ "bg-blue-500 text-white": locale() === "zh", "bg-white/50 text-gray-600 border border-white/80 dark:border-white/10": locale() !== "zh" }}
+                    classList={{ "bg-accent text-white": locale() === "zh", "bg-white/50 text-gray-600 border border-white/80 dark:border-white/10": locale() !== "zh" }}
                     style={locale() !== "zh" ? { background: "rgba(255,255,255,0.5)", color: "#4b5563" } : {}}
                     onClick={() => setLocale("zh")}
                   >{t("settings.language.zh")}</button>
                   <button class="px-4 py-2 text-sm rounded-lg transition-colors"
-                    classList={{ "bg-blue-500 text-white": locale() === "en", "bg-white/50 text-gray-600 border border-white/80 dark:border-white/10": locale() !== "en" }}
+                    classList={{ "bg-accent text-white": locale() === "en", "bg-white/50 text-gray-600 border border-white/80 dark:border-white/10": locale() !== "en" }}
                     style={locale() !== "en" ? { background: "rgba(255,255,255,0.5)", color: "#4b5563" } : {}}
                     onClick={() => setLocale("en")}
                   >English</button>
@@ -379,7 +379,7 @@ export default function SettingsPanel(props: Props) {
                   >
                     {/* Decorative glow */}
                     <Show when={provider() === "Local"}>
-                      <div class="absolute -right-2 -top-2 w-10 h-10 bg-blue-500 rounded-full opacity-10 blur-xl" />
+                      <div class="absolute -right-2 -top-2 w-10 h-10 bg-accent rounded-full opacity-10 blur-xl" />
                     </Show>
                     <span class="text-sm font-semibold text-blue-700 mb-1 flex items-center gap-1">
                       {t("settings.aiModeLocal")} <i class="ph-fill ph-check-circle text-blue-500 text-sm" />
@@ -498,7 +498,7 @@ export default function SettingsPanel(props: Props) {
                     <span class="font-medium text-gray-700">{t("settings.gpuAcceleration")}</span>
                     <button
                       class="w-9 h-5 rounded-full relative shadow-inner cursor-pointer transition-colors"
-                      classList={{ "bg-blue-500": gpuEnabled(), "bg-gray-300": !gpuEnabled() }}
+                      classList={{ "bg-accent": gpuEnabled(), "bg-gray-300": !gpuEnabled() }}
                       onClick={() => {
                         const next = !gpuEnabled();
                         setGpuEnabled(next);
@@ -583,7 +583,7 @@ export default function SettingsPanel(props: Props) {
                         <button
                           class="px-2 py-1 text-xs rounded-lg transition-colors"
                           classList={{
-                            "bg-blue-500 text-white": apiStyle() === opt.value,
+                            "bg-accent text-white": apiStyle() === opt.value,
                             "bg-white/50 text-gray-600 border border-white/80 dark:border-white/10 hover:bg-white/70": apiStyle() !== opt.value,
                           }}
                           onClick={() => setApiStyle(opt.value)}
@@ -717,7 +717,7 @@ export default function SettingsPanel(props: Props) {
                       <div class="text-xs text-gray-700">{t("settings.privacyFirst")}<br /><span class="text-[9px] text-gray-400">{monitoringEnabled() ? t("settings.localMode") : "Monitoring paused"}</span></div>
                       <button
                         class="w-7 h-4 rounded-full relative cursor-pointer transition-colors"
-                        classList={{ "bg-blue-500": monitoringEnabled(), "bg-gray-300": !monitoringEnabled() }}
+                        classList={{ "bg-accent": monitoringEnabled(), "bg-gray-300": !monitoringEnabled() }}
                         onClick={async () => {
                           try {
                             const active = await invoke<boolean>("toggle_monitoring");
@@ -769,7 +769,7 @@ export default function SettingsPanel(props: Props) {
                         <span class="text-[10px] text-gray-400">{itemCount()} items</span>
                       </div>
                       <div class="w-full h-1.5 bg-gray-200/50 rounded-full overflow-hidden">
-                        <div class="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, (storageSize() / (50 * 1024 * 1024 * 1024)) * 100)}%` }} />
+                        <div class="h-full bg-accent rounded-full" style={{ width: `${Math.min(100, (storageSize() / (50 * 1024 * 1024 * 1024)) * 100)}%` }} />
                       </div>
                     </div>
                     <button class="w-full mt-2 bg-white/60 hover:bg-white/80 border border-white/80 dark:border-white/10 rounded py-1 text-[10px] text-gray-600 transition-colors shadow-sm disabled:opacity-40"
@@ -828,7 +828,7 @@ export default function SettingsPanel(props: Props) {
 
               {/* Save */}
               <button onClick={handleSave} disabled={saving()}
-                class="w-full px-3 py-2 text-sm font-medium rounded-lg disabled:opacity-40 transition-colors bg-blue-500 text-white"
+                class="w-full px-3 py-2 text-sm font-medium rounded-lg disabled:opacity-40 transition-colors bg-accent text-white"
               >
                 {saving() ? t("ai.saving") : t("ai.save")}
               </button>
@@ -859,7 +859,7 @@ export default function SettingsPanel(props: Props) {
                   ] as { value: ThemeMode; label: string }[]).map((opt) => (
                     <button
                       class="px-4 py-2 text-sm rounded-lg transition-colors"
-                      classList={{ "bg-blue-500 text-white": theme() === opt.value, "bg-white/50 text-gray-600 border border-white/80 dark:border-white/10": theme() !== opt.value }}
+                      classList={{ "bg-accent text-white": theme() === opt.value, "bg-white/50 text-gray-600 border border-white/80 dark:border-white/10": theme() !== opt.value }}
                       style={theme() !== opt.value ? { background: "rgba(255,255,255,0.5)", color: "#4b5563" } : {}}
                       onClick={() => setTheme(opt.value)}
                     >{opt.label}</button>
@@ -918,7 +918,7 @@ export default function SettingsPanel(props: Props) {
                           <button
                             class="px-2 py-0.5 rounded text-[10px] transition-colors border"
                             classList={{
-                              "bg-blue-500 text-white border-blue-500": isRecording(),
+                              "bg-accent text-white border-accent": isRecording(),
                               "bg-white/60 text-gray-500 border-white/80 dark:border-white/10 hover:bg-white/80": !isRecording(),
                             }}
                             onClick={(e) => {
@@ -965,7 +965,7 @@ export default function SettingsPanel(props: Props) {
                 <button
                   onClick={checkForUpdate}
                   disabled={updateStatus() === "checking"}
-                  class="px-4 py-2 text-xs font-medium rounded-lg transition-colors disabled:opacity-40 bg-blue-500 text-white shadow-sm hover:bg-blue-600"
+                  class="px-4 py-2 text-xs font-medium rounded-lg transition-colors disabled:opacity-40 bg-accent text-white shadow-sm hover:bg-[var(--color-accent-hover)]"
                 >
                   {updateStatus() === "checking" ? t("settings.checking") : t("settings.checkUpdate")}
                 </button>

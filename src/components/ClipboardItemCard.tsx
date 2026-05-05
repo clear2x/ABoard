@@ -184,7 +184,7 @@ export default function ClipboardItemCard(props: Props) {
       <div
         data-item-id={props.item.id}
         class={`glass-card flex-1 p-4 rounded-xl relative cursor-pointer transition-all duration-150
-          ${props.isSelected ? "ring-2 ring-blue-500 bg-blue-50/60 dark:bg-blue-900/20 shadow-sm" : "hover:bg-white/30"}`}
+          ${props.isSelected ? "ring-2 ring-accent bg-blue-50/60 dark:bg-blue-900/20 shadow-sm" : "hover:bg-white/30"}`}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onClick={() => props.onSelect(props.item.id)}
@@ -207,7 +207,7 @@ export default function ClipboardItemCard(props: Props) {
               type="checkbox"
               checked={props.checked}
               onChange={() => props.onSelect(props.item.id)}
-              class="mt-1 accent-blue-500 shrink-0"
+              class="mt-1 accent-[var(--color-accent)] shrink-0"
             />
           </Show>
 
@@ -362,8 +362,8 @@ export default function ClipboardItemCard(props: Props) {
 
         {/* Copied feedback */}
         <Show when={justCopied()}>
-          <div class="absolute inset-0 flex items-center justify-center rounded-xl pointer-events-none bg-blue-500/15 backdrop-blur-[2px]">
-            <span class="text-xs font-medium px-2 py-1 rounded-full bg-blue-500 text-white">
+          <div class="absolute inset-0 flex items-center justify-center rounded-xl pointer-events-none bg-accent-15 backdrop-blur-[2px]">
+            <span class="text-xs font-medium px-2 py-1 rounded-full bg-accent text-white">
               {t("ctx.copied")}
             </span>
           </div>
@@ -399,8 +399,8 @@ export default function ClipboardItemCard(props: Props) {
     <div
       data-item-id={props.item.id}
       class={`glass-card transition-all duration-150 cursor-pointer hover-lift p-3 relative
-        ${props.isSelected ? "ring-2 ring-blue-500 bg-blue-50/60 shadow-sm" : "hover:bg-white/30"}
-        ${props.showCheckbox && props.checked ? "bg-blue-500/10 border-blue-500/50" : ""}
+        ${props.isSelected ? "ring-2 ring-accent bg-blue-50/60 shadow-sm" : "hover:bg-white/30"}
+        ${props.showCheckbox && props.checked ? "bg-accent-10 border-accent-50" : ""}
       `}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -414,7 +414,7 @@ export default function ClipboardItemCard(props: Props) {
       <div class="flex items-center justify-between mb-1">
         <Show when={props.showCheckbox}>
           <input type="checkbox" checked={props.checked} onChange={() => props.onSelect(props.item.id)}
-            class="mr-2 accent-blue-500 shrink-0" />
+            class="mr-2 accent-[var(--color-accent)] shrink-0" />
         </Show>
         <div class="flex items-center gap-1.5 overflow-hidden flex-1 min-w-0">
           {props.item.pinned && <span class="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />}
@@ -457,8 +457,8 @@ export default function ClipboardItemCard(props: Props) {
       </Show>
 
       <Show when={justCopied()}>
-        <div class="absolute inset-0 flex items-center justify-center rounded-xl pointer-events-none bg-blue-500/15 backdrop-blur-[2px]">
-          <span class="text-xs font-medium px-2 py-1 rounded-full bg-blue-500 text-white">
+        <div class="absolute inset-0 flex items-center justify-center rounded-xl pointer-events-none bg-accent-15 backdrop-blur-[2px]">
+          <span class="text-xs font-medium px-2 py-1 rounded-full bg-accent text-white">
             {t("ctx.copied")}
           </span>
         </div>

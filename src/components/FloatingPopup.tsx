@@ -345,7 +345,7 @@ export default function FloatingPopup() {
                     <div
                       class="glass-card p-3 rounded-xl cursor-pointer relative transition-opacity"
                       classList={{
-                        "ring-1 ring-blue-500/50": globalIndex() === selectedIndex(),
+                        "ring-1 ring-accent-50": globalIndex() === selectedIndex(),
                         "opacity-40": dragItemId() === item.id,
                         "border-t-2 border-blue-400": dropTargetId() === item.id,
                       }}
@@ -405,7 +405,7 @@ export default function FloatingPopup() {
                     <div
                       class="glass-card p-3 rounded-xl cursor-pointer relative transition-opacity"
                       classList={{
-                        "ring-1 ring-blue-500/50": globalIndex() === selectedIndex(),
+                        "ring-1 ring-accent-50": globalIndex() === selectedIndex(),
                         "opacity-40": dragItemId() === item.id,
                         "border-t-2 border-blue-400": dropTargetId() === item.id,
                       }}

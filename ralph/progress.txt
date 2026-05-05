@@ -13,6 +13,6 @@ US-009: PASS — Linux screen recording via ffmpeg x11grab
 US-010: PASS — Linux screenshot area selection (gnome-screenshot -a)
 US-011: PASS — Linux xdotool missing dependency error
 US-012: PASS — Theme system with accent colors (blue/green/purple/orange/rose)
-US-013: PENDING — Migrate hardcoded blue to CSS vars (69 occurrences in 11 files, large refactoring)
+US-013: PASS — Migrate hardcoded blue to accent CSS vars (added .bg-accent/.ring-accent/.border-accent utilities, replaced across 8 components, fixed .ai-banner rgba, fixed inline hex in SettingsPanel)
 US-014: PENDING — Accent color picker in Settings (depends on US-013)
 US-015: PASS — i18n keys for new UI elements

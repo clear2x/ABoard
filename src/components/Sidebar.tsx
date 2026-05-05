@@ -156,7 +156,7 @@ export default function Sidebar() {
               <li
                 class="flex justify-between items-center px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors"
                 classList={{
-                  "bg-blue-500 text-white shadow-sm": isActive(),
+                  "bg-accent text-white shadow-sm": isActive(),
                   "text-gray-600 hover:bg-white/40 dark:text-gray-300 dark:hover:bg-white/10": !isActive(),
                 }}
                 onClick={() => setCategoryFilter(cat.key)}
@@ -297,7 +297,7 @@ export default function Sidebar() {
                 {t("clipboard.cancel")}
               </button>
               <button
-                class="px-3 py-1.5 rounded-lg text-xs bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                class="px-3 py-1.5 rounded-lg text-xs bg-accent text-white hover:bg-[var(--color-accent-hover)] transition-colors"
                 onClick={saveSnippet}
               >
                 {t("snippet.save")}

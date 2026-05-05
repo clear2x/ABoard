@@ -168,10 +168,19 @@ html, body, #root {
   color: #fff;
 }
 
-/* AI status banner */
+/* Accent color utilities — theme-responsive via design-tokens.css */
+.bg-accent { background-color: var(--color-accent); }
+.bg-accent-15 { background-color: color-mix(in srgb, var(--color-accent) 15%, transparent); }
+.bg-accent-10 { background-color: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.border-accent { border-color: var(--color-accent); }
+.border-accent-50 { border-color: color-mix(in srgb, var(--color-accent) 50%, transparent); }
+.ring-accent { --tw-ring-color: var(--color-accent); }
+.ring-accent-50 { --tw-ring-color: color-mix(in srgb, var(--color-accent) 50%, transparent); }
+
+/* AI status banner — accent-aware */
 .ai-banner {
-  background: rgba(59, 130, 246, 0.12);
-  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 
 /* Hide scrollbar but preserve scroll */

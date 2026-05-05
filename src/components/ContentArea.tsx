@@ -232,7 +232,7 @@ export default function ContentArea() {
               <button
                 class="pb-1 cursor-pointer transition-colors"
                 classList={{
-                  "text-blue-600 font-medium border-b-2 border-blue-600": isActive(),
+                  "text-accent font-medium border-b-2 border-accent": isActive(),
                   "hover:text-gray-800 dark:hover:text-gray-300": !isActive(),
                 }}
                 onClick={() => setTimeFilter(filter.key)}
@@ -274,7 +274,7 @@ export default function ContentArea() {
             {t("clipboard.deleteSelected")} ({selectedCount()})
           </button>
           <button
-            class="px-3 py-1.5 text-xs rounded-lg text-white disabled:opacity-40 bg-blue-500"
+            class="px-3 py-1.5 text-xs rounded-lg text-white disabled:opacity-40 bg-accent"
             disabled={selectedCount() === 0}
             onClick={handleExport}
           >
