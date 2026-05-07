@@ -176,6 +176,7 @@ html, body, #root {
 .border-accent-50 { border-color: color-mix(in srgb, var(--color-accent) 50%, transparent); }
 .ring-accent { --tw-ring-color: var(--color-accent); }
 .ring-accent-50 { --tw-ring-color: color-mix(in srgb, var(--color-accent) 50%, transparent); }
+.outline-accent { outline-color: var(--color-accent); }
 
 /* AI status banner — accent-aware */
 .ai-banner {
@@ -198,6 +199,12 @@ html, body, #root {
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   box-shadow: var(--shadow-elevated);
+}
+
+/* Force long unbroken strings (SSH keys, URLs, etc.) to wrap */
+.break-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Glass card — inner cards, theme-aware */

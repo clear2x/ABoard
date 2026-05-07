@@ -149,7 +149,7 @@ export default function AiToolbox() {
       </div>
 
       {/* Tool cards */}
-      <div class="space-y-3 flex-1 overflow-y-auto no-scrollbar pb-10">
+      <div class="space-y-3 flex-1 overflow-y-auto no-scrollbar pb-10 pt-1">
         {tools.map((tool) => (
           <button
             class="glass-card w-full p-3 rounded-xl cursor-pointer flex items-center gap-3 text-left"

@@ -183,8 +183,8 @@ export default function ClipboardItemCard(props: Props) {
     return (
       <div
         data-item-id={props.item.id}
-        class={`glass-card flex-1 p-4 rounded-xl relative cursor-pointer transition-all duration-150
-          ${props.isSelected ? "ring-2 ring-accent bg-blue-50/60 dark:bg-blue-900/20 shadow-sm" : "hover:bg-white/30"}`}
+        class={`glass-card p-4 rounded-xl relative cursor-pointer transition-all duration-150 min-w-0 overflow-hidden
+          ${props.isSelected ? "outline-2 outline-offset-[-2px] outline-accent bg-accent-10 shadow-md" : "hover:bg-white/30"}`}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onClick={() => props.onSelect(props.item.id)}
@@ -271,7 +271,7 @@ export default function ClipboardItemCard(props: Props) {
                       <Show
                         when={isMarkdown(props.item.content)}
                         fallback={
-                          <p class="text-sm text-[var(--color-text-primary)] leading-relaxed break-words overflow-wrap-anywhere">
+                          <p class="text-sm text-[var(--color-text-primary)] leading-relaxed break-anywhere">
                             {highlightText(truncateText(props.item.content), query())}
                           </p>
                         }
@@ -336,7 +336,7 @@ export default function ClipboardItemCard(props: Props) {
           </div>
 
           {/* Hover actions — CSS opacity transition, always rendered */}
-          <div class={`flex items-center gap-2 text-gray-400 transition-opacity duration-150 ${hovered() && !props.showCheckbox ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+          <div class={`shrink-0 flex items-center gap-2 text-gray-400 transition-opacity duration-150 ${hovered() && !props.showCheckbox ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
               <button
                 class="transition-colors"
                 onClick={handlePin}
@@ -399,7 +399,7 @@ export default function ClipboardItemCard(props: Props) {
     <div
       data-item-id={props.item.id}
       class={`glass-card transition-all duration-150 cursor-pointer hover-lift p-3 relative
-        ${props.isSelected ? "ring-2 ring-accent bg-blue-50/60 shadow-sm" : "hover:bg-white/30"}
+        ${props.isSelected ? "outline-2 outline-offset-[-2px] outline-accent bg-accent-10 shadow-md" : "hover:bg-white/30"}
         ${props.showCheckbox && props.checked ? "bg-accent-10 border-accent-50" : ""}
       `}
       onMouseEnter={() => setHovered(true)}
@@ -430,7 +430,7 @@ export default function ClipboardItemCard(props: Props) {
       <Show
         when={props.item.type === "image"}
         fallback={
-          <p class="break-words overflow-wrap-anywhere leading-relaxed text-sm text-[var(--color-text-primary)]">
+          <p class="break-anywhere leading-relaxed text-sm text-[var(--color-text-primary)]">
             {highlightText(truncateText(props.item.content), query())}
           </p>
         }
