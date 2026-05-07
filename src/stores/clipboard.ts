@@ -99,8 +99,13 @@ export function setViewMode(mode: ViewMode) {
 export async function copyItemContent(item: ClipboardItem): Promise<boolean> {
   try {
     if (item.type === "image") {
-      // Use Tauri backend: pass item ID, Rust reads image from DB
       await invoke("copy_image_to_clipboard", { itemId: item.id });
+    } else if (item.type === "video") {
+      if (item.file_path) {
+        await invoke("copy_file_to_clipboard", { filePath: item.file_path });
+      } else {
+        return false;
+      }
     } else {
       await navigator.clipboard.writeText(item.content);
     }

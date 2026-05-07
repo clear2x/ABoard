@@ -104,25 +104,34 @@ fn open_url(url: String) -> Result<(), String> {
 /// Reads image data from the database to avoid large IPC payloads.
 #[tauri::command]
 fn copy_image_to_clipboard(item_id: String, app: tauri::AppHandle) -> Result<(), String> {
-    // Read item content from DB
+    // Read item content and file_path from DB
     let db_state = app.state::<crate::db::DbState>();
-    let content: String = {
+    let (content, file_path): (String, Option<String>) = {
         let conn = db_state.conn.lock().map_err(|e| format!("DB lock error: {}", e))?;
         conn.query_row(
-            "SELECT content FROM clipboard_items WHERE id = ?1",
+            "SELECT content, file_path FROM clipboard_items WHERE id = ?1",
             rusqlite::params![item_id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         ).map_err(|e| format!("Item not found: {}", e))?
     };
 
-    // Strip "data:image/...;base64," prefix
-    let b64 = content
-        .find(",base64,")
-        .map(|i| &content[i + 8..])
-        .ok_or("Invalid data URL format")?;
-
-    let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
-        .map_err(|e| format!("Base64 decode error: {}", e))?;
+    // Get image bytes: from base64 content, or from file_path on disk
+    let bytes = if !content.is_empty() {
+        // Content has base64 data URL
+        let b64 = content
+            .find(",base64,")
+            .map(|i| &content[i + 8..])
+            .ok_or("Invalid data URL format")?;
+        base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
+            .map_err(|e| format!("Base64 decode error: {}", e))?
+    } else if let Some(ref fp) = file_path {
+        // Content is empty — read from file_path (screenshot captures)
+        let app_data_dir = app.path().app_data_dir().map_err(|e| format!("{:?}", e))?;
+        let full_path = app_data_dir.join(fp);
+        std::fs::read(&full_path).map_err(|e| format!("Read file error: {}", e))?
+    } else {
+        return Err("No image data available".to_string());
+    };
 
     // macOS: write PNG to temp file, use AppleScriptObjC to set clipboard
     #[cfg(target_os = "macos")]
@@ -169,6 +178,83 @@ end if
             .write_image(&tauri_img)
             .map_err(|e| format!("Clipboard write error: {}", e))?;
         Ok(())
+    }
+}
+
+/// Copy a file (e.g. video) to the clipboard as a file URL so it can be pasted
+/// as an actual file in Finder / Explorer.
+#[tauri::command]
+fn copy_file_to_clipboard(file_path: String, app: tauri::AppHandle) -> Result<(), String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| format!("{:?}", e))?;
+    let full_path = app_data_dir.join(&file_path);
+    if !full_path.exists() {
+        return Err(format!("File not found: {}", full_path.display()));
+    }
+    let abs = full_path.canonicalize().map_err(|e| format!("Canonicalize error: {}", e))?;
+    let abs_str = abs.to_str().ok_or("Invalid path")?.replace('\\', "\\\\");
+
+    #[cfg(target_os = "macos")]
+    {
+        let script = format!(r#"
+use framework "AppKit"
+set pb to current application's NSPasteboard's generalPasteboard()
+pb's clearContents()
+set fileURL to current application's NSURL's fileURLWithPath:"{path}"
+pb's writeObjects:{{fileURL}}
+return "OK"
+"#, path = abs_str);
+        let output = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(&script)
+            .output();
+        let out = output.map_err(|e| format!("osascript error: {}", e))?;
+        let result = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if result != "OK" {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            return Err(format!("osascript failed: {} ({})", result, stderr.trim()));
+        }
+        Ok(())
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // On Windows, copy the file path as text — Explorer will handle file paste
+        use tauri_plugin_clipboard_manager::ClipboardExt;
+        app.clipboard()
+            .write_text(&abs.to_string_lossy())
+            .map_err(|e| format!("Clipboard write error: {}", e))?;
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Use xclip to set file URI on clipboard
+        let uri = format!("file://{}", abs.display());
+        let output = std::process::Command::new("xclip")
+            .args(["-selection", "clipboard", "-t", "text/uri-list"])
+            .stdin(std::process::Stdio::piped())
+            .spawn();
+        match output {
+            Ok(mut child) => {
+                use std::io::Write;
+                if let Some(ref mut stdin) = child.stdin {
+                    let _ = writeln!(stdin, "{}", uri);
+                }
+                let status = child.wait().map_err(|e| format!("xclip wait error: {}", e))?;
+                if !status.success() {
+                    return Err("xclip failed".to_string());
+                }
+                Ok(())
+            }
+            Err(_) => {
+                // Fallback: copy path as text
+                use tauri_plugin_clipboard_manager::ClipboardExt;
+                app.clipboard()
+                    .write_text(&abs.to_string_lossy())
+                    .map_err(|e| format!("Clipboard write error: {}", e))?;
+                Ok(())
+            }
+        }
     }
 }
 
@@ -393,6 +479,7 @@ pub fn run() {
             paste_to_active,
             open_url,
             copy_image_to_clipboard,
+            copy_file_to_clipboard,
             show_main_window,
             emit_open_settings,
             clipboard::toggle_monitoring,
