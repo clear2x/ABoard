@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 import tailwindcss from "@tailwindcss/vite";
@@ -7,6 +8,11 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig({
   plugins: [solid(), tailwindcss()],
   clearScreen: false,
+  test: {
+    environment: "happy-dom",
+    globals: true,
+    include: ["src/**/*.test.{ts,tsx}"],
+  },
   server: {
     port: 5173,
     strictPort: true,

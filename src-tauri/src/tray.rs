@@ -2,7 +2,6 @@ use tauri::{
     AppHandle, Emitter, Manager, Runtime,
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    WebviewWindow,
 };
 use tauri_plugin_dialog::DialogExt;
 use std::collections::HashMap;
@@ -66,6 +65,14 @@ impl TrayItemHandle {
         }
     }
 
+    fn from_submenu<R: Runtime>(submenu: Submenu<R>) -> Self {
+        Self {
+            set_text_fn: Box::new(move |text| {
+                let _ = submenu.set_text(text);
+            }),
+        }
+    }
+
     fn set_text(&self, text: &str) {
         (self.set_text_fn)(text);
     }
@@ -90,6 +97,13 @@ impl TrayMenuState {
             .insert(id.to_string(), TrayItemHandle::new(item));
     }
 
+    fn insert_submenu<R: Runtime>(&self, id: &str, submenu: Submenu<R>) {
+        self.items
+            .lock()
+            .unwrap()
+            .insert(id.to_string(), TrayItemHandle::from_submenu(submenu));
+    }
+
     fn set_text(&self, id: &str, text: &str) {
         if let Some(handle) = self.items.lock().unwrap().get(id) {
             handle.set_text(text);
@@ -104,28 +118,36 @@ impl TrayMenuState {
 /// Set up the system tray icon with context menu.
 pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
     let state = TrayMenuState::new();
+    let locale = get_stored_locale();
+    let texts = get_texts(&locale);
 
-    let quick_paste_i = MenuItem::with_id(app, "quick-paste", "Quick Paste", true, None::<&str>)?;
-    let show_i = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
-    let pause_i = MenuItem::with_id(app, "pause", "Pause Monitoring", true, None::<&str>)?;
-    let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let quick_paste_i = MenuItem::with_id(app, "quick-paste", texts.quick_paste, true, None::<&str>)?;
+    let show_i = MenuItem::with_id(app, "show", texts.show_window, true, None::<&str>)?;
+    let pause_text = if crate::clipboard::MONITORING_PAUSED.load(Ordering::SeqCst) {
+        texts.resume_monitoring
+    } else {
+        texts.pause_monitoring
+    };
+    let pause_i = MenuItem::with_id(app, "pause", pause_text, true, None::<&str>)?;
+    let quit_i = MenuItem::with_id(app, "quit", texts.quit, true, None::<&str>)?;
 
     state.insert("quick-paste", quick_paste_i.clone());
     state.insert("show", show_i.clone());
     state.insert("pause", pause_i.clone());
     state.insert("quit", quit_i.clone());
 
-    let screenshot_i = MenuItem::with_id(app, "screenshot", "Screenshot", true, None::<&str>)?;
-    let record_i = MenuItem::with_id(app, "record", "Screen Recording", true, None::<&str>)?;
+    let screenshot_i = MenuItem::with_id(app, "screenshot", texts.screenshot, true, None::<&str>)?;
+    let record_i = MenuItem::with_id(app, "record", texts.screen_recording, true, None::<&str>)?;
     #[cfg(target_os = "macos")]
-    let reset_perm_i = MenuItem::with_id(app, "reset-permission", "Reset Screen Recording Permission…", true, None::<&str>)?;
+    let reset_perm_i = MenuItem::with_id(app, "reset-permission", texts.reset_permission, true, None::<&str>)?;
     state.insert("screenshot", screenshot_i.clone());
     state.insert("record", record_i.clone());
     #[cfg(target_os = "macos")]
     state.insert("reset-permission", reset_perm_i.clone());
 
     // Build "Recent" submenu with the 5 most recent text items from DB
-    let recent_submenu = Submenu::with_items(app, "Recent", true, &[])?;
+    let recent_submenu = Submenu::with_items(app, texts.recent, true, &[])?;
+    state.insert_submenu("recent", recent_submenu.clone());
     {
         let db_state = app.state::<crate::db::DbState>();
         if let Ok(conn) = db_state.conn.lock() {
@@ -190,13 +212,13 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
 
     app.manage(state);
 
-    let icon = app.default_window_icon().cloned().unwrap_or_else(|| {
-        let bytes = include_bytes!("../icons/icon.png");
-        let img = image::load_from_memory(bytes).expect("Failed to load fallback tray icon");
+    let icon = {
+        let bytes = include_bytes!("../icons/tray-icon.png");
+        let img = image::load_from_memory(bytes).expect("Failed to load tray icon");
         let rgba = img.to_rgba8();
         let (w, h) = rgba.dimensions();
         tauri::image::Image::new_owned(rgba.into_raw(), w, h)
-    });
+    };
     // Set tooltip with item count
     let tooltip_text = {
         let db_state = app.state::<crate::db::DbState>();
@@ -359,6 +381,7 @@ struct TrayTexts {
     pause_monitoring: &'static str,
     resume_monitoring: &'static str,
     quit: &'static str,
+    recent: &'static str,
 }
 
 const TEXTS_ZH: TrayTexts = TrayTexts {
@@ -371,6 +394,7 @@ const TEXTS_ZH: TrayTexts = TrayTexts {
     pause_monitoring: "暂停监听",
     resume_monitoring: "恢复监听",
     quit: "退出",
+    recent: "最近复制",
 };
 
 const TEXTS_EN: TrayTexts = TrayTexts {
@@ -383,6 +407,7 @@ const TEXTS_EN: TrayTexts = TrayTexts {
     pause_monitoring: "Pause Monitoring",
     resume_monitoring: "Resume Monitoring",
     quit: "Quit",
+    recent: "Recent",
 };
 
 fn get_texts(locale: &str) -> &'static TrayTexts {
@@ -444,6 +469,7 @@ pub fn update_tray_locale(app: tauri::AppHandle, locale: String) -> Result<(), S
     };
     state.set_text("pause", pause_text);
     state.set_text("quit", texts.quit);
+    state.set_text("recent", texts.recent);
 
     Ok(())
 }
@@ -888,10 +914,13 @@ fn capture_screenshot<R: Runtime>(app: AppHandle<R>) {
     let dest_path = data_dir.join(&file_name);
     let tmp_path = std::env::temp_dir().join(format!("aboard_screenshot_{}.png", id));
 
-    // Try gnome-screenshot first, then scrot, then import (ImageMagick)
+    // Try gnome-screenshot with area selection first, then gnome-screenshot full, then scrot, then import
     let result = std::process::Command::new("gnome-screenshot")
+        .arg("-a")  // area selection (interactive)
         .arg("-f").arg(&tmp_path)
         .status()
+        .or_else(|_| std::process::Command::new("gnome-screenshot")
+            .arg("-f").arg(&tmp_path).status())
         .or_else(|_| std::process::Command::new("scrot").arg(&tmp_path).status())
         .or_else(|_| std::process::Command::new("import").arg("-window").arg("root").arg(&tmp_path).status());
 
@@ -936,21 +965,70 @@ fn capture_screenshot<R: Runtime>(app: AppHandle<R>) {
 }
 
 #[cfg(target_os = "linux")]
-fn stop_recording() {}
+static LINUX_RECORDING_CHILD: std::sync::Mutex<Option<std::process::Child>> = std::sync::Mutex::new(None);
+
+#[cfg(target_os = "linux")]
+fn stop_recording() {
+    if let Ok(mut guard) = LINUX_RECORDING_CHILD.lock() {
+        if let Some(ref mut child) = *guard {
+            // Send SIGINT to ffmpeg
+            unsafe { libc::kill(child.id() as i32, libc::SIGINT); }
+            let _ = child.wait();
+        }
+        *guard = None;
+    }
+}
 
 #[cfg(target_os = "linux")]
 fn start_screen_recording<R: Runtime>(app: AppHandle<R>, _record_item: MenuItem<R>) {
-    let locale = get_stored_locale();
-    let (title, msg) = if locale == "zh" {
-        ("暂不支持", "Linux 上的录屏功能尚未实现。")
-    } else {
-        ("Not Supported", "Screen recording is not yet supported on Linux.")
+    // Check if ffmpeg is available
+    let ffmpeg_check = std::process::Command::new("which")
+        .arg("ffmpeg")
+        .output();
+
+    if ffmpeg_check.is_err() || !ffmpeg_check.unwrap().status.success() {
+        let locale = get_stored_locale();
+        let (title, msg) = if locale == "zh" {
+            ("需要 ffmpeg", "Linux 录屏需要安装 ffmpeg。请运行: sudo apt install ffmpeg")
+        } else {
+            ("ffmpeg Required", "Screen recording on Linux requires ffmpeg. Install with: sudo apt install ffmpeg")
+        };
+        let _ = app.dialog()
+            .message(msg)
+            .title(title)
+            .kind(tauri_plugin_dialog::MessageDialogKind::Info)
+            .show(|_| {});
+        return;
+    }
+
+    let app_data_dir = match app.path().app_data_dir() {
+        Ok(dir) => dir,
+        Err(_) => return,
     };
-    let _ = app.dialog()
-        .message(msg)
-        .title(title)
-        .kind(tauri_plugin_dialog::MessageDialogKind::Info)
-        .show(|_| {});
+    let data_dir = app_data_dir.join("data");
+    let _ = std::fs::create_dir_all(&data_dir);
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let file_name = format!("{}.mp4", id);
+    let dest_path = data_dir.join(&file_name);
+    let tmp_path = std::env::temp_dir().join(format!("aboard_recording_{}.mp4", id));
+
+    match std::process::Command::new("ffmpeg")
+        .args(["-f", "x11grab", "-i", ":0.0", "-y", tmp_path.to_str().unwrap_or("")])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    {
+        Ok(child) => {
+            if let Ok(mut guard) = LINUX_RECORDING_CHILD.lock() {
+                *guard = Some(child);
+            }
+            let _ = _record_item.set_text("⏹ Stop Recording");
+        }
+        Err(e) => {
+            eprintln!("[tray] Failed to start ffmpeg recording: {}", e);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

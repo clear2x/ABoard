@@ -87,7 +87,7 @@ export default function ItemDetailModal(props: Props) {
             </div>
             <div class="flex items-center gap-2">
               <button
-                class="px-2.5 py-1 text-xs rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                class="px-2.5 py-1 text-xs rounded-lg bg-accent text-white hover:bg-[var(--color-accent-hover)] transition-colors"
                 onClick={handleCopy}
               >
                 <i class="ph ph-copy mr-1" />

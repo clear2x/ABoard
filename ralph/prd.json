@@ -1,0 +1,237 @@
+{
+  "project": "ABoard",
+  "branchName": "ralph/ux-polish-cleanup",
+  "description": "五大功能改进：云端API多风格支持、常用片段快捷操作、深色模式边框修复、跨平台审查修复、多主题支持",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add API style config field (chat/completions/responses/messages)",
+      "description": "As a developer, I need a config field to select which API request/response format the cloud provider uses.",
+      "acceptanceCriteria": [
+        "Add `api_style` field to AiConfig enum: ChatCompletions | Completions | Responses | Messages",
+        "Default to ChatCompletions for OpenAI provider, Messages for Anthropic provider",
+        "Add `anthropic_endpoint` String field to AiConfig, default empty (empty = use api.anthropic.com)",
+        "AiConfig JSON roundtrip includes api_style and anthropic_endpoint",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Added ApiStyle enum with 4 variants, anthropic_endpoint field, defaults and serde support in config.rs"
+    },
+    {
+      "id": "US-002",
+      "title": "Implement OpenAI Completions API format in cloud.rs",
+      "description": "As a user, I want to use providers that only support the legacy /v1/completions endpoint.",
+      "acceptanceCriteria": [
+        "Add completions-style request builder: sends prompt (not messages) to {endpoint}/completions",
+        "Parse response from choices[0].text (not choices[0].message.content)",
+        "OpenAiProvider::infer dispatches based on api_style config",
+        "Retain existing chat/completions behavior unchanged",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Added infer_completions() with prompt/text parsing, dispatches by api_style"
+    },
+    {
+      "id": "US-003",
+      "title": "Implement OpenAI Responses API format in cloud.rs",
+      "description": "As a user, I want to use the newer OpenAI Responses API (/v1/responses).",
+      "acceptanceCriteria": [
+        "Add responses-style request builder: sends input (not messages) to {endpoint}/responses",
+        "Parse response from output[0].content[0].text",
+        "OpenAiProvider::infer handles all three styles: chat/completions, completions, responses",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Added infer_responses() with input/output parsing, all 3 styles dispatch in infer()"
+    },
+    {
+      "id": "US-004",
+      "title": "Add Anthropic custom endpoint support",
+      "description": "As a user, I want to point Anthropic at a custom URL (proxy, Bedrock, Vertex).",
+      "acceptanceCriteria": [
+        "AnthropicProvider struct stores an `endpoint` field read from config",
+        "If anthropic_endpoint is empty, default to https://api.anthropic.com/v1/messages",
+        "AnthropicProvider::infer uses the configured endpoint URL",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "AnthropicProvider stores endpoint, defaults to api.anthropic.com/v1/messages when empty"
+    },
+    {
+      "id": "US-005",
+      "title": "Add API style and Anthropic endpoint to Settings UI",
+      "description": "As a user, I want to select API style and set custom Anthropic URL in Settings.",
+      "acceptanceCriteria": [
+        "Add API style dropdown in cloud settings: Chat Completions / Completions / Responses (for OpenAI), Messages (for Anthropic)",
+        "Add Anthropic endpoint URL input field (shown when Anthropic is selected)",
+        "handleSave includes api_style and anthropic_endpoint",
+        "Config load reads api_style and anthropic_endpoint",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "SettingsPanel has API style dropdown and Anthropic endpoint input, handleSave/config load include new fields"
+    },
+    {
+      "id": "US-006",
+      "title": "Add snippet paste-to-active and touch_snippet integration",
+      "description": "As a user, I want clicking a snippet to immediately paste it into the active app, and see MRU ordering work.",
+      "acceptanceCriteria": [
+        "Sidebar copySnippetContent calls invoke('paste_to_active', { content }) instead of navigator.clipboard.writeText",
+        "After clicking a snippet, call invoke('touch_snippet', { id }) to update last_used",
+        "List refreshes after touch to reflect new MRU order",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Sidebar uses paste_to_active and touch_snippet for instant paste + MRU ordering"
+    },
+    {
+      "id": "US-007",
+      "title": "Add snippet section to floating popup",
+      "description": "As a user, I want to access my snippets from the quick-access floating popup.",
+      "acceptanceCriteria": [
+        "FloatingPopup loads snippets via invoke('list_snippets') on mount",
+        "Add a collapsible 'Snippets' section below the recent items in the popup",
+        "Each snippet shows title, clicking pastes via paste_to_active and calls touch_snippet",
+        "Snippets are searchable via the existing search bar (filter by title)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "FloatingPopup loads snippets on mount, collapsible Snippets section below recent items, filtered by search, paste via paste_to_active + touch_snippet"
+    },
+    {
+      "id": "US-008",
+      "title": "Fix dark mode borders — border-white/80 and inline styles",
+      "description": "As a user, I want no bright white borders visible in dark mode.",
+      "acceptanceCriteria": [
+        "Replace all `border-white/80` without dark variant with `border-white/80 dark:border-white/10` across SettingsPanel, AiResultPopup, FloatingPopup, ConfirmDialog",
+        "Replace all `border-white/60` without dark variant with `border-white/60 dark:border-white/10`",
+        "Fix ContentArea inline border styles (lines ~228, ~265) to use CSS classes with dark: variant",
+        "Fix SettingsPanel inline border styles (lines ~342, ~347, ~835) to use CSS classes",
+        "Fix `border-gray-300/50` in FloatingPopup (3 occurrences) with dark: variant",
+        "Fix `border-red-200/60`, `border-blue-200`, `border-green-200/60` in SettingsPanel/AiResultPopup with dark: variants",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Fixed 40+ border instances: border-white/80, border-white/60, inline styles, border-gray-300/50, border-red/blue/green variants"
+    },
+    {
+      "id": "US-009",
+      "title": "Add Linux screen recording via ffmpeg x11grab",
+      "description": "As a Linux user, I want screen recording to work instead of showing 'Not Supported'.",
+      "acceptanceCriteria": [
+        "Linux start_screen_recording uses `ffmpeg -f x11grab -i :0.0` to record to temp .mp4",
+        "Linux stop_recording sends SIGINT to ffmpeg process (same pattern as macOS)",
+        "Show 'install ffmpeg' dialog if ffmpeg is not found",
+        "Linux tray menu no longer shows 'Not Supported' for recording — shows same label as other platforms",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "Linux uses ffmpeg -f x11grab for recording, SIGINT to stop, shows install dialog if missing"
+    },
+    {
+      "id": "US-010",
+      "title": "Improve Linux screenshot to support area selection",
+      "description": "As a Linux user, I want to select a screen area for screenshots instead of always capturing full screen.",
+      "acceptanceCriteria": [
+        "Linux screenshot tries `gnome-screenshot -a` first for interactive area selection",
+        "Falls back to full-screen capture if -a flag fails or tool is missing",
+        "Existing macOS and Windows screenshot behavior unchanged",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "Added gnome-screenshot -a as first attempt, falls back to full-screen capture"
+    },
+    {
+      "id": "US-011",
+      "title": "Add xdotool missing dependency error message on Linux",
+      "description": "As a Linux user, I want to see an error message if xdotool is not installed instead of silent paste failure.",
+      "acceptanceCriteria": [
+        "Linux simulate_paste checks if xdotool exists before running it",
+        "Returns Err with message 'xdotool not installed' if binary not found",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "simulate_paste checks which xdotool before running, returns Err with install instruction"
+    },
+    {
+      "id": "US-012",
+      "title": "Extend theme system with accent color support",
+      "description": "As a developer, I need the theme infrastructure to support multiple accent colors beyond blue.",
+      "acceptanceCriteria": [
+        "Add AccentColor type to theme.ts: 'blue' | 'green' | 'purple' | 'orange' | 'rose'",
+        "Add accentColor signal and setAccentColor function",
+        "Persist accent color to localStorage key 'aboard-accent'",
+        "Set data-accent attribute on documentElement when accent changes",
+        "Add CSS custom property sets in design-tokens.css for each accent color under :root[data-accent='green'] etc.",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": "Added AccentColor type, signal, localStorage persistence, data-accent attribute, CSS vars for 5 colors"
+    },
+    {
+      "id": "US-013",
+      "title": "Migrate hardcoded blue classes to accent CSS variables",
+      "description": "As a developer, I need all hardcoded blue accent colors replaced with CSS variable references so theme switching works.",
+      "acceptanceCriteria": [
+        "Replace bg-blue-500/bg-blue-600 active button classes with custom utility using var(--color-accent)",
+        "Replace ring-blue-500 focus ring classes with var(--color-accent) equivalent",
+        "Fix inline hex color in SettingsPanel line ~312 to use var(--color-accent)",
+        "Fix hardcoded rgba in index.css .ai-banner to use var(--color-accent)",
+        "All themes (blue/green/purple/orange/rose) produce correct accent colors when selected",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": "Added accent CSS utility classes (.bg-accent, .bg-accent-15/10, .border-accent, .ring-accent, .ring-accent-50) to index.css. Replaced all bg-blue-500/bg-blue-600 across 8 components (App, ContentArea, AiResultPopup, ItemDetailModal, Sidebar, ClipboardItemCard, SettingsPanel, FloatingPopup). Fixed inline #2563eb in SettingsPanel tab to var(--color-accent). Fixed .ai-banner hardcoded rgba to color-mix with accent var."
+    },
+    {
+      "id": "US-014",
+      "title": "Add accent color picker to Settings Appearance tab",
+      "description": "As a user, I want to pick my preferred accent color in Settings.",
+      "acceptanceCriteria": [
+        "Appearance tab shows 5 color swatches: blue, green, purple, orange, rose",
+        "Active swatch is highlighted with a check or ring",
+        "Clicking a swatch immediately applies the accent color",
+        "Selection persists across restarts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Add i18n keys for all new UI elements",
+      "description": "As a user, I want all new UI elements to have both Chinese and English labels.",
+      "acceptanceCriteria": [
+        "Add keys: settings.apiStyle, settings.apiStyleChat, settings.apiStyleCompletions, settings.apiStyleResponses, settings.apiStyleMessages, settings.anthropicEndpoint, sidebar.snippetsSection, settings.accentColor",
+        "Both zh and en translations present for all keys",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": "Added 8 new i18n keys with zh/en translations for API style, Anthropic endpoint, accent color"
+    }
+  ]
+}

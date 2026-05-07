@@ -2,7 +2,7 @@
 
 mod ai;
 mod clipboard;
-mod db;
+pub mod db;
 mod tray;
 
 use std::sync::Mutex;
@@ -59,9 +59,16 @@ fn simulate_paste() -> Result<(), String> {
     }
     #[cfg(target_os = "linux")]
     {
-        let _ = std::process::Command::new("xdotool")
+        let which_result = std::process::Command::new("which")
+            .arg("xdotool")
+            .output();
+        if which_result.is_err() || !which_result.unwrap().status.success() {
+            return Err("xdotool not installed. Install with: sudo apt install xdotool".to_string());
+        }
+        std::process::Command::new("xdotool")
             .args(["key", "--clearmodifiers", "ctrl+v"])
-            .spawn();
+            .spawn()
+            .map_err(|e| format!("xdotool error: {}", e))?;
     }
     Ok(())
 }
@@ -409,6 +416,8 @@ pub fn run() {
             ai::ai_infer_auto,
             ai::ai_embedded_load,
             ai::ai_embedded_download,
+            ai::ai_list_cloud_models,
+            ai::ai_infer_stream,
             db::update_ai_metadata,
             db::update_item_content,
             db::update_sort_order,

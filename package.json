@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "build:macos": "tauri build && codesign --force --deep --sign - --entitlements src-tauri/entitlements.plist src-tauri/target/release/bundle/macos/ABoard.app"
+    "build:macos": "tauri build && codesign --force --deep --sign - --entitlements src-tauri/entitlements.plist src-tauri/target/release/bundle/macos/ABoard.app",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@phosphor-icons/web": "^2.1.2",
@@ -21,13 +23,16 @@
     "turndown": "^7.2.4"
   },
   "devDependencies": {
+    "@solidjs/testing-library": "^0.8.10",
     "@tailwindcss/vite": "^4",
     "@tauri-apps/cli": "^2",
     "@types/markdown-it": "^14.1.2",
     "@types/turndown": "^5.0.6",
+    "happy-dom": "^20.9.0",
     "tailwindcss": "^4",
     "typescript": "^5.7",
     "vite": "^6",
-    "vite-plugin-solid": "^2"
+    "vite-plugin-solid": "^2",
+    "vitest": "^4.1.5"
   }
 }

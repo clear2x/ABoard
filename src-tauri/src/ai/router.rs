@@ -44,6 +44,9 @@ impl ComplexityRouter {
         let local_available = Self::is_local_available(config);
         let cloud_available = Self::is_cloud_available(config);
 
+        // Determine which cloud provider to use based on available keys
+        let cloud_provider = Self::preferred_cloud_provider(config);
+
         match (&complexity, local_available, cloud_available) {
             // Simple task, local available -> local
             (Complexity::Simple, true, _) => RoutingDecision {
@@ -59,15 +62,15 @@ impl ComplexityRouter {
             },
             // Medium task, cloud available -> cloud for better quality
             (Complexity::Medium, _, true) => RoutingDecision {
-                provider: ProviderType::OpenAi,
+                provider: cloud_provider.clone(),
                 complexity,
-                reason: "中等任务，路由到云端以获得更高质量".to_string(),
+                reason: format!("中等任务，路由到云端以获得更高质量 ({})", cloud_provider_name(&cloud_provider)),
             },
             // Complex task, cloud available -> cloud
             (Complexity::Complex, _, true) => RoutingDecision {
-                provider: ProviderType::OpenAi,
+                provider: cloud_provider.clone(),
                 complexity,
-                reason: "复杂任务，路由到云端 provider".to_string(),
+                reason: format!("复杂任务，路由到云端 provider ({})", cloud_provider_name(&cloud_provider)),
             },
             // Any complexity, only local available -> local
             (_, true, false) => RoutingDecision {
@@ -77,9 +80,9 @@ impl ComplexityRouter {
             },
             // Any complexity, only cloud available -> cloud
             (_, false, true) => RoutingDecision {
-                provider: ProviderType::OpenAi,
+                provider: cloud_provider.clone(),
                 complexity,
-                reason: "仅云端 provider 可用".to_string(),
+                reason: format!("仅云端 provider 可用 ({})", cloud_provider_name(&cloud_provider)),
             },
             // No provider available -> default to local (will error at infer time)
             (_, false, false) => RoutingDecision {
@@ -149,6 +152,25 @@ impl ComplexityRouter {
     fn is_cloud_available(config: &AiConfig) -> bool {
         config.openai_api_key.is_some() || config.anthropic_api_key.is_some()
     }
+
+    /// Determine the preferred cloud provider based on available keys.
+    /// Prefers OpenAI if available, falls back to Anthropic.
+    fn preferred_cloud_provider(config: &AiConfig) -> ProviderType {
+        if config.openai_api_key.is_some() {
+            ProviderType::OpenAi
+        } else {
+            ProviderType::Anthropic
+        }
+    }
+}
+
+/// Human-readable name for a cloud provider type.
+fn cloud_provider_name(provider: &ProviderType) -> &'static str {
+    match provider {
+        ProviderType::OpenAi => "OpenAI",
+        ProviderType::Anthropic => "Anthropic",
+        _ => "unknown",
+    }
 }
 
 #[cfg(test)]
@@ -177,6 +199,14 @@ mod tests {
         AiConfig {
             active_provider: ProviderType::Auto,
             openai_api_key: Some("sk-test".to_string()),
+            ..AiConfig::default()
+        }
+    }
+
+    fn config_with_anthropic_only() -> AiConfig {
+        AiConfig {
+            active_provider: ProviderType::Auto,
+            anthropic_api_key: Some("sk-ant-test".to_string()),
             ..AiConfig::default()
         }
     }
@@ -260,6 +290,21 @@ mod tests {
         let req = make_request("帮我分类这段文字", None);
         let decision = ComplexityRouter::route(&req, &config_with_both());
         assert_eq!(decision.complexity, Complexity::Simple);
+    }
+
+    #[test]
+    fn test_anthropic_only_routes_to_anthropic() {
+        let req = make_request("translate this text", None);
+        let decision = ComplexityRouter::route(&req, &config_with_anthropic_only());
+        assert_eq!(decision.provider, ProviderType::Anthropic);
+        assert!(decision.reason.contains("Anthropic"));
+    }
+
+    #[test]
+    fn test_anthropic_only_no_local_routes_anthropic() {
+        let req = make_request("test", None);
+        let decision = ComplexityRouter::route(&req, &config_with_anthropic_only());
+        assert_eq!(decision.provider, ProviderType::Anthropic);
     }
 
     #[test]

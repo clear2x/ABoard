@@ -36,20 +36,20 @@ const TIME_FILTERS = [
   { key: "last7days", labelKey: "filter.last7days" },
 ] as const;
 
-function isToday(ts: number): boolean {
+export function isToday(ts: number): boolean {
   const d = new Date(ts);
   const now = new Date();
   return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
 }
 
-function isYesterday(ts: number): boolean {
+export function isYesterday(ts: number): boolean {
   const d = new Date(ts);
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   return d.getDate() === yesterday.getDate() && d.getMonth() === yesterday.getMonth() && d.getFullYear() === yesterday.getFullYear();
 }
 
-function isLast7Days(ts: number): boolean {
+export function isLast7Days(ts: number): boolean {
   return Date.now() - ts < 7 * 24 * 60 * 60 * 1000;
 }
 
@@ -218,15 +218,12 @@ export default function ContentArea() {
 
   return (
     <div
-      class="flex-1 flex flex-col bg-white/10 relative dark:bg-slate-900/20 min-w-0"
+      class="flex-1 flex flex-col bg-transparent relative min-w-0"
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
       {/* Filter tabs */}
-      <div class="flex flex-nowrap gap-4 px-6 pt-4 pb-2 border-b text-sm text-gray-500 sticky top-0 bg-white/20 backdrop-blur-md z-10 whitespace-nowrap overflow-x-auto no-scrollbar dark:bg-slate-800/30 dark:text-gray-400"
-        style={{
-          "border-color": "rgba(255,255,255,0.3)",
-        }}
+      <div class="flex flex-nowrap gap-4 px-6 pt-4 pb-2 border-b border-[var(--color-border)] text-sm text-[var(--color-text-muted)] sticky top-0 glass-panel-inner backdrop-blur-md z-10 whitespace-nowrap overflow-x-auto no-scrollbar"
       >
         <For each={TIME_FILTERS}>
           {(filter) => {
@@ -235,7 +232,7 @@ export default function ContentArea() {
               <button
                 class="pb-1 cursor-pointer transition-colors"
                 classList={{
-                  "text-blue-600 font-medium border-b-2 border-blue-600": isActive(),
+                  "text-accent font-medium border-b-2 border-accent": isActive(),
                   "hover:text-gray-800 dark:hover:text-gray-300": !isActive(),
                 }}
                 onClick={() => setTimeFilter(filter.key)}
@@ -261,8 +258,7 @@ export default function ContentArea() {
 
       {/* Batch mode toolbar */}
       <Show when={batchMode()}>
-        <div class="flex items-center gap-2 px-4 py-2 bg-white/10"
-          style={{ "border-bottom": "1px solid rgba(255,255,255,0.2)" }}
+        <div class="flex items-center gap-2 px-4 py-2 border-b border-[var(--color-border)]"
         >
           <button class="px-3 py-1.5 text-xs rounded-lg hover:bg-white/30 transition-colors text-gray-600" onClick={selectAll}>
             {t("clipboard.selectAll")}
@@ -278,7 +274,7 @@ export default function ContentArea() {
             {t("clipboard.deleteSelected")} ({selectedCount()})
           </button>
           <button
-            class="px-3 py-1.5 text-xs rounded-lg text-white disabled:opacity-40 bg-blue-500"
+            class="px-3 py-1.5 text-xs rounded-lg text-white disabled:opacity-40 bg-accent"
             disabled={selectedCount() === 0}
             onClick={handleExport}
           >

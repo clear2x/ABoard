@@ -6,6 +6,14 @@ import { items, loadHistory, type ClipboardItem, copyItemContent, pinItem, unpin
 import { initLocale, t } from "../stores/i18n";
 import { initTheme } from "../stores/theme";
 
+interface Snippet {
+  id: string;
+  title: string;
+  content: string;
+  created_at: number;
+  updated_at: number;
+}
+
 function displayType(item: ClipboardItem): string {
   return item.ai_type || item.type;
 }
@@ -43,6 +51,8 @@ export default function FloatingPopup() {
   const [windowPinned, setWindowPinned] = createSignal(false);
   const [dragItemId, setDragItemId] = createSignal<string | null>(null);
   const [dropTargetId, setDropTargetId] = createSignal<string | null>(null);
+  const [snippets, setSnippets] = createSignal<Snippet[]>([]);
+  const [snippetsCollapsed, setSnippetsCollapsed] = createSignal(false);
 
   function handlePopupDrop(fromId: string, toId: string) {
     if (fromId === toId) return;
@@ -82,6 +92,14 @@ export default function FloatingPopup() {
       unlisten();
       if (reloadTimer) clearTimeout(reloadTimer);
     });
+
+    // Load snippets
+    try {
+      const result = await invoke<Snippet[]>("list_snippets");
+      setSnippets(result);
+    } catch (e) {
+      console.error("[FloatingPopup] Failed to load snippets:", e);
+    }
 
     await getCurrentWindow().setFocus();
 
@@ -151,6 +169,12 @@ export default function FloatingPopup() {
     return popupItems().filter((i) => i.content.toLowerCase().includes(q));
   };
 
+  const filteredSnippets = () => {
+    const q = searchText().toLowerCase();
+    if (!q) return snippets();
+    return snippets().filter((s) => s.title.toLowerCase().includes(q));
+  };
+
   const pinnedItems = () => filteredItems().filter((i) => i.pinned);
   const recentItems = () => filteredItems().filter((i) => !i.pinned).slice(0, 8);
 
@@ -169,6 +193,16 @@ export default function FloatingPopup() {
     } catch (e) {
       console.error("[FloatingPopup] Paste failed:", e);
       await getCurrentWindow().hide();
+    }
+  }
+
+  async function pasteSnippet(snippet: Snippet) {
+    try {
+      await invoke("paste_to_active", { content: snippet.content });
+      await invoke("touch_snippet", { id: snippet.id });
+      await getCurrentWindow().hide();
+    } catch (e) {
+      console.error("[FloatingPopup] Snippet paste failed:", e);
     }
   }
 
@@ -274,7 +308,7 @@ export default function FloatingPopup() {
         </div>
 
         {/* Search bar */}
-        <div class="relative flex items-center bg-white/60 border border-white/80 rounded-lg px-3 py-1.5 shadow-sm">
+        <div class="relative flex items-center bg-white/60 border border-white/80 dark:border-white/10 rounded-lg px-3 py-1.5 shadow-sm">
           <i class="ph ph-magnifying-glass text-sm text-gray-400" />
           <input
             type="text"
@@ -283,7 +317,7 @@ export default function FloatingPopup() {
             onInput={(e) => { setSearchText((e.target as HTMLInputElement).value); setSelectedIndex(0); }}
             class="bg-transparent border-none outline-none text-xs ml-2 w-full text-gray-600 placeholder-gray-400"
           />
-          <span class="text-[10px] bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 shrink-0">⌘K</span>
+          <span class="text-[10px] bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 dark:border-gray-500/50 shrink-0">⌘K</span>
         </div>
       </div>
 
@@ -311,7 +345,7 @@ export default function FloatingPopup() {
                     <div
                       class="glass-card p-3 rounded-xl cursor-pointer relative transition-opacity"
                       classList={{
-                        "ring-1 ring-blue-500/50": globalIndex() === selectedIndex(),
+                        "ring-1 ring-accent-50": globalIndex() === selectedIndex(),
                         "opacity-40": dragItemId() === item.id,
                         "border-t-2 border-blue-400": dropTargetId() === item.id,
                       }}
@@ -371,7 +405,7 @@ export default function FloatingPopup() {
                     <div
                       class="glass-card p-3 rounded-xl cursor-pointer relative transition-opacity"
                       classList={{
-                        "ring-1 ring-blue-500/50": globalIndex() === selectedIndex(),
+                        "ring-1 ring-accent-50": globalIndex() === selectedIndex(),
                         "opacity-40": dragItemId() === item.id,
                         "border-t-2 border-blue-400": dropTargetId() === item.id,
                       }}
@@ -414,6 +448,35 @@ export default function FloatingPopup() {
             </div>
           </div>
         </Show>
+
+        {/* Snippets section (collapsible) */}
+        <Show when={filteredSnippets().length > 0}>
+          <div>
+            <div
+              class="flex justify-between items-center text-xs mb-2 px-1 font-medium text-gray-500 cursor-pointer select-none"
+              onClick={() => setSnippetsCollapsed((c) => !c)}
+            >
+              <span class="flex items-center gap-1">
+                <i class={`ph ph-caret-${snippetsCollapsed() ? "right" : "down"} text-[10px]`} />
+                <i class="ph ph-notebook" /> {t("sidebar.snippets")}
+              </span>
+            </div>
+            <Show when={!snippetsCollapsed()}>
+              <div class="space-y-1">
+                <For each={filteredSnippets()}>
+                  {(snippet) => (
+                    <div
+                      class="glass-card p-2 rounded-lg cursor-pointer hover:bg-white/40 transition-colors"
+                      onClick={() => pasteSnippet(snippet)}
+                    >
+                      <div class="text-xs font-medium text-gray-700 truncate">{snippet.title}</div>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </div>
+        </Show>
       </div>
 
       {/* Footer — expand to main window */}
@@ -427,10 +490,10 @@ export default function FloatingPopup() {
         <div class="flex items-center gap-2">
           <span class="text-[10px] text-gray-400">{t("float.shortcutPin")}</span>
           <span class="text-[10px] text-gray-400">{t("float.shortcutDelete")}</span>
-          <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 text-[10px]">
+          <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 dark:border-gray-500/50 text-[10px]">
             Shift+Enter: {t("float.plainText")}
           </span>
-          <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 text-[10px]">
+          <span class="bg-gray-200/50 text-gray-500 px-1.5 rounded border border-gray-300/50 dark:border-gray-500/50 text-[10px]">
             ⌘⌥O
           </span>
         </div>

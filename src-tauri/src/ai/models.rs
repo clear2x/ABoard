@@ -278,3 +278,184 @@ impl ModelManager {
     }
 
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    fn setup_db() -> Mutex<Connection> {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS model_metadata (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'available',
+                downloaded_at INTEGER NOT NULL,
+                context_length INTEGER NOT NULL DEFAULT 2048,
+                description TEXT
+            );"
+        ).unwrap();
+        Mutex::new(conn)
+    }
+
+    fn insert_test_model(conn: &Mutex<Connection>, id: &str, filename: &str) {
+        let conn_lock = conn.lock().unwrap();
+        conn_lock.execute(
+            "INSERT INTO model_metadata (id, name, filename, file_path, file_size, status, downloaded_at, context_length)
+             VALUES (?1, ?2, ?3, ?4, ?5, 'available', 1000, 2048)",
+            params![id, filename.trim_end_matches(".gguf"), filename, format!("/tmp/{}", filename), 1024],
+        ).unwrap();
+    }
+
+    #[test]
+    fn test_list_models_empty() {
+        let conn = setup_db();
+        let models = ModelManager::list_models(&conn, None).unwrap();
+        assert!(models.is_empty());
+    }
+
+    #[test]
+    fn test_list_models_with_entries() {
+        let conn = setup_db();
+        insert_test_model(&conn, "id-1", "model-a.gguf");
+        insert_test_model(&conn, "id-2", "model-b.gguf");
+
+        let models = ModelManager::list_models(&conn, None).unwrap();
+        assert_eq!(models.len(), 2);
+    }
+
+    #[test]
+    fn test_list_models_marks_active() {
+        let conn = setup_db();
+        insert_test_model(&conn, "id-1", "model-a.gguf");
+        insert_test_model(&conn, "id-2", "model-b.gguf");
+
+        let models = ModelManager::list_models(&conn, Some("/tmp/model-a.gguf")).unwrap();
+        assert!(models.iter().any(|m| m.filename == "model-a.gguf" && m.is_active));
+        assert!(models.iter().any(|m| m.filename == "model-b.gguf" && !m.is_active));
+    }
+
+    #[test]
+    fn test_register_model() {
+        let conn = setup_db();
+        let meta = ModelManager::register_model(
+            &conn,
+            "test-model.gguf",
+            4096,
+            "/tmp/test-model.gguf",
+        ).unwrap();
+
+        assert_eq!(meta.name, "test-model");
+        assert_eq!(meta.filename, "test-model.gguf");
+        assert_eq!(meta.file_size, 4096);
+        assert_eq!(meta.status, "available");
+        assert_eq!(meta.context_length, 2048);
+
+        // Verify it's in the DB
+        let models = ModelManager::list_models(&conn, None).unwrap();
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].id, meta.id);
+    }
+
+    #[test]
+    fn test_register_model_strips_gguf_extension() {
+        let conn = setup_db();
+        let meta = ModelManager::register_model(
+            &conn,
+            "my-awesome-model.gguf",
+            1024,
+            "/tmp/my-awesome-model.gguf",
+        ).unwrap();
+        assert_eq!(meta.name, "my-awesome-model");
+    }
+
+    #[test]
+    fn test_delete_model() {
+        let conn = setup_db();
+        let tmp = tempfile::tempdir().unwrap();
+        let model_path = tmp.path().join("del-test.gguf");
+        std::fs::write(&model_path, b"fake").unwrap();
+
+        let meta = ModelManager::register_model(
+            &conn,
+            "del-test.gguf",
+            4,
+            model_path.to_str().unwrap(),
+        ).unwrap();
+
+        // File exists
+        assert!(model_path.exists());
+
+        ModelManager::delete_model(&conn, &meta.id).unwrap();
+
+        // File removed
+        assert!(!model_path.exists());
+
+        // DB entry removed
+        let models = ModelManager::list_models(&conn, None).unwrap();
+        assert!(models.is_empty());
+    }
+
+    #[test]
+    fn test_delete_model_rejects_invalid_id() {
+        let conn = setup_db();
+        let result = ModelManager::delete_model(&conn, "../../../etc/passwd");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid model ID"));
+    }
+
+    #[test]
+    fn test_delete_model_rejects_long_id() {
+        let conn = setup_db();
+        let long_id = "a".repeat(100);
+        let result = ModelManager::delete_model(&conn, &long_id);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_scan_models_dir_creates_dir_if_missing() {
+        let conn = setup_db();
+        let tmp = tempfile::tempdir().unwrap();
+        let models_dir = tmp.path().join("nonexistent_models");
+
+        let models = ModelManager::scan_models_dir(&conn, &models_dir, None).unwrap();
+        assert!(models.is_empty());
+        assert!(models_dir.exists());
+    }
+
+    #[test]
+    fn test_scan_models_dir_finds_gguf_files() {
+        let conn = setup_db();
+        let tmp = tempfile::tempdir().unwrap();
+        let models_dir = tmp.path().join("models");
+        std::fs::create_dir_all(&models_dir).unwrap();
+
+        // Create a fake GGUF file
+        let gguf_path = models_dir.join("test-scan.gguf");
+        std::fs::write(&gguf_path, b"fake gguf content").unwrap();
+
+        let models = ModelManager::scan_models_dir(&conn, &models_dir, None).unwrap();
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].filename, "test-scan.gguf");
+        assert_eq!(models[0].name, "test-scan");
+    }
+
+    #[test]
+    fn test_scan_models_dir_marks_missing_files_as_error() {
+        let conn = setup_db();
+        insert_test_model(&conn, "id-1", "missing.gguf");
+        // The file_path points to a nonexistent location
+
+        let tmp = tempfile::tempdir().unwrap();
+        let models_dir = tmp.path().join("models");
+        std::fs::create_dir_all(&models_dir).unwrap();
+
+        let models = ModelManager::scan_models_dir(&conn, &models_dir, None).unwrap();
+        // The model should be marked as "error" because its file doesn't exist
+        assert!(models.iter().any(|m| m.filename == "missing.gguf" && m.status == "error"));
+    }
+}

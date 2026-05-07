@@ -106,7 +106,7 @@ export default function App() {
           </span>
           <div class="flex items-center gap-2">
             <button
-              class="text-xs px-2 py-1 rounded transition-smooth bg-blue-500 text-white"
+              class="text-xs px-2 py-1 rounded transition-smooth bg-accent text-white"
               onClick={openSettings}
             >{t("settings.title")}</button>
             <button

@@ -5,7 +5,7 @@ import type { ClipboardItem } from "../stores/clipboard";
 import { copyItemContent, copiedId, getItemContent } from "../stores/clipboard";
 import { t } from "../stores/i18n";
 
-function truncateText(text: string, maxLen: number = 120): string {
+export function truncateText(text: string, maxLen: number = 120): string {
   if (text.length <= maxLen) return text;
   return text.slice(0, maxLen) + "...";
 }
@@ -37,12 +37,12 @@ function highlightText(text: string, query: string): JSX.Element {
   );
 }
 
-function displayType(item: ClipboardItem): string {
+export function displayType(item: ClipboardItem): string {
   return item.ai_type || item.type;
 }
 
 /** Detect if content looks like markdown (US-010) */
-function isMarkdown(content: string): boolean {
+export function isMarkdown(content: string): boolean {
   return /^(#|\*\*|\* |- |1\. |\[.*\]\(.*\)|```)/m.test(content);
 }
 
@@ -67,7 +67,7 @@ function renderMarkdown(text: string): string {
 }
 
 /** Map content type to avatar config */
-function typeAvatar(type: string): { letter: string; bg: string; color: string; icon?: string } {
+export function typeAvatar(type: string): { letter: string; bg: string; color: string; icon?: string } {
   switch (type) {
     case "code":
       return { letter: "", bg: "bg-purple-50", color: "text-purple-500", icon: "ph-code" };
@@ -184,11 +184,11 @@ export default function ClipboardItemCard(props: Props) {
       <div
         data-item-id={props.item.id}
         class={`glass-card flex-1 p-4 rounded-xl relative cursor-pointer transition-all duration-150
-          ${props.isSelected ? "ring-2 ring-blue-500 bg-blue-50/60 dark:bg-blue-900/20 shadow-sm" : "hover:bg-white/30"}`}
+          ${props.isSelected ? "ring-2 ring-accent bg-blue-50/60 dark:bg-blue-900/20 shadow-sm" : "hover:bg-white/30"}`}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onClick={() => props.onSelect(props.item.id)}
-        onDoubleClick={handleDoubleClick}
+        onDblClick={handleDoubleClick}
         onContextMenu={(e) => {
           e.preventDefault();
           props.onContextMenu(e, props.item.id, props.item.pinned);
@@ -207,7 +207,7 @@ export default function ClipboardItemCard(props: Props) {
               type="checkbox"
               checked={props.checked}
               onChange={() => props.onSelect(props.item.id)}
-              class="mt-1 accent-blue-500 shrink-0"
+              class="mt-1 accent-[var(--color-accent)] shrink-0"
             />
           </Show>
 
@@ -271,7 +271,7 @@ export default function ClipboardItemCard(props: Props) {
                       <Show
                         when={isMarkdown(props.item.content)}
                         fallback={
-                          <p class="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
+                          <p class="text-sm text-[var(--color-text-primary)] leading-relaxed break-words overflow-wrap-anywhere">
                             {highlightText(truncateText(props.item.content), query())}
                           </p>
                         }
@@ -293,19 +293,6 @@ export default function ClipboardItemCard(props: Props) {
                       ));
                     })()}
                   </div>
-                </Show>
-
-                {/* Character and word count (US-009) */}
-                <Show when={props.item.type !== "image" && props.item.type !== "video" && dtype() !== "link"}>
-                  {(() => {
-                    const chars = props.item.content.length;
-                    const words = props.item.content.split(/\s+/).filter(Boolean).length;
-                    return (
-                      <span class="text-xs text-gray-400 mt-1 block">
-                        {chars} {t("clipboard.chars")} &middot; {words} {t("clipboard.words")}
-                      </span>
-                    );
-                  })()}
                 </Show>
 
                 {/* Tags — matching ui.html */}
@@ -375,8 +362,8 @@ export default function ClipboardItemCard(props: Props) {
 
         {/* Copied feedback */}
         <Show when={justCopied()}>
-          <div class="absolute inset-0 flex items-center justify-center rounded-xl pointer-events-none bg-blue-500/15 backdrop-blur-[2px]">
-            <span class="text-xs font-medium px-2 py-1 rounded-full bg-blue-500 text-white">
+          <div class="absolute inset-0 flex items-center justify-center rounded-xl pointer-events-none bg-accent-15 backdrop-blur-[2px]">
+            <span class="text-xs font-medium px-2 py-1 rounded-full bg-accent text-white">
               {t("ctx.copied")}
             </span>
           </div>
@@ -412,13 +399,13 @@ export default function ClipboardItemCard(props: Props) {
     <div
       data-item-id={props.item.id}
       class={`glass-card transition-all duration-150 cursor-pointer hover-lift p-3 relative
-        ${props.isSelected ? "ring-2 ring-blue-500 bg-blue-50/60 shadow-sm" : "hover:bg-white/30"}
-        ${props.showCheckbox && props.checked ? "bg-blue-500/10 border-blue-500/50" : ""}
+        ${props.isSelected ? "ring-2 ring-accent bg-blue-50/60 shadow-sm" : "hover:bg-white/30"}
+        ${props.showCheckbox && props.checked ? "bg-accent-10 border-accent-50" : ""}
       `}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => props.onSelect(props.item.id)}
-      onDoubleClick={handleDoubleClick}
+      onDblClick={handleDoubleClick}
       onContextMenu={(e) => {
         e.preventDefault();
         props.onContextMenu(e, props.item.id, props.item.pinned);
@@ -427,7 +414,7 @@ export default function ClipboardItemCard(props: Props) {
       <div class="flex items-center justify-between mb-1">
         <Show when={props.showCheckbox}>
           <input type="checkbox" checked={props.checked} onChange={() => props.onSelect(props.item.id)}
-            class="mr-2 accent-blue-500 shrink-0" />
+            class="mr-2 accent-[var(--color-accent)] shrink-0" />
         </Show>
         <div class="flex items-center gap-1.5 overflow-hidden flex-1 min-w-0">
           {props.item.pinned && <span class="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />}
@@ -443,7 +430,7 @@ export default function ClipboardItemCard(props: Props) {
       <Show
         when={props.item.type === "image"}
         fallback={
-          <p class="break-all leading-relaxed text-sm text-gray-700">
+          <p class="break-words overflow-wrap-anywhere leading-relaxed text-sm text-[var(--color-text-primary)]">
             {highlightText(truncateText(props.item.content), query())}
           </p>
         }
@@ -470,8 +457,8 @@ export default function ClipboardItemCard(props: Props) {
       </Show>
 
       <Show when={justCopied()}>
-        <div class="absolute inset-0 flex items-center justify-center rounded-xl pointer-events-none bg-blue-500/15 backdrop-blur-[2px]">
-          <span class="text-xs font-medium px-2 py-1 rounded-full bg-blue-500 text-white">
+        <div class="absolute inset-0 flex items-center justify-center rounded-xl pointer-events-none bg-accent-15 backdrop-blur-[2px]">
+          <span class="text-xs font-medium px-2 py-1 rounded-full bg-accent text-white">
             {t("ctx.copied")}
           </span>
         </div>

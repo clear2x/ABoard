@@ -32,6 +32,12 @@ jobs:
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+          cache-on-failure: true
+
       - name: Install dependencies (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -48,12 +54,99 @@ jobs:
         run: npm ci
 
       - uses: tauri-apps/tauri-action@v0
+        id: build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "ABoard ${{ github.ref_name }}"
-          releaseBody: "See the assets to download and install this version."
+          releaseBody: |
+            ## ABoard ${{ github.ref_name }}
+
+            ### macOS 安装说明
+
+            下载 `.dmg` 文件后，打开会提示 **"无法验证开发者"**。这是正常现象（应用使用自签名，未经过 Apple 公证）。
+
+            **打开方式：**
+            1. 在 Finder 中找到 ABoard.app
+            2. **右键点击** → 选择 **打开**
+            3. 在弹窗中再次点击 **打开** 即可
+
+            > 如果直接双击打开，Gatekeeper 会拦截。右键打开可以绕过验证。
+            > ⚠️ 如果不签名，应用会直接闪退（Killed），连右键打开的机会都没有。
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Ad-hoc sign and repackage DMG (macOS)
+        if: matrix.platform == 'macos-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Determine target directory from build args
+          TRIPLE=""
+          if echo "${{ matrix.args }}" | grep -q "\-\-target"; then
+            TRIPLE="$(echo "${{ matrix.args }}" | awk '{print $2}')/"
+          fi
+          TARGET="src-tauri/target/${TRIPLE}release"
+
+          APP_BUNDLE="${TARGET}/bundle/macos/ABoard.app"
+          DMG_DIR="${TARGET}/bundle/dmg"
+          ENTITLEMENTS="src-tauri/entitlements.plist"
+
+          echo "=== Before signing ==="
+          codesign -dvvv "${APP_BUNDLE}" 2>&1 || true
+
+          echo "=== Ad-hoc signing (no hardened runtime) ==="
+          # NOTE: Do NOT use --options runtime with ad-hoc signing (-).
+          # Hardened runtime requires a valid Developer ID chain; ad-hoc
+          # lacks that, so macOS Tahoe treats it as "damaged" and blocks
+          # even the right-click → Open bypass.  Without --options runtime,
+          # the app gets a valid ad-hoc signature that shows "unverified
+          # developer" — which users CAN bypass via right-click → Open.
+          codesign --force --deep --sign - \
+            --entitlements "${ENTITLEMENTS}" \
+            "${APP_BUNDLE}"
+
+          echo "=== After signing ==="
+          codesign -dvvv "${APP_BUNDLE}" 2>&1
+
+          echo "=== Re-creating DMG ==="
+          ARCH="aarch64"
+          DMG_NAME="ABoard_${{ github.ref_name }}_aarch64.dmg"
+          if echo "${{ matrix.args }}" | grep -q "x86_64"; then
+            ARCH="x86_64"
+            DMG_NAME="ABoard_${{ github.ref_name }}_x86_64.dmg"
+          fi
+
+          # Remove old DMG created by tauri build
+          rm -f "${DMG_DIR}/"*.dmg
+
+          # Create new DMG from signed .app
+          hdiutil create -volname "ABoard" \
+            -srcfolder "${APP_BUNDLE}" \
+            -ov -format UDZO \
+            "${DMG_DIR}/${DMG_NAME}"
+
+          echo "=== DMG size ==="
+          ls -lh "${DMG_DIR}/${DMG_NAME}"
+
+          # Upload signed DMG (replace the unsigned one from tauri-action)
+          echo "Uploading signed DMG to release..."
+          gh release upload "${{ github.ref_name }}" "${DMG_DIR}/${DMG_NAME}" --clobber
+
+      - name: Upload macOS .app as zip (backup)
+        if: matrix.platform == 'macos-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TRIPLE=""
+          if echo "${{ matrix.args }}" | grep -q "\-\-target"; then
+            TRIPLE="$(echo "${{ matrix.args }}" | awk '{print $2}')/"
+          fi
+          TARGET="src-tauri/target/${TRIPLE}release"
+          APP_BUNDLE="${TARGET}/bundle/macos/ABoard.app"
+          ZIP_NAME="ABoard_${{ github.ref_name }}_macos.zip"
+
+          ditto -c -k --sequesterRsrc --keepParent "${APP_BUNDLE}" "/tmp/${ZIP_NAME}"
+          gh release upload "${{ github.ref_name }}" "/tmp/${ZIP_NAME}" --clobber

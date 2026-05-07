@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "ABoard",
@@ -56,6 +57,7 @@
     ],
     "targets": "all",
     "macOS": {
+      "signingIdentity": "-",
       "entitlements": "entitlements.plist",
       "minimumSystemVersion": "14.0",
       "infoPlist": "Info.plist"

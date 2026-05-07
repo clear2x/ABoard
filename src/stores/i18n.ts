@@ -313,6 +313,19 @@ const t_map: Translations = {
   "settings.pressNewShortcut": { zh: "按下新快捷键...", en: "Press new shortcut..." },
   "settings.imported": { zh: "已导入 {n} 条", en: "Imported {n} items" },
   "settings.importError": { zh: "导入失败", en: "Import failed" },
+  "settings.connectionOk": { zh: "连接成功", en: "Connected" },
+  "settings.connectionFailed": { zh: "连接失败", en: "Connection Failed" },
+  "settings.testConnection": { zh: "测试连接", en: "Test Connection" },
+  "settings.advancedParams": { zh: "高级参数", en: "Advanced Parameters" },
+  "settings.apiKeyRequired": { zh: "云端模式需要填写 API 密钥", en: "API key is required for cloud mode" },
+  "settings.apiStyle": { zh: "API 风格", en: "API Style" },
+  "settings.apiStyleChat": { zh: "Chat Completions", en: "Chat Completions" },
+  "settings.apiStyleCompletions": { zh: "Completions", en: "Completions" },
+  "settings.apiStyleResponses": { zh: "Responses", en: "Responses" },
+  "settings.apiStyleMessages": { zh: "Messages", en: "Messages" },
+  "settings.anthropicEndpoint": { zh: "Anthropic 端点 URL", en: "Anthropic Endpoint URL" },
+  "sidebar.snippetsSection": { zh: "常用片段", en: "Snippets" },
+  "settings.accentColor": { zh: "主题色", en: "Accent Color" },
 };
 
 // --- Translation function ---

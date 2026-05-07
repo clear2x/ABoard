@@ -12,13 +12,14 @@ const CATEGORIES = [
   { key: "text", icon: "ph-file-text", labelKey: "sidebar.text" },
 ] as const;
 
+export function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
 export default function Sidebar() {
-  const formatSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-  };
 
   // --- Snippets state ---
   interface Snippet {
@@ -89,9 +90,11 @@ export default function Sidebar() {
 
   async function copySnippetContent(snippet: Snippet) {
     try {
-      await navigator.clipboard.writeText(snippet.content);
+      await invoke("paste_to_active", { content: snippet.content });
+      await invoke("touch_snippet", { id: snippet.id });
+      await loadSnippets();
     } catch (e) {
-      console.error("[sidebar] Failed to copy snippet:", e);
+      console.error("[sidebar] Failed to paste snippet:", e);
     }
   }
 
@@ -136,7 +139,7 @@ export default function Sidebar() {
   });
 
   return (
-    <div class="w-[160px] min-w-[160px] bg-white/20 border-r border-white/40 flex flex-col gap-6 overflow-y-auto no-scrollbar shrink-0 p-3 dark:bg-slate-800/30 dark:border-white/10">
+    <div class="w-[160px] min-w-[160px] glass-panel-inner flex flex-col gap-6 overflow-y-auto no-scrollbar shrink-0 p-3">
       {/* Logo */}
       <div class="flex items-center gap-2 font-bold text-gray-700 dark:text-gray-200 px-2 pt-2">
         <i class="ph-fill ph-clipboard-text text-blue-600 text-xl" />
@@ -153,7 +156,7 @@ export default function Sidebar() {
               <li
                 class="flex justify-between items-center px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors"
                 classList={{
-                  "bg-blue-500 text-white shadow-sm": isActive(),
+                  "bg-accent text-white shadow-sm": isActive(),
                   "text-gray-600 hover:bg-white/40 dark:text-gray-300 dark:hover:bg-white/10": !isActive(),
                 }}
                 onClick={() => setCategoryFilter(cat.key)}
@@ -294,7 +297,7 @@ export default function Sidebar() {
                 {t("clipboard.cancel")}
               </button>
               <button
-                class="px-3 py-1.5 rounded-lg text-xs bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                class="px-3 py-1.5 rounded-lg text-xs bg-accent text-white hover:bg-[var(--color-accent-hover)] transition-colors"
                 onClick={saveSnippet}
               >
                 {t("snippet.save")}

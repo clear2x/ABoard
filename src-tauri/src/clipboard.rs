@@ -71,9 +71,10 @@ pub fn compute_hash(content: &[u8]) -> String {
 /// Returns the new monitoring state: true = monitoring active, false = paused.
 #[tauri::command]
 pub fn toggle_monitoring() -> bool {
-    let current = MONITORING_PAUSED.load(Ordering::SeqCst);
-    MONITORING_PAUSED.store(!current, Ordering::SeqCst);
-    !current // return true = active (was not paused → now paused means we return the previous paused state inverted)
+    let was_paused = MONITORING_PAUSED.load(Ordering::SeqCst);
+    MONITORING_PAUSED.store(!was_paused, Ordering::SeqCst);
+    // Return the new active state (opposite of MONITORING_PAUSED)
+    !MONITORING_PAUSED.load(Ordering::SeqCst)
 }
 
 /// Query current monitoring state.
@@ -84,16 +85,16 @@ pub fn get_monitoring_state() -> bool {
 }
 
 /// Get the macOS NSPasteboard changeCount (cheap integer read).
+/// Returns `None` on failure (e.g. osascript unavailable).
 #[cfg(target_os = "macos")]
-fn get_pasteboard_change_count() -> i64 {
+fn get_pasteboard_change_count() -> Option<i64> {
     let output = std::process::Command::new("osascript")
         .arg("-e")
         .arg("use framework \"AppKit\"; return current application's NSPasteboard's generalPasteboard()'s changeCount() as integer")
-        .output();
-    match output {
-        Ok(o) => String::from_utf8_lossy(&o.stdout).trim().parse().unwrap_or(-1),
-        Err(_) => -1,
-    }
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    text.parse::<i64>().ok()
 }
 
 /// Start the clipboard monitoring loop.
@@ -116,16 +117,18 @@ pub fn start_monitoring<R: Runtime>(app: tauri::AppHandle<R>) {
                 continue;
             }
 
-            // macOS: use NSPasteboard changeCount for zero-cost change detection
+            // macOS: use NSPasteboard changeCount for zero-cost change detection.
+            // If osascript fails (None), fall through to the hash-based detection below.
             #[cfg(target_os = "macos")]
             {
-                let current_count = get_pasteboard_change_count();
-                if let Some(last) = last_change_count {
-                    if current_count == last {
-                        continue; // No change — skip expensive clipboard read
+                if let Some(current_count) = get_pasteboard_change_count() {
+                    if let Some(last) = last_change_count {
+                        if current_count == last {
+                            continue; // No change — skip expensive clipboard read
+                        }
                     }
+                    last_change_count = Some(current_count);
                 }
-                last_change_count = Some(current_count);
             }
 
             // Check for multi-file clipboard (Finder copy of multiple files)
@@ -244,7 +247,7 @@ const MAX_FILES_PER_PASTE: usize = 20;
 
 /// Process multiple files from clipboard (for multi-file copy support).
 /// Returns all created items, or empty vec if no files found.
-fn try_read_file_list_multi<R: Runtime>(app: &tauri::AppHandle<R>) -> Vec<ClipboardItem> {
+fn try_read_file_list_multi<R: Runtime>(_app: &tauri::AppHandle<R>) -> Vec<ClipboardItem> {
     let mut clipboard = match ArboardClipboard::new() {
         Ok(cb) => cb,
         Err(_) => return vec![],
@@ -797,11 +800,49 @@ mod tests {
     }
 
     #[test]
+    fn test_is_file_paths_single_uri() {
+        assert!(is_file_paths("file:///Users/test/doc.txt"));
+    }
+
+    #[test]
+    fn test_is_file_paths_multiple_unix() {
+        assert!(is_file_paths("/a.txt\n/b.txt\n/c.txt"));
+    }
+
+    #[test]
+    fn test_is_file_paths_windows_paths() {
+        assert!(is_file_paths("C:\\Users\\test\nC:\\Windows\\sys"));
+    }
+
+    #[test]
+    fn test_is_file_paths_home_dir() {
+        assert!(is_file_paths("~/doc1.txt\n~/doc2.txt\n~/doc3.txt"));
+    }
+
+    #[test]
+    fn test_is_file_paths_not_paths() {
+        assert!(!is_file_paths("Just some regular text"));
+    }
+
+    #[test]
+    fn test_is_file_paths_single_line_not_uri() {
+        assert!(!is_file_paths("/single/path.txt"));
+    }
+
+    #[test]
+    fn test_detect_content_type_file_uri() {
+        let (ct, _) = detect_content_type("file:///tmp/test.json");
+        assert_eq!(ct, "file-paths");
+    }
+
+    #[test]
     fn test_toggle_monitoring() {
-        let initial = MONITORING_PAUSED.load(Ordering::SeqCst);
+        let initial_paused = MONITORING_PAUSED.load(Ordering::SeqCst);
         let new_state = toggle_monitoring();
-        assert_eq!(new_state, !initial);
-        // Toggle back to restore state
+        // After toggle, the returned active state should match the internal flag
+        assert_eq!(new_state, !MONITORING_PAUSED.load(Ordering::SeqCst));
+        // Toggle back to restore original state
         toggle_monitoring();
+        assert_eq!(MONITORING_PAUSED.load(Ordering::SeqCst), initial_paused);
     }
 }

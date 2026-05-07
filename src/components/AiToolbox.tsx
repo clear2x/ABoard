@@ -141,9 +141,7 @@ export default function AiToolbox() {
   ];
 
   return (
-    <div class="w-[200px] min-w-[200px] bg-white/20 border-l flex flex-col shrink-0 p-3 dark:bg-slate-800/30"
-      style={{ "border-color": "rgba(255,255,255,0.4)" }}
-    >
+    <div class="w-[200px] min-w-[200px] glass-panel-inner flex flex-col shrink-0 p-3">
       {/* Header */}
       <div class="flex items-center gap-2 font-medium text-gray-600 dark:text-gray-300 mb-4 px-1">
         <i class="ph-fill ph-magic-wand text-blue-500" />
@@ -184,8 +182,8 @@ export default function AiToolbox() {
       </Show>
 
       {/* Privacy footer */}
-      <div class="mt-auto pt-4 text-center text-[10px] flex items-center justify-center gap-1 text-gray-400 dark:text-gray-500"
-        style={{ "border-top": "1px solid rgba(255,255,255,0.4)" }}
+      <div class="mt-auto pt-4 text-center text-[10px] flex items-center justify-center gap-1 text-[var(--color-text-muted)]"
+        style={{ "border-top": "1px solid var(--color-border-subtle)" }}
       >
         <i class="ph ph-shield-check" />
         {t("toolbox.privacyNote")}
