@@ -212,13 +212,13 @@ pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), Box<dyn std::err
 
     app.manage(state);
 
-    let icon = app.default_window_icon().cloned().unwrap_or_else(|| {
-        let bytes = include_bytes!("../icons/icon.png");
-        let img = image::load_from_memory(bytes).expect("Failed to load fallback tray icon");
+    let icon = {
+        let bytes = include_bytes!("../icons/tray-icon.png");
+        let img = image::load_from_memory(bytes).expect("Failed to load tray icon");
         let rgba = img.to_rgba8();
         let (w, h) = rgba.dimensions();
         tauri::image::Image::new_owned(rgba.into_raw(), w, h)
-    });
+    };
     // Set tooltip with item count
     let tooltip_text = {
         let db_state = app.state::<crate::db::DbState>();
