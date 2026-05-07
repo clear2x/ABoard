@@ -221,7 +221,7 @@ return "OK"
         // On Windows, copy the file path as text — Explorer will handle file paste
         use tauri_plugin_clipboard_manager::ClipboardExt;
         app.clipboard()
-            .write_text(&abs.to_string_lossy())
+            .write_text(abs.to_string_lossy().into_owned())
             .map_err(|e| format!("Clipboard write error: {}", e))?;
         Ok(())
     }
@@ -250,7 +250,7 @@ return "OK"
                 // Fallback: copy path as text
                 use tauri_plugin_clipboard_manager::ClipboardExt;
                 app.clipboard()
-                    .write_text(&abs.to_string_lossy())
+                    .write_text(abs.to_string_lossy().into_owned())
                     .map_err(|e| format!("Clipboard write error: {}", e))?;
                 Ok(())
             }
