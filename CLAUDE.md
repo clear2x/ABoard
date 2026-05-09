@@ -3,7 +3,7 @@
 
 **ABoard**
 
-ABoard 是一款跨平台智能剪贴板桌面应用（macOS / Windows / Linux），由 Tauri（Rust + Web UI）驱动。它常驻系统托盘，自动捕获剪贴板内容并提供持久化历史管理，内置本地 AI 小模型（llama.cpp / Ollama）实现智能分类、文本处理、格式化和语义搜索，同时支持可选的云端 AI API。面向追求效率的开发者和知识工作者。
+ABoard 是一款跨平台智能剪贴板桌面应用（macOS / Windows），由 Tauri（Rust + Web UI）驱动。它常驻系统托盘，自动捕获剪贴板内容并提供持久化历史管理，内置本地 AI 小模型（llama.cpp / Ollama）实现智能分类、文本处理、格式化和语义搜索，同时支持可选的云端 AI API。面向追求效率的开发者和知识工作者。
 
 **Core Value:** 复制即智能 — 每一次剪贴操作都自动获得 AI 增强处理，无需额外操作。
 

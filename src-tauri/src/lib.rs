@@ -57,19 +57,6 @@ fn simulate_paste() -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("SendKeys error: {}", e))?;
     }
-    #[cfg(target_os = "linux")]
-    {
-        let which_result = std::process::Command::new("which")
-            .arg("xdotool")
-            .output();
-        if which_result.is_err() || !which_result.unwrap().status.success() {
-            return Err("xdotool not installed. Install with: sudo apt install xdotool".to_string());
-        }
-        std::process::Command::new("xdotool")
-            .args(["key", "--clearmodifiers", "ctrl+v"])
-            .spawn()
-            .map_err(|e| format!("xdotool error: {}", e))?;
-    }
     Ok(())
 }
 
@@ -92,10 +79,6 @@ fn open_url(url: String) -> Result<(), String> {
             .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .spawn()
             .map_err(|e| format!("Failed to open URL: {}", e))?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open").arg(&url).spawn().map_err(|e| format!("Failed to open URL: {}", e))?;
     }
     Ok(())
 }
@@ -165,7 +148,7 @@ end if
         return Ok(());
     }
 
-    // Windows / Linux: use Tauri clipboard plugin
+    // Windows: use Tauri clipboard plugin
     #[cfg(not(target_os = "macos"))]
     {
         use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -221,41 +204,11 @@ return "OK"
         // On Windows, copy the file path as text — Explorer will handle file paste
         use tauri_plugin_clipboard_manager::ClipboardExt;
         app.clipboard()
-            .write_text(&abs.to_string_lossy())
+            .write_text(abs.to_string_lossy().into_owned())
             .map_err(|e| format!("Clipboard write error: {}", e))?;
         Ok(())
     }
 
-    #[cfg(target_os = "linux")]
-    {
-        // Use xclip to set file URI on clipboard
-        let uri = format!("file://{}", abs.display());
-        let output = std::process::Command::new("xclip")
-            .args(["-selection", "clipboard", "-t", "text/uri-list"])
-            .stdin(std::process::Stdio::piped())
-            .spawn();
-        match output {
-            Ok(mut child) => {
-                use std::io::Write;
-                if let Some(ref mut stdin) = child.stdin {
-                    let _ = writeln!(stdin, "{}", uri);
-                }
-                let status = child.wait().map_err(|e| format!("xclip wait error: {}", e))?;
-                if !status.success() {
-                    return Err("xclip failed".to_string());
-                }
-                Ok(())
-            }
-            Err(_) => {
-                // Fallback: copy path as text
-                use tauri_plugin_clipboard_manager::ClipboardExt;
-                app.clipboard()
-                    .write_text(&abs.to_string_lossy())
-                    .map_err(|e| format!("Clipboard write error: {}", e))?;
-                Ok(())
-            }
-        }
-    }
 }
 
 /// Reveal a file in the system file manager (Finder / Explorer / file manager).
@@ -283,16 +236,6 @@ fn reveal_in_folder(app: tauri::AppHandle, file_path: String) -> Result<(), Stri
             .spawn()
             .map_err(|e| format!("Failed to open Explorer: {}", e))?;
     }
-    #[cfg(target_os = "linux")]
-    {
-        // Open the parent folder (xdg-open doesn't support file selection)
-        let parent = full_path.parent().unwrap_or(&full_path);
-        std::process::Command::new("xdg-open")
-            .arg(parent)
-            .spawn()
-            .map_err(|e| format!("Failed to open file manager: {}", e))?;
-    }
-
     Ok(())
 }
 
@@ -449,7 +392,7 @@ pub fn run() {
                 tray::setup_app_menu(&app.handle())?;
             }
 
-            // Windows/Linux: hide system decorations to avoid double title bar.
+            // Windows: hide system decorations to avoid double title bar.
             // macOS uses Overlay titleBarStyle (set in tauri.conf.json) which
             // shows traffic lights without a visible title bar.
             #[cfg(not(target_os = "macos"))]

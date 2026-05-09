@@ -355,13 +355,6 @@ fn try_read_image<R: Runtime>(app: &tauri::AppHandle<R>) -> Option<ClipboardItem
             return Some(item);
         }
     }
-    #[cfg(target_os = "linux")]
-    {
-        if let Some(item) = try_read_image_fallback() {
-            return Some(item);
-        }
-    }
-
     None
 }
 
@@ -584,77 +577,6 @@ if ($files.Count -gt 0) {
     }
 
     None
-}
-
-/// Linux fallback: read image via xclip.
-/// Tries image/png first, then falls back to text/uri-list for file manager copies.
-#[cfg(target_os = "linux")]
-fn try_read_image_fallback() -> Option<ClipboardItem> {
-    use std::process::Command;
-
-    // Method 1: Try reading image/png directly
-    let output = Command::new("xclip")
-        .args(["-selection", "clipboard", "-t", "image/png", "-o"])
-        .output()
-        .ok()?;
-
-    if !output.stdout.is_empty() {
-        let img = image::ImageReader::new(std::io::Cursor::new(&output.stdout))
-            .with_guessed_format()
-            .ok()?
-            .decode()
-            .ok()?;
-
-        let rgba = img.to_rgba8();
-        let (w, h) = rgba.dimensions();
-        return encode_and_build_item(&rgba, w, h);
-    }
-
-    // Method 2: Try text/uri-list for file manager copies (e.g. Nautilus)
-    let uri_output = Command::new("xclip")
-        .args(["-selection", "clipboard", "-t", "text/uri-list", "-o"])
-        .output()
-        .ok()?;
-
-    let uri_list = String::from_utf8_lossy(&uri_output.stdout);
-    for line in uri_list.lines() {
-        let line = line.trim();
-        if line.is_empty() { continue; }
-        // Convert file:// URI to path, with percent-decode for special chars
-        let path = if line.starts_with("file://") {
-            let encoded = line.trim_start_matches("file://");
-            percent_decode_path(encoded)
-        } else {
-            line.to_string()
-        };
-        if let Some(item) = read_image_file(&path) {
-            return Some(item);
-        }
-    }
-
-    None
-}
-
-/// Simple percent-decoding for file URI paths (e.g., %20 → space).
-#[cfg(target_os = "linux")]
-fn percent_decode_path(encoded: &str) -> String {
-    let mut result = String::with_capacity(encoded.len());
-    let mut chars = encoded.bytes();
-    while let Some(b) = chars.next() {
-        if b == b'%' {
-            let hi = chars.next().unwrap_or(b'0');
-            let lo = chars.next().unwrap_or(b'0');
-            if let Ok(byte) = u8::from_str_radix(
-                &String::from_utf8_lossy(&[hi, lo]),
-                16,
-            ) {
-                result.push(byte as char);
-                continue;
-            }
-        }
-        result.push(b as char);
-    }
-    result
 }
 
 /// Persist a clipboard item to DB, emit event, and enqueue AI processing.
