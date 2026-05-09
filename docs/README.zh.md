@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-0A0A0A?style=flat-square" alt="Platform">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-0A0A0A?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/Tauri-v2-24C8D8?style=flat-square" alt="Tauri v2">
   <img src="https://img.shields.io/badge/size-%3C20MB-4C1?style=flat-square" alt="Small Footprint">
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT License">
@@ -57,7 +57,7 @@
 ### 屏幕捕获
 
 - **截图** — 交互式区域选择，自动保存到剪贴板历史
-- **录屏** — 从托盘菜单直接录制 MP4（支持 macOS / Windows / Linux）
+- **录屏** — 从托盘菜单直接录制 MP4（支持 macOS / Windows）
 
 ## 截图
 
@@ -79,9 +79,9 @@ ABoard 使用自签名（未经 Apple 公证）。首次打开时：
 
 > 直接双击会被 Gatekeeper 拦截。右键 → 打开 可以绕过验证。
 
-### Windows & Linux
+### Windows
 
-从 [Releases](https://github.com/clear2x/ABoard/releases) 下载对应平台的安装包。
+从 [Releases](https://github.com/clear2x/ABoard/releases) 下载安装包。
 
 ## 快速开始（开发）
 

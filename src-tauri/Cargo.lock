@@ -16,7 +16,6 @@ dependencies = [
  "core-graphics 0.24.0",
  "futures-util",
  "image",
- "libc",
  "regex",
  "reqwest 0.12.28",
  "rusqlite",

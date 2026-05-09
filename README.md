@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-0A0A0A?style=flat-square" alt="Platform">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-0A0A0A?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/Tauri-v2-24C8D8?style=flat-square" alt="Tauri v2">
   <img src="https://img.shields.io/badge/size-%3C20MB-4C1?style=flat-square" alt="Small Footprint">
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT License">
@@ -57,7 +57,7 @@ Every time you copy something, ABoard captures, categorizes, and enriches it wit
 ### Screen Capture
 
 - **Screenshot** — interactive area selection, auto-saved to clipboard history
-- **Screen recording** — record to MP4 directly from the tray menu (macOS / Windows / Linux)
+- **Screen recording** — record to MP4 directly from the tray menu (macOS / Windows)
 
 ## Screenshots
 
@@ -79,9 +79,9 @@ ABoard uses ad-hoc signing (not Apple-notarized). On first launch:
 
 > Direct double-click will be blocked by Gatekeeper. Right-click → Open bypasses this.
 
-### Windows & Linux
+### Windows
 
-Download the installer/package for your platform from [Releases](https://github.com/clear2x/ABoard/releases).
+Download the installer from [Releases](https://github.com/clear2x/ABoard/releases).
 
 ## Quick Start (Development)
 
